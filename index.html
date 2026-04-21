@@ -16,8 +16,8 @@
 // The icon src values inside the manifest can be data: URIs — that works fine.
 (function injectManifest() {
   const manifest = {
-    name: 'STLCityRoute — YourCityRoute',
-    short_name: 'STL Route',
+    name: 'STL CityRoute',
+    short_name: 'CityRoute',
     description: 'City of St. Louis Field Route Planner',
     start_url: './',
     display: 'standalone',
@@ -46,7 +46,7 @@
     link.rel = 'manifest';
     link.href = url;
     document.head.appendChild(link);
-    console.log('[PWA] Manifest injected via Blob URL');
+    // PWA manifest injected via Blob URL (required for data: icon URIs to work)
   } catch(e) {
     console.warn('[PWA] Manifest injection failed:', e.message);
   }
@@ -834,6 +834,7 @@ header{
     <div style="display:flex;gap:5px">
       <button class="btn-sm btn-nav" style="padding:5px 10px;font-size:0.72rem" title="GPS + refresh map" onclick="pingGPSOnMap();refreshRouteMap()">📡 GPS</button>
       <button class="btn-sm btn-nav" style="padding:5px 10px;font-size:0.6rem" onclick="refreshRouteMap()">🔄 REFRESH</button>
+      <button class="btn-sm" style="padding:5px 10px;font-size:0.58rem;background:#1a4a8c;color:white;border:none;border-radius:7px;cursor:pointer;white-space:nowrap" onclick="openGISMap()" title="Open STL City GIS parcel viewer at your location">🗺️ GIS</button>
     </div>
   </div>
   <div id="map-gps-status" style="display:none;font-size:0.62rem;color:var(--warn);font-family:'Syne',sans-serif;font-weight:700;margin-bottom:7px;text-align:center">📡 Getting location…</div>
@@ -857,6 +858,7 @@ header{
         <div id="map-popup-meta" style="font-size:0.6rem;color:#888;margin-top:2px"></div>
         <div style="display:flex;gap:4px;margin-top:6px;align-items:center;flex-wrap:nowrap">
           <button onclick="mapPropActive()" style="background:#e8f4fd;color:#1a5276;border:1.5px solid rgba(26,82,118,0.2);padding:0;border-radius:7px;font-size:0.68rem;cursor:pointer;flex-shrink:0;width:30px;height:30px;display:flex;align-items:center;justify-content:center;border:none" title="Property search">🔍</button>
+          <button onclick="mapGISActive()" style="background:#1a3c6e;color:#5ba4cf;border:1.5px solid rgba(91,164,207,0.3);padding:0;border-radius:7px;font-size:0.68rem;cursor:pointer;flex-shrink:0;width:30px;height:30px;display:flex;align-items:center;justify-content:center" title="Open ArcGIS parcel viewer at this stop">🗺️</button>
           <button onclick="mapCsbActive()" style="background:#fff3e0;color:#e65100;border:1.5px solid rgba(230,81,0,0.25);padding:0;border-radius:7px;font-size:0.68rem;cursor:pointer;flex-shrink:0;width:30px;height:30px;display:flex;align-items:center;justify-content:center;border:none" title="CSB">📞</button>
           <button onclick="mapArriveActive()" id="map-popup-arrive" style="background:linear-gradient(135deg,#1a4a8c,#2563eb);color:white;padding:0;border-radius:7px;font-size:0.68rem;cursor:pointer;flex-shrink:0;width:30px;height:30px;display:flex;align-items:center;justify-content:center;border:none" title="Mark arrived">📍</button>
           <button onclick="mapCloseActive()" style="background:linear-gradient(135deg,var(--moss),var(--leaf));color:white;padding:0;border-radius:7px;font-size:0.68rem;cursor:pointer;flex-shrink:0;width:30px;height:30px;display:flex;align-items:center;justify-content:center;border:none" title="Close stop">✓</button>
@@ -994,10 +996,10 @@ header{
 
     <div style="font-family:'Syne',sans-serif;font-weight:700;font-size:0.62rem;color:#555;margin-bottom:4px;margin-top:8px">+ ADD CUSTOM DEPARTMENT</div>
     <div style="display:flex;flex-direction:column;gap:5px;padding:10px;background:#f8f8f6;border-radius:9px;margin-bottom:8px">
-      <input type="text" id="custom-dept-name" class="input-field" placeholder="Department name" style="font-size:0.7rem">
-      <input type="text" id="custom-dept-phone" class="input-field" placeholder="Phone (optional)" style="font-size:0.7rem">
-      <input type="text" id="custom-dept-address" class="input-field" placeholder="Address (optional)" style="font-size:0.7rem">
-      <input type="text" id="custom-dept-url" class="input-field" placeholder="Website URL (optional)" style="font-size:0.7rem">
+      <input type="text" id="custom-dept-name" class="input-field" autocomplete="off" placeholder="Department name" style="font-size:0.7rem">
+      <input type="text" id="custom-dept-phone" class="input-field" autocomplete="off" placeholder="Phone (optional)" style="font-size:0.7rem">
+      <input type="text" id="custom-dept-address" class="input-field" autocomplete="off" placeholder="Address (optional)" style="font-size:0.7rem">
+      <input type="text" id="custom-dept-url" class="input-field" autocomplete="off" placeholder="Website URL (optional)" style="font-size:0.7rem">
       <button onclick="addCustomDept()" style="width:100%;padding:8px;border:none;border-radius:8px;background:var(--forest);color:var(--lime);font-family:'Syne',sans-serif;font-weight:700;font-size:0.68rem;cursor:pointer">➕ ADD DEPARTMENT</button>
     </div>
 
@@ -1511,6 +1513,22 @@ header{
 // ============================================================
 const APP_VERSION        = '${APP_VERSION}'; // stamped by GitHub Actions on every deploy
 const SCHEMA_VERSION     = '3';          // bump when stop object shape changes
+// Delegated click action identifiers — single source of truth
+const ACTIONS = {
+  NAV:     'nav',
+  ARRIVE:  'arrive',
+  CLOSE:   'close',
+  NOTES:   'notes',
+  PROP:    'prop',
+  CSB:     'csb',
+  TYPE:    'type',
+  RESTORE: 'restore',
+  DEL:     'del',
+  PIN:     'pin',
+  UP:      'up',
+  DN:      'dn',
+};
+const STOP_DEFAULTS      = { type:'inspection', done:false, notes:'', lat:null, lng:null, addedAt:null, completedAt:null, arrivedAt:null, verified:false, addrNote:null };
 const STL_CITY_BOUNDS    = [[38.532, -90.320], [38.774, -90.016]];
 const STL_CITY_CENTER    = [38.627, -90.1994];
 const NOMINATIM_VIEWBOX  = '-90.320,38.774,-90.016,38.532';
@@ -1527,6 +1545,11 @@ function escHtml(str){return String(str).replace(/&/g,'&amp;').replace(/</g,'&lt
 function showToast(msg){const t=document.getElementById('toast');t.textContent=msg;t.classList.add('show');setTimeout(()=>t.classList.remove('show'),2500);}
 
 // Save stops to localStorage
+let _saveStopsTimer = null;
+function saveStopsDebounced() {
+  clearTimeout(_saveStopsTimer);
+  _saveStopsTimer = setTimeout(saveStops, 300);
+}
 function saveStops(){
   try {
     localStorage.setItem('inspector-data', JSON.stringify({ stops, routeOrder }));
@@ -1736,7 +1759,7 @@ function applyCaseloadFlagsToStop() {}
 // ============================================================
 // Load from atomic inspector-data key (legacy separate keys removed — unused since 2024)
 let _savedData = null;
-try { _savedData = JSON.parse(localStorage.getItem('inspector-data') || 'null'); } catch(e) {}
+try { _savedData = safeParseLS('inspector-data', null); } catch(e) {}
 let stops      = Array.isArray(_savedData?.stops)      ? _savedData.stops      : [];
 let routeOrder = Array.isArray(_savedData?.routeOrder) ? _savedData.routeOrder : [];
 let scannedAddresses = [];
@@ -1744,8 +1767,8 @@ let scannedAddresses = [];
 // Location — safe parse, null on any error
 let manualOrigin = null;
 let endLocation  = null;
-try { manualOrigin = JSON.parse(localStorage.getItem('inspector-manual-origin') || 'null'); } catch(e) {}
-try { endLocation  = JSON.parse(localStorage.getItem('inspector-end-location')  || 'null'); } catch(e) {}
+try { manualOrigin = safeParseLS('inspector-manual-origin', null); } catch(e) {}
+try { endLocation  = safeParseLS('inspector-end-location', null); } catch(e) {}
 let pinnedStartId = localStorage.getItem('inspector-pinned-start') || null;
 let _mapNeedsRefresh = false; // set whenever route changes; cleared when map tab opens
 
@@ -1798,13 +1821,17 @@ function init() {
 function _attachStopsListListener() {
   const list = document.getElementById('stops-list');
   if (!list) return;
+  // Guard against double-attachment — only one listener per list element lifetime
+  if (list.dataset.listenerAttached) return;
+  list.dataset.listenerAttached = '1';
   list.addEventListener('click', e => {
     const btn = e.target.closest('[data-action]');
     if (!btn) return;
     const { action, id, addr } = btn.dataset;
     const numId = Number(id);
     if (action === 'nav')            navToStop(addr);
-    if (action === 'prop')           openPropertySearch(addr);
+    if (action === 'prop')           openPropertySearch(addr, parseFloat(btn.dataset.lat)||null, parseFloat(btn.dataset.lng)||null);
+    if (action === 'gis')            openGISMap(parseFloat(btn.dataset.lat)||null, parseFloat(btn.dataset.lng)||null);
     if (action === 'csb')            openCsbForAddress(addr);
     if (action === 'type')           openTypeChange(numId);
     if (action === 'arrive')          markStopArrived(numId);
@@ -1817,6 +1844,39 @@ function _attachStopsListListener() {
 }
 
 function _initBody() {
+  // ── One-time data migrations ─────────────────────────────────
+  // v1→v2: inspector-name key renamed to inspector-id
+  if (localStorage.getItem('inspector-name') && !localStorage.getItem('inspector-id')) {
+    localStorage.setItem('inspector-id', localStorage.getItem('inspector-name'));
+    localStorage.removeItem('inspector-name');
+  }
+  // v2→v3: completedAt/arrivedAt stored as ms numbers, now ISO strings
+  try {
+    var _rd = safeParseLS('inspector-data', null);
+    if (_rd && Array.isArray(_rd.stops)) {
+      var _m = false;
+      _rd.stops.forEach(function(s) {
+        if (typeof s.completedAt === 'number') { s.completedAt = new Date(s.completedAt).toISOString(); _m = true; }
+        if (typeof s.arrivedAt   === 'number') { s.arrivedAt   = new Date(s.arrivedAt).toISOString();   _m = true; }
+      });
+      if (_m) localStorage.setItem('inspector-data', JSON.stringify(_rd));
+    }
+  } catch(_e) {}
+  // Enforce stop schema — fill in missing fields introduced in newer versions
+  try {
+    var _sd = safeParseLS('inspector-data', null);
+    if (_sd && Array.isArray(_sd.stops) && _sd.stops.length) {
+      _sd.stops.forEach(function(s) {
+        Object.keys(STOP_DEFAULTS).forEach(function(k) {
+          if (!(k in s)) s[k] = STOP_DEFAULTS[k];
+        });
+        // Ensure addedAt is set (older stops may not have it)
+        if (!s.addedAt) s.addedAt = new Date(s.id || Date.now()).toISOString();
+      });
+      localStorage.setItem('inspector-data', JSON.stringify(_sd));
+    }
+  } catch(_e2) {}
+
   const now = new Date();
   const days = ['SUN','MON','TUE','WED','THU','FRI','SAT'];
   document.getElementById('day-name').textContent = days[now.getDay()];
@@ -1881,6 +1941,17 @@ function _initBody() {
     if (document.visibilityState === 'hidden') { saveStops(); logDaySession(); }
   });
   window.addEventListener('beforeunload', saveStops);
+
+  // Retry pending Sheets push when coming back online
+  window.addEventListener('online', function() {
+    var pending = localStorage.getItem('sheets-pending-push');
+    if (!pending) return;
+    var webhookUrl = localStorage.getItem('sheets-webhook-url');
+    if (!webhookUrl) return;
+    fetch(webhookUrl, { method:'POST', mode:'no-cors', headers:{'Content-Type':'application/json'}, body: pending })
+      .then(function() { localStorage.removeItem('sheets-pending-push'); showToast('📊 Pending Sheets sync sent ✓'); })
+      .catch(function() {});
+  });
 }
 
 // ============================================================
@@ -1988,29 +2059,33 @@ function addrInputChanged() {
 // Fetch suggestions from Nominatim
 // ── Pass 1: fetch house-level Nominatim results ───────────────────────────
 async function _fetchNominatimHouses(raw, signal) {
-  const base = 'https://nominatim.openstreetmap.org/search?format=json&addressdetails=1&limit=6&countrycodes=us';
-  const view  = '&viewbox=' + NOMINATIM_VIEWBOX + '&bounded=1';
-  const r = await fetch(base + view + '&q=' + encodeURIComponent(raw + ', St. Louis City, MO'),
-    { headers: {'User-Agent':'STLCityRoute/1.0'}, signal });
-  const data = await r.json();
-  return data.filter(d =>
-    d.addresstype === 'house' || d.class === 'building' ||
-    (d.address && d.address.house_number)
-  );
+  try {
+    const base = 'https://nominatim.openstreetmap.org/search?format=json&addressdetails=1&limit=6&countrycodes=us';
+      const view  = '&viewbox=' + NOMINATIM_VIEWBOX + '&bounded=1';
+      const r = await fetch(base + view + '&q=' + encodeURIComponent(raw + ', St. Louis City, MO'),
+        { headers: {'User-Agent':'STLCityRoute/1.0'}, signal });
+      const data = await r.json();
+      return data.filter(d =>
+        d.addresstype === 'house' || d.class === 'building' ||
+        (d.address && d.address.house_number)
+      );
+  } catch(e) { return []; }
 }
 
 // ── Pass 2: street-level fallback when no house results ───────────────────
 async function _fetchNominatimStreets(raw, signal) {
-  const base = 'https://nominatim.openstreetmap.org/search?format=json&addressdetails=1&limit=6&countrycodes=us';
-  const view  = '&viewbox=' + NOMINATIM_VIEWBOX + '&bounded=1';
-  const streetOnly = raw.replace(/^\d+\s*/, '');
-  if (streetOnly === raw) return []; // no house number to strip
-  const r = await fetch(base + view + '&q=' + encodeURIComponent(streetOnly + ', St. Louis City, MO'),
-    { headers: {'User-Agent':'STLCityRoute/1.0'}, signal });
-  const data = await r.json();
-  return data.filter(d =>
-    d.class === 'highway' || d.addresstype === 'road' || (d.address && d.address.road)
-  ).slice(0, 4);
+  try {
+    const base = 'https://nominatim.openstreetmap.org/search?format=json&addressdetails=1&limit=6&countrycodes=us';
+      const view  = '&viewbox=' + NOMINATIM_VIEWBOX + '&bounded=1';
+      const streetOnly = raw.replace(/^\d+\s*/, '');
+      if (streetOnly === raw) return []; // no house number to strip
+      const r = await fetch(base + view + '&q=' + encodeURIComponent(streetOnly + ', St. Louis City, MO'),
+        { headers: {'User-Agent':'STLCityRoute/1.0'}, signal });
+      const data = await r.json();
+      return data.filter(d =>
+        d.class === 'highway' || d.addresstype === 'road' || (d.address && d.address.road)
+      ).slice(0, 4);
+  } catch(e) { return []; }
 }
 
 // ── Orchestrator: two-pass search → build _addrSuggestions ───────────────
@@ -2248,11 +2323,13 @@ function clearAddressInputs() {
 
 // verifySTLAddress kept for scan/paste batch paths that call it directly
 async function verifySTLAddress(addr, signal) {
-  const q   = encodeURIComponent(addr + ', St. Louis City, MO');
-  const url = 'https://nominatim.openstreetmap.org/search?q=' + q + '&format=json&addressdetails=1&limit=5&countrycodes=us&viewbox=' + NOMINATIM_VIEWBOX + '&bounded=1';
-  const r   = await fetch(url, { headers: {'User-Agent':'STLCityRoute/1.0'}, signal: signal || AbortSignal.timeout(8000) });
-  const data = await r.json();
-  return data.filter(d => d.addresstype === 'house' || d.class === 'building' || (d.address && d.address.house_number));
+  try {
+    const q   = encodeURIComponent(addr + ', St. Louis City, MO');
+      const url = 'https://nominatim.openstreetmap.org/search?q=' + q + '&format=json&addressdetails=1&limit=5&countrycodes=us&viewbox=' + NOMINATIM_VIEWBOX + '&bounded=1';
+      const r   = await fetch(url, { headers: {'User-Agent':'STLCityRoute/1.0'}, signal: signal || AbortSignal.timeout(8000) });
+      const data = await r.json();
+      return data.filter(d => d.addresstype === 'house' || d.class === 'building' || (d.address && d.address.house_number));
+  } catch(e) { return null; }
 }
 
 // Kept as stubs — the autocomplete replaced the disambig flow but scan/paste may still call these
@@ -2336,7 +2413,7 @@ function markStopArrived(stopId) {
   const s = stops.find(x => x.id === id);
   if (!s) return;
   if (s.arrivedAt) { showToast('Already arrived at this stop'); return; }
-  s.arrivedAt = Date.now();
+  s.arrivedAt = new Date().toISOString();
   saveStops();
   renderStops();
   showToast('📍 Arrived — timer started');
@@ -2351,7 +2428,7 @@ function closeStopComplete() {
     const newNote  = notesField.value.trim();
     s.notes = existing ? existing + '\n' + newNote : newNote;
   }
-  s.completedAt = Date.now();
+  s.completedAt = new Date().toISOString();
   closeCloseModal();
   s.done = true;
   saveStops();
@@ -2390,8 +2467,8 @@ function saveStopNotes() {
   const s = stops.find(x => x.id === _notesStopId);
   if (!s) { closeNotesModal(); return; }
   s.notes = document.getElementById('stop-notes-textarea').value.trim();
-  saveStops();
-  renderAll();
+  saveStopsDebounced(); // debounced — notes edits are low urgency vs immediate mutations
+  renderStops();
   closeNotesModal();
   showToast('Notes saved ✓');
 }
@@ -2523,7 +2600,7 @@ function _persistShiftLog(clockInTs, workMs, breakMs) {
     firstStopTs: stopsDone.length ? Math.min(...stopsDone.map(s=>s.addedAt?new Date(s.addedAt).getTime():s.id)) : null,
     lastStopTs:  stopsDone.length ? Math.max(...stopsDone.map(s=>s.completedAt)) : null,
     avgDwellMs:  (function(){
-      const dwells = stopsDone.filter(s=>s.arrivedAt&&s.completedAt).map(s=>s.completedAt-s.arrivedAt);
+      const dwells = stopsDone.filter(s=>s.arrivedAt&&s.completedAt).map(s=>new Date(s.completedAt).getTime()-new Date(s.arrivedAt).getTime());
       return dwells.length ? Math.round(dwells.reduce((a,b)=>a+b,0)/dwells.length) : null;
     })(),
     addresses: stopsDone.map(s=>s.address),
@@ -2672,23 +2749,30 @@ function parseCsvLine(line) {
 }
 
 async function parseAddressesFromXlsx(file) {
-  // Use SheetJS via CDN
-  if (!window.XLSX) {
-    await loadScript('https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js');
+  try {
+  
+    // Use SheetJS via CDN
+    if (!window.XLSX) {
+      await loadScript('https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js');
+    }
+    const buf = await file.arrayBuffer();
+    const wb = XLSX.read(buf, { type: 'array' });
+    const ws = wb.Sheets[wb.SheetNames[0]];
+    const rows = XLSX.utils.sheet_to_json(ws, { header: 1, defval: '' });
+    if (!rows.length) return [];
+  
+    // Find address column
+    const header = (rows[0] || []).map(h => String(h).toLowerCase().trim());
+    const addrIdx = header.findIndex(h => ['address','street','addr','location','property'].includes(h));
+    const col = addrIdx >= 0 ? addrIdx : 0;
+    const startRow = addrIdx >= 0 ? 1 : 0;
+  
+    return rows.slice(startRow).map(row => String(row[col] || '').trim()).filter(a => a && /\d/.test(a));
+  } catch(err) {
+    showToast('❌ Could not read spreadsheet — ' + (err.message||'check file format'));
+    console.warn('[XLSX] parse error:', err);
+    return [];
   }
-  const buf = await file.arrayBuffer();
-  const wb = XLSX.read(buf, { type: 'array' });
-  const ws = wb.Sheets[wb.SheetNames[0]];
-  const rows = XLSX.utils.sheet_to_json(ws, { header: 1, defval: '' });
-  if (!rows.length) return [];
-
-  // Find address column
-  const header = (rows[0] || []).map(h => String(h).toLowerCase().trim());
-  const addrIdx = header.findIndex(h => ['address','street','addr','location','property'].includes(h));
-  const col = addrIdx >= 0 ? addrIdx : 0;
-  const startRow = addrIdx >= 0 ? 1 : 0;
-
-  return rows.slice(startRow).map(row => String(row[col] || '').trim()).filter(a => a && /\d/.test(a));
 }
 
 function loadScript(src) {
@@ -3087,18 +3171,81 @@ function csbCopyDescription() {
 
 // ============================================================
 // PROPERTY SEARCH — copies address to clipboard, opens city address search
-function openPropertySearch(addr) {
-  // addr is s.address — the clean user-typed value e.g. "2801 Dalton Ave"
-  // Just strip any trailing city/state if somehow present, then copy as-is
-  const copyAddr = (addr || '').replace(/,.*$/, '').trim();
+function openGISMap(lat, lng) {
+  // Build ArcGIS viewer URL centered on provided coordinates
+  // Falls back to current GPS if no coords provided, then to STL city center
+  function _launch(lat, lng) {
+    // ArcGIS Online uses Web Mercator (EPSG:3857) for center/marker params
+    // but also accepts lat/lng when prefixed correctly — use lat,lng format
+    var arcBase = 'https://stlcity.maps.arcgis.com/apps/Embed/index.html';
+    var params = [
+      'webmap=843f82c3fcbb4d80a7c9c6d833de1ac3',
+      'level=19',
+      'scale=true',
+      'search=true',
+      'searchextent=true',
+      'details=true',
+      'legendlayers=true',
+      'basemap_gallery=true',
+      'basemap_toggle=true',
+      'alt_basemap=Streets',
+      'legend=true',
+      'theme=light',
+      'center=' + lng.toFixed(6) + ';' + lat.toFixed(6),
+      'marker=' + lng.toFixed(6) + ';' + lat.toFixed(6) + ';;;',
+    ];
+    window.open(arcBase + '?' + params.join('&'), '_blank', 'noopener');
+    showToast('📍 Opening GIS map at your location');
+  }
+
+  if (lat && lng) {
+    _launch(lat, lng);
+    return;
+  }
+
+  // No coords supplied — try live GPS first
+  if ('geolocation' in navigator) {
+    showToast('📡 Getting GPS coordinates…');
+    navigator.geolocation.getCurrentPosition(
+      function(pos) { _launch(pos.coords.latitude, pos.coords.longitude); },
+      function() {
+        // GPS failed — fall back to last known location or STL center
+        var last = safeParseLS('inspector-last-gps', null);
+        if (last && last.lat) {
+          _launch(last.lat, last.lng);
+          showToast('📍 Using last known location');
+        } else {
+          _launch(STL_CITY_CENTER[0], STL_CITY_CENTER[1]);
+          showToast('📍 GPS unavailable — opening city center');
+        }
+      },
+      { timeout: 5000, maximumAge: 30000 }
+    );
+  } else {
+    _launch(STL_CITY_CENTER[0], STL_CITY_CENTER[1]);
+  }
+}
+
+function openPropertySearch(addr, lat, lng) {
+  // Clean address for clipboard
+  const copyAddr = (addr || '').replace(/,\s*(St\.?\s*Louis|Saint Louis|STL)[^,]*/i, '').trim();
   if (copyAddr) {
     if (navigator.clipboard && navigator.clipboard.writeText) {
       navigator.clipboard.writeText(copyAddr).catch(() => _clipboardFallback(copyAddr));
     } else {
       _clipboardFallback(copyAddr);
     }
-    showToast('Copied: ' + copyAddr);
   }
+
+  // If stop has geocoded coordinates, open GIS viewer centered on the parcel
+  if (lat && lng) {
+    showToast('📋 Address copied — opening GIS parcel view');
+    openGISMap(lat, lng);
+    return;
+  }
+
+  // No coords — open the address search (user can paste the copied address)
+  showToast('📋 Address copied — paste into search bar');
   window.open('https://www.stlouis-mo.gov/data/address-search/index.cfm', '_blank', 'noopener');
 }
 
@@ -3206,8 +3353,10 @@ function renderStops() {
       <div class="card-actions" style="display:flex;align-items:center;gap:4px;flex-wrap:nowrap;padding-top:4px">
         <button data-action="notes" data-id="${s.id}" title="Notes"
           style="background:#f3f0ff;color:#6b21a8;border:1.5px solid rgba(107,33,168,0.2);flex-direction:column;gap:1px;padding:5px 8px;border-radius:8px;font-family:Syne,sans-serif;font-weight:700;cursor:pointer;flex-shrink:0;min-width:38px;height:40px;display:flex;align-items:center;justify-content:center;font-size:0.58rem">📝<span style="font-size:0.38rem;letter-spacing:0.3px;margin-top:1px;line-height:1">NOTES</span></button>
-        <button data-action="prop" data-addr="${addr}" title="Property Search"
+        <button data-action="prop" data-addr="${addr}" data-lat="${s.lat||''}" data-lng="${s.lng||''}" title="Property Search — opens GIS parcel view if geocoded"
           style="background:#e8f4fd;color:#1a5276;border:1.5px solid rgba(26,82,118,0.2);flex-direction:column;gap:1px;padding:5px 8px;border-radius:8px;font-family:Syne,sans-serif;font-weight:700;cursor:pointer;flex-shrink:0;min-width:38px;height:40px;display:flex;align-items:center;justify-content:center;font-size:0.58rem">🔍<span style="font-size:0.38rem;letter-spacing:0.3px;margin-top:1px;line-height:1">SEARCH</span></button>
+        <button data-action="gis" data-lat="${s.lat||\'\'}" data-lng="${s.lng||\'\'}" data-addr="${addr}" title="Open ArcGIS parcel viewer at this stop"
+          style="background:#1a3c6e;color:#5ba4cf;border:1.5px solid rgba(91,164,207,0.3);flex-direction:column;gap:1px;padding:5px 8px;border-radius:8px;font-family:Syne,sans-serif;font-weight:700;cursor:pointer;flex-shrink:0;min-width:38px;height:40px;display:flex;align-items:center;justify-content:center;font-size:0.58rem">🗺️<span style="font-size:0.38rem;letter-spacing:0.3px;margin-top:1px;line-height:1">GIS</span></button>
         <button data-action="csb" data-addr="${addr}" title="Citizens Service Bureau"
           style="background:#fff3e0;color:#e65100;border:1.5px solid rgba(230,81,0,0.25);flex-direction:column;gap:1px;padding:5px 8px;border-radius:8px;font-family:Syne,sans-serif;font-weight:700;cursor:pointer;flex-shrink:0;min-width:38px;height:40px;display:flex;align-items:center;justify-content:center;font-size:0.58rem">📞<span style="font-size:0.38rem;letter-spacing:0.3px;margin-top:1px;line-height:1">CSB</span></button>
         ${s.done
@@ -3496,14 +3645,16 @@ async function _resolveOrigin(pending, statusEl) {
 
 // ── Step 2: geocode stops missing coordinates ─────────────────────────────
 async function _geocodeStops(pending) {
-  for (const s of pending) {
-    if (!s.lat) {
-      const c = await geocodeAddress(s.fullAddress || s.address + ', St. Louis, MO');
-      if (c) { s.lat = c.lat; s.lng = c.lng; }
-      await new Promise(r => setTimeout(r, 250));
-    }
-  }
-  return pending.filter(s => s.lat);
+  try {
+    for (const s of pending) {
+        if (!s.lat) {
+          const c = await geocodeAddress(s.fullAddress || s.address + ', St. Louis, MO');
+          if (c) { s.lat = c.lat; s.lng = c.lng; }
+          await new Promise(r => setTimeout(r, 250));
+        }
+      }
+      return pending.filter(s => s.lat);
+  } catch(e) { console.warn("[geocode] batch failed:", e.message); }
 }
 
 // ── Step 3: sort stops (nearest-neighbor + 2-opt) ─────────────────────────
@@ -3656,8 +3807,10 @@ function renderRoute() {
             style="${pinnedStartId===s.id?'background:#e8a020;color:#fff;border:none;':'background:#fff8ec;color:#7a5000;border:1px solid rgba(232,160,32,0.3);'}padding:0;border-radius:7px;font-size:0.68rem;cursor:pointer;flex-shrink:0;width:30px;height:30px;display:flex;align-items:center;justify-content:center">${pinnedStartId===s.id?'📌':'📌'}</button>
           <button data-action="notes" data-id="${s.id}" title="Notes"
             style="background:#f3f0ff;color:#6b21a8;border:1.5px solid rgba(107,33,168,0.2);padding:0;border-radius:7px;font-size:0.68rem;cursor:pointer;flex-shrink:0;width:30px;height:30px;display:flex;align-items:center;justify-content:center">📝</button>
-          <button data-action="prop" data-full="${escHtml(s.address)}" title="Property search"
+          <button data-action="prop" data-full="${escHtml(s.address)}" data-lat="${s.lat||''}" data-lng="${s.lng||''}" title="Property search"
             style="background:#e8f4fd;color:#1a5276;border:1.5px solid rgba(26,82,118,0.2);padding:0;border-radius:7px;font-size:0.68rem;cursor:pointer;flex-shrink:0;width:30px;height:30px;display:flex;align-items:center;justify-content:center">🔍</button>
+          <button data-action="gis" data-lat="${escHtml(String(s.lat||\'\'))}" data-lng="${escHtml(String(s.lng||\'\'))}" data-addr="${escHtml(s.address)}" title="Open ArcGIS parcel viewer at this stop"
+            style="background:#1a3c6e;color:#5ba4cf;border:1.5px solid rgba(91,164,207,0.3);padding:0;border-radius:7px;font-size:0.68rem;cursor:pointer;flex-shrink:0;width:30px;height:30px;display:flex;align-items:center;justify-content:center;border:none">🗺️</button>
           <button data-action="csb" data-addr="${escHtml(s.address)}" title="CSB"
             style="background:#fff3e0;color:#e65100;border:1.5px solid rgba(230,81,0,0.25);padding:0;border-radius:7px;font-size:0.68rem;cursor:pointer;flex-shrink:0;width:30px;height:30px;display:flex;align-items:center;justify-content:center">📞</button>
           ${s.arrivedAt
@@ -3693,7 +3846,8 @@ function renderRoute() {
     const action = btn.dataset.action;
     if (action === 'nav')   navToStop(btn.dataset.addr);
     if (action === 'arrive') markStopArrived(btn.dataset.id);
-    if (action === 'prop')  openPropertySearch(btn.dataset.full);
+    if (action === 'prop')  openPropertySearch(btn.dataset.full, parseFloat(btn.dataset.lat)||null, parseFloat(btn.dataset.lng)||null);
+    if (action === 'gis')   openGISMap(parseFloat(btn.dataset.lat)||null, parseFloat(btn.dataset.lng)||null);
     if (action === 'csb')   openCsbForAddress(btn.dataset.addr);
     if (action === 'close') openCloseModal(Number(btn.dataset.id));
     if (action === 'notes') openNotesModal(Number(btn.dataset.id));
@@ -4027,6 +4181,12 @@ function mapNavToActive() {
     activeMapStopId = null;
   }
 }
+function mapGISActive() {
+  if (!activeMapStopId) return;
+  const s = stops.find(x => x.id === activeMapStopId);
+  if (s) openGISMap(s.lat || null, s.lng || null);
+}
+
 function mapPropActive() {
   const s = stops.find(x => x.id === activeMapStopId);
   if (s) openPropertySearch(s.address);
@@ -4080,7 +4240,7 @@ function trackResourceClick(label, section, url) {
   _beacon('resource_click', { label, section, url: (url||'').slice(0,120) });
   // Also keep dedicated resource click log for advertiser reporting
   try {
-    const log = JSON.parse(localStorage.getItem('resource-click-log')||'[]');
+    const log = safeParseLS('resource-click-log', []);
     log.push({ label, section, ts: new Date().toISOString() });
     localStorage.setItem('resource-click-log', JSON.stringify(log.slice(-500)));
   } catch(e) {}
@@ -4209,8 +4369,13 @@ function openMiscLinks() {
     {
       heading: '📐 MAPS & GIS TOOLS',
       items: [
+        { label: 'St. Louis City GIS Parcel Viewer', sub: 'Official ArcGIS map — parcel boundaries, ownership, zoning layers, building footprints, ROW. Best property lookup in the city.', url: 'https://stlcity.maps.arcgis.com/apps/Embed/index.html?webmap=843f82c3fcbb4d80a7c9c6d833de1ac3&level=19&scale=true&search=true&&searchextent=true&details=true&legendlayers=true&previewImage=false&active_panel=legend&show_panel=false&basemap_gallery=true&basemap_toggle=true&alt_basemap=Streets&disable_scroll=false&level=18&legend=true&theme=light&&center=907269.612838;1021882.7955;102696&marker=907269.612838;1021882.7955;102696;;;' },
+        { label: 'STL City Address Search (JNEM)', sub: 'City of St. Louis official address lookup — parcel ID, owner name, assessed value, property class', url: 'https://www.stlouis-mo.gov/data/address-search/index.cfm' },
+        { label: 'LRA Owned Properties Map', sub: 'Land Reutilization Authority inventory — city-owned vacant lots and structures available for acquisition', url: 'https://www.stlouis-mo.gov/government/departments/sldc/real-estate/lra-owned-properties-map.cfm' },
         { label: 'Cultural Resources Areas of Review Map', sub: 'Which parcels require CRO review before demo or exterior work in historic districts', url: 'https://www.stlouis-mo.gov/government/departments/planning/news/cultural-resources-preservation-board-areas-of-review-map.cfm' },
         { label: 'Citywide Zoning District Map', sub: 'All 12 primary zoning districts and overlay districts', url: 'https://www.stlouis-mo.gov/government/departments/public-safety/building/zoning/index.cfm' },
+        { label: 'STL City Open Data Portal', sub: 'Datasets: inspections, condemnations, permits, 311 requests, ward boundaries, building footprints — downloadable GeoJSON/CSV', url: 'https://www.stlouis-mo.gov/data/' },
+        { label: 'Missouri Spatial Data Information Service (MSDIS)', sub: 'State-level GIS layers: census boundaries, floodplains, USGS data, soil surveys, aerial imagery', url: 'https://msdis.missouri.edu/' },
       ]
     },
     {
@@ -4743,11 +4908,13 @@ async function _scanWithAnthropic(file, apiKey) {
 
 // ── Scan pipeline B: on-device TextDetector (Android Chrome) ─────────────
 async function _scanWithTextDetector(file) {
-  const detector = new window.TextDetector();
-  const bitmap = await createImageBitmap(file);
-  const results = await detector.detect(bitmap);
-  bitmap.close();
-  return extractAddressesFromText(results.map(r => r.rawValue).join('\n'));
+  try {
+    const detector = new window.TextDetector();
+      const bitmap = await createImageBitmap(file);
+      const results = await detector.detect(bitmap);
+      bitmap.close();
+      return extractAddressesFromText(results.map(r => r.rawValue).join('\n'));
+  } catch(e) { throw new Error("Device text detection failed: " + (e.message||e)); }
 }
 
 
@@ -5063,7 +5230,7 @@ function initRouteMap() {
       routeMap._tileswitched = true;
       routeMap.removeLayer(cartoTiles);
       osmTiles.addTo(routeMap);
-      console.log('[Map] CartoDB failed, switched to OSM');
+      console.warn('[Map] CartoDB tiles failed, switched to OSM fallback');
     }
   });
 
@@ -6959,13 +7126,15 @@ function computeMetrics(range) {
 
   // ── New rich metrics ─────────────────────────────────────────
   // Avg time per stop (median gap between completedAt timestamps)
+  // completedAt is ISO string — convert to ms for arithmetic
   var completedWithTs = completed.filter(function(s){ return s.completedAt; })
-    .sort(function(a,b){ return a.completedAt - b.completedAt; });
+    .map(function(s){ return { s: s, ts: new Date(s.completedAt).getTime() }; })
+    .sort(function(a,b){ return a.ts - b.ts; });
   var avgMinsPerStop = null;
   if (completedWithTs.length >= 2) {
     var gaps = [];
     for (var i=1; i<completedWithTs.length; i++) {
-      gaps.push(completedWithTs[i].completedAt - completedWithTs[i-1].completedAt);
+      gaps.push(completedWithTs[i].ts - completedWithTs[i-1].ts);
     }
     gaps.sort(function(a,b){return a-b;});
     var median = gaps[Math.floor(gaps.length/2)];
@@ -6973,8 +7142,8 @@ function computeMetrics(range) {
   }
 
   // First and last stop time today
-  var firstStopTime = completedWithTs.length ? new Date(completedWithTs[0].completedAt) : null;
-  var lastStopTime  = completedWithTs.length ? new Date(completedWithTs[completedWithTs.length-1].completedAt) : null;
+  var firstStopTime = completedWithTs.length ? new Date(completedWithTs[0].ts) : null;
+  var lastStopTime  = completedWithTs.length ? new Date(completedWithTs[completedWithTs.length-1].ts) : null;
 
   // Repeat addresses (returns to same address)
   var addrCount = {};
@@ -6999,7 +7168,7 @@ function computeMetrics(range) {
 
   // Shift-log metrics (from _persistShiftLog)
   var shiftLog = [];
-  try { shiftLog = JSON.parse(localStorage.getItem('shift-log')||'[]'); } catch(e){}
+  try { shiftLog = safeParseLS('shift-log', []); } catch(e){}
   var avgShiftHrs = null, overtimeShifts = 0;
   if (shiftLog.length) {
     var totalWork = shiftLog.reduce(function(a,s){return a+(s.workMs||0);},0);
@@ -7373,10 +7542,9 @@ function pushToGoogleSheets() {
     showToast('✅ Pushed to Google Sheets ✓');
     document.getElementById('data-export-modal').style.display = 'none';
   }).catch(() => {
-    showToast('❌ Network error — check your webhook URL and connection');
-    if (confirm('Push failed. Clear saved webhook URL and re-enter a new one?')) {
-      localStorage.removeItem('sheets-webhook-url');
-    }
+    // Save payload for retry when connection returns
+    localStorage.setItem('sheets-pending-push', JSON.stringify(payload));
+    showToast('📵 Offline — push queued, will retry when connected');
   });
 }
 
