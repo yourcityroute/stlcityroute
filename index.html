@@ -862,7 +862,7 @@ header{
           <button onclick="mapCsbActive()" style="background:#fff3e0;color:#e65100;border:1.5px solid rgba(230,81,0,0.25);padding:0;border-radius:7px;font-size:0.68rem;cursor:pointer;flex-shrink:0;width:30px;height:30px;display:flex;align-items:center;justify-content:center;border:none" title="CSB">📞</button>
           <button onclick="mapArriveActive()" id="map-popup-arrive" style="background:linear-gradient(135deg,#1a4a8c,#2563eb);color:white;padding:0;border-radius:7px;font-size:0.68rem;cursor:pointer;flex-shrink:0;width:30px;height:30px;display:flex;align-items:center;justify-content:center;border:none" title="Mark arrived">📍</button>
           <button onclick="mapCloseActive()" style="background:linear-gradient(135deg,var(--moss),var(--leaf));color:white;padding:0;border-radius:7px;font-size:0.68rem;cursor:pointer;flex-shrink:0;width:30px;height:30px;display:flex;align-items:center;justify-content:center;border:none" title="Close stop">✓</button>
-          <button onclick="mapNavToActive()" style="margin-left:auto;padding:6px 14px;border:none;border-radius:20px;background:var(--forest);color:var(--lime);font-family:'Syne',sans-serif;font-weight:800;font-size:0.65rem;cursor:pointer;flex-shrink:0;white-space:nowrap;height:32px;display:flex;align-items:center;gap:4px">🧭 Navigate</button></div>
+          <button onclick="mapNavToActive()" style="margin-left:auto;padding:5px 10px;border:none;border-radius:20px;background:var(--forest);color:var(--lime);font-family:'Syne',sans-serif;font-weight:800;font-size:0.62rem;cursor:pointer;flex-shrink:0;white-space:nowrap;height:30px;display:flex;align-items:center;gap:3px">🧭 Nav</button></div>
       </div>
     </div>
   </div>
@@ -1546,6 +1546,21 @@ function showToast(msg){const t=document.getElementById('toast');t.textContent=m
 
 // Save stops to localStorage
 let _saveStopsTimer = null;
+function _applyA11y() {
+  var sc = parseFloat(localStorage.getItem('a11y-scale') || '1');
+  document.documentElement.style.setProperty('--a11y-scale', sc);
+  if (localStorage.getItem('a11y-contrast')==='1') document.documentElement.setAttribute('data-contrast','high');
+  else document.documentElement.removeAttribute('data-contrast');
+  if (localStorage.getItem('a11y-reduced-motion')==='1') document.documentElement.setAttribute('data-motion','reduced');
+  else document.documentElement.removeAttribute('data-motion');
+  // Update toggle button labels
+  var cb = document.getElementById('a11y-contrast-btn'); if (cb) cb.textContent = localStorage.getItem('a11y-contrast')==='1' ? 'ON' : 'OFF';
+  var mb = document.getElementById('a11y-motion-btn');   if (mb) mb.textContent = localStorage.getItem('a11y-reduced-motion')==='1' ? 'ON' : 'OFF';
+}
+function setA11yScale(v) { localStorage.setItem('a11y-scale',v); _applyA11y(); showToast('Text size updated'); }
+function setA11yContrast(on) { localStorage.setItem('a11y-contrast',on?'1':'0'); _applyA11y(); }
+function setA11yMotion(on) { localStorage.setItem('a11y-reduced-motion',on?'1':'0'); _applyA11y(); }
+
 function saveStopsDebounced() {
   clearTimeout(_saveStopsTimer);
   _saveStopsTimer = setTimeout(saveStops, 300);
@@ -3337,11 +3352,14 @@ function renderStops() {
   const renderStop = (s, i) => {
     const fullAddr = escHtml(s.fullAddress || s.address + ', St. Louis, MO');
     const addr     = escHtml(s.address);
+  const addrWarn = s._geocodeFailed
+    ? '<span style="background:#fde8e8;color:#c0392b;border:1px solid rgba(192,57,43,0.3);border-radius:4px;font-size:0.42rem;padding:1px 5px;font-family:Syne,sans-serif;font-weight:800;letter-spacing:0.3px;vertical-align:middle;margin-left:4px">⚠ BAD ADDRESS — TAP 📝 TO FIX</span>'
+    : '';
     return `<div class="card ${s.type||'inspection'} ${s.done?'completed':''}">
       <div class="card-header">
         <div class="stop-num">${s.done?'\u2713':(i+1)}</div>
         <div class="addr-block">
-          <div class="addr-main">${escHtml(s.address)}</div>
+          <div class="addr-main">${escHtml(s.address)}${addrWarn}</div>
           ${s.notes ? `<div class="addr-sub">${escHtml(s.notes)}</div>` : ''}
           ${s.addedAt ? `<div style="font-size:0.5rem;color:#bbb;font-family:Space Mono,monospace;margin-top:1px">Added ${new Date(s.addedAt).toLocaleDateString('en-US',{month:'short',day:'numeric'})}</div>` : ''}
           ${s.verified === false ? `<div style="font-size:0.52rem;color:var(--warn);font-family:Syne,sans-serif;font-weight:700;margin-top:2px">\u26a0 Address unverified</div>` : ''}
@@ -3373,7 +3391,7 @@ function renderStops() {
                    style="background:linear-gradient(135deg,var(--moss),var(--leaf));color:white;border:none;flex-direction:column;gap:1px;padding:5px 8px;border-radius:8px;font-family:Syne,sans-serif;font-weight:700;cursor:pointer;flex-shrink:0;min-width:38px;height:40px;display:flex;align-items:center;justify-content:center;font-size:0.58rem">✓<span style="font-size:0.38rem;letter-spacing:0.3px;margin-top:1px;line-height:1">CLOSE</span></button>`)
         }
         <button data-action="nav" data-addr="${fullAddr}" title="Navigate"
-          style="margin-left:auto;background:var(--forest);color:var(--lime);border:none;border-radius:20px;padding:6px 14px;font-family:Syne,sans-serif;font-weight:800;font-size:0.65rem;cursor:pointer;flex-shrink:0;white-space:nowrap;height:32px;display:flex;align-items:center;gap:4px">🧭 Navigate</button>
+          style="margin-left:auto;background:var(--forest);color:var(--lime);border:none;border-radius:20px;padding:6px 14px;font-family:Syne,sans-serif;font-weight:800;font-size:0.65rem;cursor:pointer;flex-shrink:0;white-space:nowrap;height:32px;display:flex;align-items:center;gap:4px">🧭 Nav</button>
       </div>
     </div>`;
   };
@@ -3645,16 +3663,41 @@ async function _resolveOrigin(pending, statusEl) {
 
 // ── Step 2: geocode stops missing coordinates ─────────────────────────────
 async function _geocodeStops(pending) {
+  // Attempt geocoding for every un-geocoded stop.
+  // Stops that fail geocoding are KEPT in the route but flagged with a warning
+  // so they can be reviewed/fixed — they are never silently culled.
+  const failed = [];
   try {
     for (const s of pending) {
-        if (!s.lat) {
-          const c = await geocodeAddress(s.fullAddress || s.address + ', St. Louis, MO');
-          if (c) { s.lat = c.lat; s.lng = c.lng; }
-          await new Promise(r => setTimeout(r, 250));
+      if (!s.lat) {
+        const c = await geocodeAddress(s.fullAddress || s.address + ', St. Louis, MO');
+        if (c) {
+          s.lat = c.lat; s.lng = c.lng;
+          if (typeof saveStops === 'function') saveStops();
+        } else {
+          failed.push(s);
+          // Mark stop so the UI can flag it
+          s._geocodeFailed = true;
         }
+        await new Promise(r => setTimeout(r, 250));
       }
-      return pending.filter(s => s.lat);
-  } catch(e) { console.warn("[geocode] batch failed:", e.message); }
+    }
+    // Return ALL stops — geocoded first (for routing quality), un-geocodeable appended at end
+    const geocoded   = pending.filter(s => s.lat);
+    const unresolved = pending.filter(s => !s.lat);
+    if (failed.length) {
+      // Surface a fix-it toast listing the bad addresses
+      const labels = failed.slice(0,3).map(s => '"' + s.address.slice(0,25) + '"').join(', ');
+      const more   = failed.length > 3 ? ' + ' + (failed.length-3) + ' more' : '';
+      showToast('[Warning] ' + (failed.length>1 ? failed.length+' addresses' : '1 address') +
+        ' could not be located: ' + labels + more +
+        ' -- kept at end of route. Tap Notes to fix.');
+    }
+    return geocoded.concat(unresolved);
+  } catch(e) {
+    console.warn('[geocode] batch failed:', e.message);
+    return pending; // return all stops rather than none on total failure
+  }
 }
 
 // ── Step 3: sort stops (nearest-neighbor + 2-opt) ─────────────────────────
@@ -3822,7 +3865,7 @@ function renderRoute() {
                  style="background:linear-gradient(135deg,var(--moss),var(--leaf));color:white;border:none;padding:0;border-radius:7px;font-size:0.68rem;cursor:pointer;flex-shrink:0;width:30px;height:30px;display:flex;align-items:center;justify-content:center">✓</button>`
           }
           <button data-action="nav" data-addr="${escHtml(s.fullAddress||s.address+', St. Louis, MO')}"
-            style="margin-left:auto;padding:6px 14px;border:none;border-radius:20px;background:var(--forest);color:var(--lime);font-family:Syne,sans-serif;font-weight:800;font-size:0.65rem;cursor:pointer;flex-shrink:0;white-space:nowrap;height:32px;display:flex;align-items:center;gap:4px">🧭 Navigate</button>
+            style="margin-left:auto;padding:5px 10px;border:none;border-radius:20px;background:var(--forest);color:var(--lime);font-family:Syne,sans-serif;font-weight:800;font-size:0.62rem;cursor:pointer;flex-shrink:0;white-space:nowrap;height:30px;display:flex;align-items:center;gap:3px">🧭 Nav</button>
         </div>
       </div>`;
 
@@ -5382,7 +5425,7 @@ function setInspectorId(v) { if (v) localStorage.setItem('inspector-id', v); els
 // SHARE APP LINK / CLIPBOARD
 // ============================================================
 function shareAppUrl() {
-  const url = 'https://yourcityroute.com';
+  const url = 'https://stlcityroute.com';
   if (navigator.share) {
     navigator.share({ title: 'YourCityRoute', url }).catch(() => _clipboardFallback(url));
   } else {
@@ -6595,24 +6638,34 @@ function showFullscreen(type) {
 // showFullscreen() is now a short dispatcher. Each _fs* function handles one view.
 
 function _fsShowId() {
-let idFs = document.getElementById('id-fullscreen');
-    if (!idFs) { idFs = document.createElement('div'); idFs.id = 'id-fullscreen'; document.body.appendChild(idFs); }
-    const front = localStorage.getItem('creds-id-front') || '';
-    const vw = window.innerWidth, vh = window.innerHeight;
-    const portrait = vw < vh;
-    const innerW = portrait ? vh : vw, innerH = portrait ? vw : vh;
-    const rotStyle = portrait ? 'transform:rotate(90deg);' : '';
-    const closePos = portrait ? 'top:10px;left:10px;' : 'top:14px;right:14px;';
-    const photoHtml = front
-      ? '<img src="' + front + '" style="max-width:100%;max-height:100%;object-fit:contain;">'
-      : '<div style="color:rgba(255,255,255,0.4);font-family:Syne,sans-serif;font-weight:700;font-size:0.8rem;text-align:center;padding:40px">🪪 No ID photo yet<br><span style="font-size:0.6rem;font-weight:400">Use Customize to upload</span></div>';
-    idFs.style.cssText = 'display:flex;position:fixed;inset:0;z-index:10000;background:#000;align-items:center;justify-content:center;';
-    idFs.innerHTML = '<div style="position:relative;width:'+innerW+'px;height:'+innerH+'px;'+rotStyle+'display:flex;align-items:center;justify-content:center;background:#000;">'
-      + photoHtml
-      + '<button onclick="closeIdFullscreen()" style="position:absolute;'+closePos+'background:rgba(0,0,0,0.55);border:1px solid rgba(255,255,255,0.3);color:white;border-radius:50%;width:38px;height:38px;font-size:1.1rem;cursor:pointer;display:flex;align-items:center;justify-content:center;z-index:10001;">✕</button>'
-      + '</div>';
-    document.body.style.overflow = 'hidden';
-    if (screen.orientation && screen.orientation.lock) screen.orientation.lock('landscape').catch(()=>{});
+  var idFs = document.getElementById('id-fullscreen');
+  if (!idFs) { idFs = document.createElement('div'); idFs.id='id-fullscreen'; document.body.appendChild(idFs); }
+  var front  = localStorage.getItem('creds-id-front') || '';
+  var nm     = (typeof getInspectorId==='function'?getInspectorId():'')||'';
+  var tv     = (typeof getCredsVal==='function'?getCredsVal('title'):'')||'FIELD INSPECTOR';
+  var dv     = (typeof getCredsVal==='function'?getCredsVal('division'):'')||'';
+  var dp     = (typeof getCredsVal==='function'?getCredsVal('department'):'')||'';
+  var sc     = (typeof getCredsVal==='function'?getCredsVal('scope'):'')||'';
+  var em     = (typeof getCredsVal==='function'?getCredsVal('email'):'')||'';
+  var ph     = (typeof getCredsVal==='function'?getCredsVal('phone'):'')||'';
+  var sub    = [dv,dp,sc].filter(Boolean).join(' / ');
+  idFs.setAttribute('style','position:fixed;inset:0;z-index:9999;background:#0d2b6b;overflow-y:auto;padding:60px 16px 40px;display:block;');
+  var cb=document.createElement('button');
+  cb.textContent='X';
+  cb.setAttribute('style','position:fixed;top:14px;right:14px;z-index:10001;background:rgba(126,200,80,0.2);border:1px solid rgba(126,200,80,0.4);color:var(--lime);border-radius:50%;width:38px;height:38px;font-size:1rem;cursor:pointer;');
+  cb.onclick=function(){idFs.style.display='none';};
+  var w=document.createElement('div');
+  w.setAttribute('style','max-width:400px;margin:0 auto;');
+  if(front){var img=document.createElement('img');img.src=front;img.setAttribute('style','width:100%;max-height:50vh;object-fit:contain;border-radius:10px;margin-bottom:14px;box-shadow:0 4px 20px rgba(0,0,0,0.5);display:block;');w.appendChild(img);}
+  var cd=document.createElement('div');
+  cd.setAttribute('style','background:linear-gradient(135deg,rgba(255,255,255,0.08),rgba(255,255,255,0.04));border:1px solid rgba(255,255,255,0.12);border-radius:14px;padding:18px 20px;');
+  var h='<div style="font-size:0.56rem;font-family:Syne,sans-serif;font-weight:800;color:var(--lime);letter-spacing:2px;margin-bottom:5px">CITY OF ST. LOUIS</div>';
+  h+='<div style="font-family:Syne,sans-serif;font-weight:800;font-size:1rem;color:white;margin-bottom:'+(nm?'3px':'8px')+'">' +escHtml(tv)+'</div>';
+  if(nm)  h+='<div style="font-size:0.68rem;color:rgba(200,230,201,0.8);font-family:Syne,sans-serif;font-weight:700;margin-bottom:8px">'+escHtml(nm)+'</div>';
+  if(sub) h+='<div style="height:1px;background:rgba(126,200,80,0.2);margin:8px 0"></div><div style="font-size:0.56rem;color:rgba(180,205,255,0.6);font-family:Space Mono,monospace;line-height:1.7;margin-bottom:8px">'+escHtml(sub)+'</div>';
+  if(em||ph){h+='<div style="height:1px;background:rgba(126,200,80,0.2);margin:8px 0"></div>';if(em)h+='<div style="font-size:0.58rem;color:rgba(200,230,201,0.75);font-family:Space Mono,monospace;margin-bottom:3px">Email: '+escHtml(em)+'</div>';if(ph)h+='<div style="font-size:0.58rem;color:rgba(200,230,201,0.75);font-family:Space Mono,monospace;">Phone: '+escHtml(ph)+'</div>';}
+  cd.innerHTML=h; w.appendChild(cd);
+  idFs.innerHTML=''; idFs.appendChild(cb); idFs.appendChild(w);
 }
 
 function _fsShowQuestions(content) {
@@ -7875,6 +7928,12 @@ function closeSetupWizard() {
   document.getElementById('setup-wizard').style.display = 'none';
 }
 
+function wizardBack() {
+  if (_wizardStep <= 0) return;
+  _wizardStep--;
+  renderWizardStep();
+}
+
 function wizardNext() {
   // Save current step data before advancing
   if (WIZARD_STEPS[_wizardStep] === 'name') {
@@ -7977,8 +8036,13 @@ function renderWizardStep() {
     }, 50);
 
     footer.innerHTML =
-      '<button onclick="wizSaveRole();wizardNext();" style="flex:1;padding:12px;background:var(--lime);color:var(--forest);border:none;border-radius:10px;font-family:\'Syne\',sans-serif;font-weight:800;font-size:0.8rem;cursor:pointer">Next →</button>' +
-      '<button onclick="wizardSkip()" style="padding:12px 16px;background:none;border:none;color:rgba(200,230,201,0.4);font-family:\'Syne\',sans-serif;font-weight:700;font-size:0.7rem;cursor:pointer">Skip</button>';
+      '<div style="display:flex;gap:6px;margin-bottom:6px">' +
+        '<button onclick="wizSaveRole();wizardNext();" style="flex:1;padding:12px;background:var(--lime);color:var(--forest);border:none;border-radius:10px;font-family:\'Syne\',sans-serif;font-weight:800;font-size:0.8rem;cursor:pointer">Next →</button>' +
+      '</div>' +
+      '<div style="text-align:center">' +
+        '<button onclick="wizardSkip()" style="padding:8px 14px;background:none;border:none;color:rgba(200,230,201,0.35);font-family:\'Syne\',sans-serif;font-weight:700;font-size:0.6rem;cursor:pointer;text-decoration:underline">Skip setup — I just want route planning</button>' +
+      '</div>' +
+      '<div style="font-size:0.48rem;color:rgba(200,230,201,0.25);font-family:\'Space Mono\',monospace;text-align:center;margin-top:4px;line-height:1.5">Setting your position unlocks Roles, Ordinances, Summary pages and auto-fills your ID card. Not required.</div>';
 
   } else if (step === 'name') {
     var savedName = localStorage.getItem('inspector-id') || localStorage.getItem('inspector-name') || '';
@@ -7999,8 +8063,13 @@ function renderWizardStep() {
       wizField('Department', 'wiz-dept-input', 'text', savedDept, 'e.g. Dept. of Parks, Recreation & Forestry') +
       wizField('Scope / Ordinance', 'wiz-scope-input', 'text', savedScope, 'e.g. Weed Control · Ord. 72059');
     footer.innerHTML =
-      '<button onclick="wizardNext()" style="flex:1;padding:12px;background:var(--lime);color:var(--forest);border:none;border-radius:10px;font-family:\'Syne\',sans-serif;font-weight:800;font-size:0.8rem;cursor:pointer">Next →</button>' +
-      '<button onclick="wizardSkip()" style="padding:12px 16px;background:none;border:none;color:rgba(200,230,201,0.4);font-family:\'Syne\',sans-serif;font-weight:700;font-size:0.7rem;cursor:pointer">Skip</button>';
+      '<div style="display:flex;gap:6px;margin-bottom:6px">' +
+        '<button onclick="wizardBack()" style="padding:12px 16px;background:rgba(255,255,255,0.08);border:1px solid rgba(200,230,201,0.2);color:rgba(200,230,201,0.7);font-family:\'Syne\',sans-serif;font-weight:700;font-size:0.75rem;cursor:pointer;border-radius:10px">← Back</button>' +
+        '<button onclick="wizardNext()" style="flex:1;padding:12px;background:var(--lime);color:var(--forest);border:none;border-radius:10px;font-family:\'Syne\',sans-serif;font-weight:800;font-size:0.8rem;cursor:pointer">Next →</button>' +
+      '</div>' +
+      '<div style="text-align:center">' +
+        '<button onclick="wizardSkip()" style="padding:8px 14px;background:none;border:none;color:rgba(200,230,201,0.35);font-family:\'Syne\',sans-serif;font-weight:700;font-size:0.6rem;cursor:pointer;text-decoration:underline">Skip — fill in later via ⚙️ Settings</button>' +
+      '</div>';
 
   } else if (step === 'apikey') {
     body.innerHTML =
@@ -8013,8 +8082,14 @@ function renderWizardStep() {
       wizField('Anthropic API Key', 'wiz-apikey-input', 'password', '', 'sk-ant-api03-...') +
       '<div style="font-family:\'Space Mono\',monospace;font-size:0.55rem;color:rgba(200,230,201,0.3);margin-top:6px">Stored only on your device. Never uploaded.</div>';
     footer.innerHTML =
-      '<button onclick="wizardNext()" style="flex:1;padding:12px;background:var(--lime);color:var(--forest);border:none;border-radius:10px;font-family:\'Syne\',sans-serif;font-weight:800;font-size:0.8rem;cursor:pointer">Finish Setup →</button>' +
-      '<button onclick="wizardSkip()" style="padding:12px 16px;background:none;border:none;color:rgba(200,230,201,0.4);font-family:\'Syne\',sans-serif;font-weight:700;font-size:0.7rem;cursor:pointer">Skip for now</button>';
+      '<div style="display:flex;gap:6px;margin-bottom:6px">' +
+        '<button onclick="wizardBack()" style="padding:12px 16px;background:rgba(255,255,255,0.08);border:1px solid rgba(200,230,201,0.2);color:rgba(200,230,201,0.7);font-family:\'Syne\',sans-serif;font-weight:700;font-size:0.75rem;cursor:pointer;border-radius:10px">← Back</button>' +
+        '<button onclick="wizardNext()" style="flex:1;padding:12px;background:var(--lime);color:var(--forest);border:none;border-radius:10px;font-family:\'Syne\',sans-serif;font-weight:800;font-size:0.8rem;cursor:pointer">Finish Setup →</button>' +
+      '</div>' +
+      '<div style="text-align:center">' +
+        '<button onclick="wizardSkip()" style="padding:8px 14px;background:none;border:none;color:rgba(200,230,201,0.35);font-family:\'Syne\',sans-serif;font-weight:700;font-size:0.6rem;cursor:pointer;text-decoration:underline">Skip — AI features are optional and never required</button>' +
+      '</div>' +
+      '<div style="font-size:0.48rem;color:rgba(200,230,201,0.25);font-family:\'Space Mono\',monospace;text-align:center;margin-top:4px;line-height:1.5">The app works fully without an API key. You can add one anytime in ⚙️ Settings.</div>';
 
   } else if (step === 'done') {
     closeSetupWizard();
@@ -8205,4 +8280,24 @@ function wizSaveRole() {
   </div>
 </div>
 </body>
-</html>
+</html><div style="background:white;border-radius:12px;padding:14px;margin-bottom:12px;box-shadow:0 1px 4px rgba(0,0,0,0.06)">
+      <div style="font-family:'Syne',sans-serif;font-weight:800;font-size:0.8rem;color:#0d2b6b;margin-bottom:8px">&#9855; Accessibility</div>
+      <div style="font-size:0.54rem;color:#666;font-family:'Space Mono',monospace;margin-bottom:10px;line-height:1.5">Changes apply instantly and persist across sessions.</div>
+      <div style="margin-bottom:10px">
+        <div style="font-size:0.58rem;font-family:'Syne',sans-serif;font-weight:700;color:#333;margin-bottom:5px">Text Size</div>
+        <div style="display:flex;gap:6px">
+          <button onclick="setA11yScale('1')" style="flex:1;padding:8px 4px;border-radius:8px;border:1.5px solid #1a4a9c;background:#e8f0fe;color:#0d2b6b;font-family:'Syne',sans-serif;font-weight:800;font-size:0.62rem;cursor:pointer">Normal</button>
+          <button onclick="setA11yScale('1.2')" style="flex:1;padding:8px 4px;border-radius:8px;border:1.5px solid #1a4a9c;background:#e8f0fe;color:#0d2b6b;font-family:'Syne',sans-serif;font-weight:800;font-size:0.7rem;cursor:pointer">Large</button>
+          <button onclick="setA11yScale('1.45')" style="flex:1;padding:8px 4px;border-radius:8px;border:1.5px solid #1a4a9c;background:#e8f0fe;color:#0d2b6b;font-family:'Syne',sans-serif;font-weight:800;font-size:0.8rem;cursor:pointer">X-Large</button>
+        </div>
+      </div>
+      <div style="display:flex;align-items:center;justify-content:space-between;padding:8px 0;border-top:1px solid #eee">
+        <div><div style="font-size:0.6rem;font-weight:700;color:#0d2b6b;font-family:'Syne',sans-serif">High Contrast</div><div style="font-size:0.48rem;color:#888;font-family:'Space Mono',monospace">Sharper colors, bolder borders</div></div>
+        <button id="a11y-contrast-btn" onclick="setA11yContrast(localStorage.getItem('a11y-contrast')!=='1')" style="padding:6px 12px;border-radius:8px;border:1.5px solid #1a4a9c;background:#e8f0fe;color:#0d2b6b;font-family:'Syne',sans-serif;font-weight:800;font-size:0.6rem;cursor:pointer">OFF</button>
+      </div>
+      <div style="display:flex;align-items:center;justify-content:space-between;padding:8px 0;border-top:1px solid #eee">
+        <div><div style="font-size:0.6rem;font-weight:700;color:#0d2b6b;font-family:'Syne',sans-serif">Reduced Motion</div><div style="font-size:0.48rem;color:#888;font-family:'Space Mono',monospace">Stop animations and transitions</div></div>
+        <button id="a11y-motion-btn" onclick="setA11yMotion(localStorage.getItem('a11y-reduced-motion')!=='1')" style="padding:6px 12px;border-radius:8px;border:1.5px solid #1a4a9c;background:#e8f0fe;color:#0d2b6b;font-family:'Syne',sans-serif;font-weight:800;font-size:0.6rem;cursor:pointer">OFF</button>
+      </div>
+    </div>
+    
