@@ -9829,13 +9829,105 @@ async function _aiBatchValidate(addresses) {
 }
 
 
+// Address-variant generator for geocoding fallback (Drop AH.1, 2026-05-05).
+//
+// Nominatim is forgiving on case and punctuation but NOT on token splits.
+// Real example: STL's "Morganford Road" is tagged as one word in OSM, so
+// "7441 Morgan Ford Rd" returns no results — Nominatim can't recombine
+// {morgan, ford, rd} into "morganford". This generator emits a small list
+// of address rewrites that cover the common failure modes:
+//
+//   1. Compound-street collapse: "Morgan Ford" → "Morganford"
+//      (also tried: "Bell Vue" → "Bellevue", "Wash Park" → "Washpark")
+//   2. Suffix-strip: drop the trailing road-type ("Rd", "Ave", "Blvd", etc.)
+//      OSM is tolerant of missing suffixes; this helps when the user wrote
+//      "Rd" but OSM tagged it "Road" with a strict tokenizer.
+//   3. Directional contraction/expansion: "S Grand" ↔ "South Grand".
+//
+// The list is deduped and bounded — typically 1-4 variants per address.
+// Each variant is tried in order; the first hit wins. If all variants fail,
+// the caller (_geocodeStops) flags the stop as un-geocoded.
+function _geocodeVariants(address) {
+  if (!address || typeof address !== 'string') return [];
+  const seen = new Set();
+  const out = [];
+  const push = (s) => {
+    if (!s) return;
+    const k = s.trim().toLowerCase();
+    if (k && !seen.has(k)) { seen.add(k); out.push(s.trim()); }
+  };
+
+  // Variant 1: as written
+  push(address);
+
+  // Variant 2: collapse adjacent capitalized tokens that look like a
+  // compound street name. We're conservative: only collapse a 2-token
+  // compound that sits between the house number and a suffix, e.g.,
+  // "7441 Morgan Ford Rd" → "7441 Morganford Rd". We don't collapse 3+
+  // tokens (too risky).
+  // Pattern: "<num> <Word> <Word> <suffix>" where suffix is a road-type.
+  const compoundRe = /^(\s*\d+\s+)([A-Za-z]+)\s+([A-Za-z]+)(\s+(?:Rd|Road|Ave|Avenue|Blvd|Boulevard|St|Street|Dr|Drive|Ln|Lane|Pl|Place|Ct|Court|Way|Ter|Terrace|Cir|Circle|Pkwy|Parkway|Hwy|Highway|Trl|Trail)\b.*)$/i;
+  const cm = address.match(compoundRe);
+  if (cm) {
+    // Lowercase the second token so "Morgan Ford" → "Morganford" (canonical
+    // OSM form), not "MorganFord". Both work because Nominatim is case-
+    // insensitive, but the canonical form is more legible if it ever
+    // surfaces in a UI/log.
+    const second = cm[3].charAt(0).toLowerCase() + cm[3].slice(1);
+    push(cm[1] + cm[2] + second + cm[4]);            // collapse: "Morganford Rd"
+    push(cm[1] + cm[2] + second + cm[4].replace(/^\s+\S+/, '')); // collapse + strip suffix
+  }
+
+  // Variant 3: suffix-strip even when no compound. "7441 Foo Rd" → "7441 Foo".
+  const stripSuffix = address.replace(
+    /\s+(?:Rd|Road|Ave|Avenue|Blvd|Boulevard|St\.?|Street|Dr|Drive|Ln|Lane|Pl|Place|Ct|Court|Way|Ter|Terrace|Cir|Circle|Pkwy|Parkway|Hwy|Highway|Trl|Trail)\b\.?/i,
+    ''
+  );
+  if (stripSuffix !== address) push(stripSuffix);
+
+  // Variant 4: directional contraction/expansion.
+  //   "South Grand" ↔ "S Grand" (and "S. Grand")
+  //   Same for North/N, East/E, West/W
+  const dirMap = [
+    [/\b(South)\b/i,  'S'],
+    [/\b(North)\b/i,  'N'],
+    [/\b(East)\b/i,   'E'],
+    [/\b(West)\b/i,   'W'],
+    [/\bS\.?\s/i,     'South '],
+    [/\bN\.?\s/i,     'North '],
+    [/\bE\.?\s/i,     'East '],
+    [/\bW\.?\s/i,     'West '],
+  ];
+  for (const [re, repl] of dirMap) {
+    const swapped = address.replace(re, repl);
+    if (swapped !== address) push(swapped);
+  }
+
+  return out;
+}
+
+// Drop AH.1: viewbox + countrycodes constraint to match the autocomplete
+// surface. Without these constraints Nominatim sometimes returns matches
+// outside St. Louis (e.g., a "Morgan Ford" hit in another state) which
+// would silently pin the stop to the wrong place.
 async function geocodeAddress(address) {
-  const url = `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(address)}&format=json&limit=1`;
-  try {
-    const r = await fetchWithTimeout(url, { headers: {'User-Agent': 'STL-Inspector-App'} }, 8000);
-    const d = await r.json();
-    if (d.length) return { lat: parseFloat(d[0].lat), lng: parseFloat(d[0].lon) };
-  } catch {}
+  const variants = _geocodeVariants(address);
+  for (const variant of variants) {
+    const url = `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(variant)}` +
+                `&format=json&addressdetails=1&limit=1&countrycodes=us` +
+                `&viewbox=${NOMINATIM_VIEWBOX}&bounded=1`;
+    try {
+      const r = await fetchWithTimeout(url, { headers: {'User-Agent': 'STL-Inspector-App'} }, 8000);
+      const d = await r.json();
+      if (d.length) return { lat: parseFloat(d[0].lat), lng: parseFloat(d[0].lon) };
+    } catch (_) {
+      // Network/timeout/parse error on this variant — try the next one.
+    }
+    // Tiny delay between variant requests to avoid burst-rate-limit on
+    // back-to-back hits to Nominatim. The outer _geocodeStops loop also
+    // has its own throttle; this is just intra-stop politeness.
+    if (variants.length > 1) await new Promise(r => setTimeout(r, 150));
+  }
   return null;
 }
 
