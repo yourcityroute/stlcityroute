@@ -2,6 +2,46 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
+<!-- Drop AH (2026-05-05): Content Security Policy. Defense-in-depth.
+
+     The app is a single inline-script PWA, so script-src 'unsafe-inline' is
+     required (no realistic path to nonces or hashes for ~20K lines of inline
+     JS). Given that, CSP's value here is:
+
+       1. connect-src lockdown — an injected script (e.g. via stored XSS in a
+          stop's notes that escaped escHtml) cannot exfiltrate to arbitrary
+          hosts. It can only talk to the few endpoints we use.
+       2. script-src host whitelist — even with 'unsafe-inline', adding a new
+          <script src="https://attacker.example/evil.js"> is blocked unless
+          the host is in the list.
+       3. object-src 'none' — blocks <object>/<embed>/Flash-style attacks.
+       4. base-uri 'self' — blocks <base href> hijacking.
+       5. No 'unsafe-eval' — the codebase has no eval() or new Function() in
+          the live JS (the test harness extracts and Function()-wraps source,
+          but that runs in Node, not the browser). If someone adds eval(),
+          the browser will refuse to execute it and they'll find out fast.
+
+     connect-src endpoints (live as of Drop AH):
+       - api.anthropic.com           — BYOK AI features
+       - nominatim.openstreetmap.org — geocoding
+       - router.project-osrm.org     — distance matrix + route geometry
+       - maps8.stlouis-mo.gov        — wards GeoJSON (ArcGIS REST)
+       - raw.githubusercontent.com   — neighborhoods GeoJSON (one-time fetch
+                                       cached in IDB; blackmad/neighborhoods)
+       - ipapi.co                    — IP-based location fallback
+
+     img-src endpoints:
+       - 'self' data: blob:                  — inline icons (data:), camera
+                                               capture (blob:), local imgs
+       - *.tile.openstreetmap.org            — OSM tile fallback
+       - *.basemaps.cartocdn.com             — Carto Positron tiles (default)
+       - api.qrserver.com                    — QR code image generation
+
+     If you add a new fetch destination, ADD IT HERE TOO. CSP failures are
+     silent at the network layer — the user just sees the feature broken
+     with no obvious cause. test-csp.js exists to catch CSP drift at edit
+     time so this doesn't bite. -->
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' https://cdnjs.cloudflare.com; style-src 'self' 'unsafe-inline' https://cdnjs.cloudflare.com https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data: blob: https://*.tile.openstreetmap.org https://*.basemaps.cartocdn.com https://api.qrserver.com; connect-src 'self' https://api.anthropic.com https://nominatim.openstreetmap.org https://router.project-osrm.org https://maps8.stlouis-mo.gov https://raw.githubusercontent.com https://ipapi.co; manifest-src 'self' blob:; worker-src 'self' blob:; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'">
 <link rel="apple-touch-icon" sizes="180x180" href="data:image/png;base64,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">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -1402,6 +1442,21 @@ header{
         ➕ ADD AS ADDITIONAL STOP
         <div style="font-size:0.56rem;font-weight:400;opacity:0.75;margin-top:2px">Keep both — useful if different inspection types</div>
       </button>
+      <!-- Drop AG batch shortcuts: only visible when a bulk-add queue is in
+           flight (paste / scan / spreadsheet). Hidden when adding a single
+           stop manually. showDupeModal flips display:flex on open if
+           window._scanAddNextCallback is set. -->
+      <div id="dupe-batch-shortcuts" style="display:none;flex-direction:column;gap:8px;margin-top:6px;padding-top:10px;border-top:1px dashed #ccc">
+        <div style="font-family:'Space Mono',monospace;font-size:0.5rem;color:#888;letter-spacing:0.5px;text-align:center">— APPLY TO ALL REMAINING IN BATCH —</div>
+        <button data-fn="dupeAction" data-arg="combine_all" style="padding:13px;border:none;border-radius:10px;background:linear-gradient(135deg,#1b5e20,#2e7d32);color:white;font-family:'Syne',sans-serif;font-weight:800;font-size:0.74rem;cursor:pointer;text-align:left">
+          🔗 COMBINE ALL DUPLICATES
+          <div style="font-size:0.54rem;font-weight:400;opacity:0.85;margin-top:2px">Auto-merge every remaining duplicate into its existing stop</div>
+        </button>
+        <button data-fn="dupeAction" data-arg="keep_both_all" style="padding:13px;border:none;border-radius:10px;background:#fff4e0;color:#7a5000;font-family:'Syne',sans-serif;font-weight:800;font-size:0.74rem;cursor:pointer;text-align:left">
+          ➕ ADD ALL AS SEPARATE STOPS
+          <div style="font-size:0.54rem;font-weight:400;opacity:0.75;margin-top:2px">Keep each duplicate as its own stop, no prompts</div>
+        </button>
+      </div>
     </div>
   </div>
 </div>
@@ -2434,10 +2489,13 @@ header{
         Shows your full route as numbered pins on an interactive map plus a polyline trail showing the order. Pinch to zoom, drag to pan.<br><br>
         <b>The trail:</b><br>
         · <b>Solid green line</b> with arrows = stops you've already completed today, in visit order<br>
-        · <b>Dashed blue line</b> with arrows = pending stops in optimized order<br>
+        · <b>Solid blue line</b> tracing actual streets = pending stops, drawn from OSRM road-network geometry when you're online and OSRM mode is selected (Settings → Route Algorithm → Road network)<br>
+        · <b>Dashed blue line</b> with arrows = pending stops in optimized order, used as a fallback when offline, when you're using the straight-line algorithm, or when the road-network fetch fails<br>
+        · Direction arrows always sit at midpoints between consecutive stops — they show the logical visit order, not every road bend<br>
         · The trail connects: origin → done1 → done2 → ... → pending1 → pending2 → ...<br>
-        · The transition from your last-done stop to your first-pending stop is part of the dashed blue layer (it's your next move)<br><br>
+        · The transition from your last-done stop to your first-pending stop is part of the pending layer (it's your next move). After completing a stop, the road-network overlay reverts to dashed straight-line until the next Optimize — the geometry is fetched per optimize run.<br><br>
         <b>Pin colors</b> match the stop type — red for Service Requests, blue for Inspections, gold for general — and pending pins show their route number.<br><br>
+        <b>Boundary layers</b> (Neighborhoods, Wards) toggle on via the LAYERS button. Neighborhoods now show their official city number after the name (e.g., "Southwest Garden #13") and are drawn with a heavier purple dashed border. Wards are drawn with a thick solid teal border, so the two layers stay distinguishable when both are on.<br><br>
         <b>Tap a pin</b> to open the map popup card. From the popup you can: ▲▼ reorder, 📌 pin as start/end, 🔒 lock position, 📍 mark arrived, 🔍 lookup, 🧭 navigate, and ✓ close. The map redraws after each action with a brief pause so you can see the markers and trail update.<br><br>
         <b>The "you" marker</b> is the blue dot with a halo at your origin. By default this is the city center; tap 📡 in the map header to update it to your current GPS location.<br><br>
         <b>If your stops are geocoded</b> (most are), they appear immediately. Stops added by address alone may take a moment to place while the app looks up coordinates.
@@ -2887,7 +2945,7 @@ header{
     </details>
 
     <div id="photo-save-explainer" style="background:#f5f9f5;border:1px solid #c8dbc8;border-radius:9px;padding:9px 12px;margin-bottom:10px;font-family:'Space Mono',monospace;font-size:0.55rem;color:#1a3320;line-height:1.5">
-      <b>💾 Download</b> saves the stamped photo to your phone's Downloads. <b>📤 Share</b> opens the share sheet (email, Drive, Files, Photos, etc.).
+      <b>💾 Download</b> saves to your phone's Downloads. <b>📤 Share</b> opens the share sheet (email, Drive, Files, Photos, etc.). <b>💾📤 Save &amp; Share</b> does both in one tap — saves to Downloads, then opens the share sheet so you can email or send it.
     </div>
 
     <!-- Take Another button — primary during sessions -->
@@ -2898,6 +2956,13 @@ header{
     <div id="photo-email-hint" style="display:none;font-family:'Space Mono',monospace;font-size:0.52rem;color:rgba(0,0,0,0.5);line-height:1.45;margin-bottom:10px;padding:0 2px">
       Opens your share sheet with the stop summary and the photos from this session attached. Works only while this preview is open — once you tap Done, the photos stay in your gallery but can\u2019t be re-attached from inside the app.
     </div>
+
+    <!-- Drop AG (2026-05-04): combo button — Save & Share. Calls
+         downloadStampedPhoto() then shareStampedPhoto() in sequence. Lives
+         on its own row above the 3-button row because squeezing a 4th
+         button into [Done][Download][Share] cramps everything below
+         tap-target size on a phone. -->
+    <button id="photo-save-share-btn" data-fn="saveAndShareStampedPhoto" style="width:100%;padding:12px;background:linear-gradient(135deg,#5d4ea8,#7e6cc4);border:none;border-radius:10px;color:white;font-family:Syne,sans-serif;font-weight:800;font-size:0.74rem;cursor:pointer;margin-bottom:8px">💾📤 Save &amp; Share <span style="font-weight:400;opacity:0.85;font-size:0.62rem">— save then open share sheet</span></button>
 
     <div style="display:flex;gap:8px">
       <button id="photo-done-btn" data-fn="handlePreviewDone" style="flex:1;padding:11px;background:none;border:1.5px solid #ccc;border-radius:10px;color:#666;font-family:Syne,sans-serif;font-weight:700;font-size:0.7rem;cursor:pointer">Done</button>
@@ -3047,107 +3112,108 @@ header{
 // See System Doc §2.1 for the IIFE-module convention that determines whether
 // a new feature warrants a TOC entry.
 //
-// ·  L  217  Session-scoped AI usage counter
+// ·  L  216  Session-scoped AI usage counter
 // §  L  299  CORE UTILITIES
-// ·  L  306  Namespaced storage facade
-// ·  L  314  fetchWithTimeout: AbortSignal-free network timeout
+// ·  L  305  Namespaced storage facade
+// ·  L  313  fetchWithTimeout: AbortSignal-free network timeout
 // §  L  350  _tryLog — observable swallowed-error helper
 // §  L  420  _newClientId — collision-resistant string ID generator
-// §  L  446  Accessibility — modal focus management + Escape-to-close
-// §  L  629  PROFILES — multi-profile support (Drop I, Phase 1)
-// ·  L 1031  Profile Backup & Restore
-// ·  L 1504  Custom stop types: APPEND with -imported suffix on collision
-// ·  L 1649  Fiscal-Day Stop Archive
-// §  L 1883  PROFILES — multi-profile management UI handlers (Drop J)
-// ·  L 2098  Profile export / import UI handlers
-// §  L 2287  RESET — wipe everything, run setup wizard on next launch
-// §  L 2308  DIAGNOSTICS — Settings panel viewer for the _swallowedLog ring buffer
-// ·  L 2550  Custom Type Creator Modal
-// §  L 2831  CORE UTILITIES (recovered)
-// §  L 2841  DATE HELPERS
-// §  L 2881  STATE
-// §  L 2988  INIT
-// §  L 3104  _initBody and its phase helpers
-// §  L 3459  STOPS
-// §  L 3525  ADDRESS INPUT — structured number + street + suffix
-// ·  L 4030  Related-stops detection
-// §  L 4175  CLOSE STOP MODAL (Complete vs Delete)
-// ·  L 4397  Stop Notes
-// ·  L 4433  Clock In / Out
-// §  L 4693  DELETE ALL
-// §  L 4723  SPREADSHEET / CSV UPLOAD
-// §  L 4889  CSB NAVIGATOR
-// §  L 4892  CSB NAVIGATOR — confirmed STL CSB URLs + two-tap clipboard flow
-// ·  L 5200  Build the clipboard payload
-// §  L 5369  STOP TYPE CHANGE
-// ·  L 5409  Edit Stop (address / type / notes)
-// §  L 5738  ROUTE OPTIMIZATION
-// ·  L 5761  Drop Y (2026-04-30): barrier-aware distance
-// ·  L 5923  Drop AA (2026-05-03): zone penalties + haversine multiplier
-// ·  L 6023  OSRM module — road-network distance via project-osrm.org
-// §  L 6492  PIN START STOP
-// §  L 6560  END LOCATION — retired in Drop X.2
-// ·  L 6757  Step 1: resolve starting origin
-// ·  L 6785  Step 2: geocode stops missing coordinates
-// ·  L 6960  Step 3: sort stops (mode-aware: greedy / balanced / multi-start)
-// ·  L 7197  Orchestrator: UI state + calls the three steps
-// ·  L 7289  Drive time estimate
-// §  L 7623  GPS LOCATION FUNCTIONS
-// §  L 7764  VISUAL MAP — updated with interactive markers
-// §  L 7774  refreshRouteMap and its helpers
-// §  L 8034  showStopOnMap — switch to the map tab and pan to a stop's location
-// ·  L 8155  Analytics utilities
-// §  L 8210  MISC CITY CONTACTS & RESOURCES — data + renderer
-// ·  L 8508  Advertise modal — in-app advertising info page
-// ·  L 8527  Misc City Contacts & Resources modal
-// ·  L 8546  Detect device capabilities for scan routing
-// §  L 8795  PHOTO SCAN — Anthropic vision API (primary) or on-device TextDetector (fallback)
-// ·  L 8882  Image preprocessing for Anthropic API
-// ·  L 8998  Scan pipeline A: Anthropic vision API
-// ·  L 9035  Scan pipeline B: on-device TextDetector (Android Chrome)
-// ·  L 9048  Orchestrator: choose pipeline, manage UI state
-// ·  L 9429  Voice dictation for stop notes (with optional AI cleanup)
-// §  L 9743  VISUAL MAP
-// §  L 9817  SETTINGS — OPEN/CLOSE, DISPLAY
-// §  L 9934  PAYMENT SYSTEM
-// §  L10314  PHOTO STAMPING — native camera handoff + configurable canvas stamp
-// ·  L10494  Photostamp drift detection
-// ·  L11054  Photo Annotation + Redaction (Phase 1 — items 1, 2)
-// ·  L11762  PhotoCache: temporary in-app copies of stamped photos
-// ·  L12314  Universal image-capture helpers
-// ·  L12456  GeoCache: cached neighborhood + ward polygons for offline lookup
-// ·  L12536  Drop V: inline neighborhoods + wards GeoJSON (CITY-AUTHORITATIVE)
-// ·  L12764  MapLayers: registry + storage for togglable map overlays
-// ·  L13147  MapLayerRenderer: draws active layers onto routeMap
-// §  L13482  Map Layers UI — toggle panel + custom-layer creator
-// ·  L14209  Photo log (metadata only, NO photo bytes)
-// §  L14273  _stampImageBlob and its helpers
-// ·  L15075  Fiscal-day cutoff + archive UI handlers
-// §  L15212  SETTINGS MODAL — dirty tracking, forced-collapse, save prompt
-// ·  L15842  Supercharge with AI modal handlers
-// ·  L15897  End-of-Day Debrief (Phase 4b — item 9)
-// ·  L16102  Ask Your Data — Conversational stop-data inquiry (Phase 4b — item 14)
-// §  L16499  INSPECTOR ID
-// §  L16504  SHARE APP LINK / CLIPBOARD
-// §  L16539  INFO TAB — STATIC DATA
-// §  L17279  INFO / CREDENTIALS TAB
-// ·  L17328  Customize Modal
-// ·  L17537  Text Editor Modal
-// ·  L17578  Reference Docs
-// ·  L17714  Rotate the stored ID photo
-// ·  L17765  showFullscreen view renderers
-// ·  L18187  Metrics log: append a day-session entry
-// ·  L18227  Core metrics computation
-// §  L18228  computeMetrics and its helpers
-// ·  L18494  Render data tab
-// ·  L18928  Export: CSV
-// ·  L18941  Google Sheets smart push
-// ·  L19283  Share: text summary
-// ·  L19364  Init: schedule auto-send on app load
+// §  L  446  Accessibility — modal focus management + Escape-to-close (Drop AG: two-pass focus to skip text inputs)
+// §  L  653  PROFILES — multi-profile support (Drop I, Phase 1)
+// ·  L 1054  Profile Backup & Restore
+// ·  L 1527  Custom stop types: APPEND with -imported suffix on collision
+// ·  L 1672  Fiscal-Day Stop Archive
+// §  L 1907  PROFILES — multi-profile management UI handlers (Drop J)
+// ·  L 2121  Profile export / import UI handlers
+// §  L 2311  RESET — wipe everything, run setup wizard on next launch
+// §  L 2332  DIAGNOSTICS — Settings panel viewer for the _swallowedLog ring buffer
+// ·  L 2573  Custom Type Creator Modal
+// §  L 2855  CORE UTILITIES (recovered)
+// §  L 2865  DATE HELPERS
+// §  L 2905  STATE
+// §  L 3012  INIT
+// §  L 3128  _initBody and its phase helpers
+// §  L 3483  STOPS (Drop AG: batch dupe auto-choice — "combine all" / "add all as separate")
+// §  L 3590  ADDRESS INPUT — structured number + street + suffix
+// ·  L 4113  Related-stops detection
+// §  L 4259  CLOSE STOP MODAL (Complete vs Delete)
+// ·  L 4480  Stop Notes
+// ·  L 4516  Clock In / Out
+// §  L 4777  DELETE ALL
+// §  L 4807  SPREADSHEET / CSV UPLOAD
+// §  L 4981  CSB NAVIGATOR
+// §  L 4984  CSB NAVIGATOR — confirmed STL CSB URLs + two-tap clipboard flow
+// ·  L 5291  Build the clipboard payload
+// §  L 5461  STOP TYPE CHANGE
+// ·  L 5500  Edit Stop (address / type / notes)
+// §  L 5830  ROUTE OPTIMIZATION
+// ·  L 5852  Drop Y (2026-04-30): barrier-aware distance
+// ·  L 6014  Drop AA (2026-05-03): zone penalties + haversine multiplier
+// ·  L 6114  OSRM module — road-network distance via project-osrm.org (Drop AF: + road-geometry)
+// §  L 6718  PIN START STOP
+// §  L 6786  END LOCATION — retired in Drop X.2
+// ·  L 6982  Step 1: resolve starting origin
+// ·  L 7010  Step 2: geocode stops missing coordinates
+// ·  L 7185  Step 3: sort stops (mode-aware: greedy / balanced / multi-start)
+// ·  L 7422  Orchestrator: UI state + calls the three steps
+// ·  L 7537  Drive time estimate
+// §  L 7872  GPS LOCATION FUNCTIONS (Drop AG: post-close GPS-resolve respects user map interaction)
+// §  L 8013  VISUAL MAP — updated with interactive markers
+// §  L 8023  refreshRouteMap and its helpers
+// §  L 8324  showStopOnMap — switch to the map tab and pan to a stop's location
+// ·  L 8444  Analytics utilities
+// §  L 8500  MISC CITY CONTACTS & RESOURCES — data + renderer
+// ·  L 8797  Advertise modal — in-app advertising info page
+// ·  L 8816  Misc City Contacts & Resources modal
+// ·  L 8835  Detect device capabilities for scan routing
+// §  L 9085  PHOTO SCAN — Anthropic vision API (primary) or on-device TextDetector (fallback)
+// ·  L 9171  Image preprocessing for Anthropic API
+// ·  L 9287  Scan pipeline A: Anthropic vision API
+// ·  L 9324  Scan pipeline B: on-device TextDetector (Android Chrome)
+// ·  L 9337  Orchestrator: choose pipeline, manage UI state
+// ·  L 9724  Voice dictation for stop notes (with optional AI cleanup)
+// §  L10039  VISUAL MAP (Drop AG: user-interaction tracking — _userMapRecentlyInteracted gate)
+// §  L10147  SETTINGS — OPEN/CLOSE, DISPLAY
+// §  L10264  PAYMENT SYSTEM
+// §  L10644  PHOTO STAMPING — native camera handoff + configurable canvas stamp
+// ·  L10823  Photostamp drift detection
+// ·  L11383  Photo Annotation + Redaction (Phase 1 — items 1, 2)
+// ·  L12091  PhotoCache: temporary in-app copies of stamped photos
+// ·  L12643  Universal image-capture helpers
+// ·  L12785  GeoCache: cached neighborhood + ward polygons for offline lookup
+// ·  L12865  Drop V: inline neighborhoods + wards GeoJSON (CITY-AUTHORITATIVE)
+// ·  L13093  MapLayers: registry + storage for togglable map overlays
+// ·  L13494  MapLayerRenderer: draws active layers onto routeMap
+// §  L13830  Map Layers UI — toggle panel + custom-layer creator
+// ·  L14556  Photo log (metadata only, NO photo bytes)
+// §  L14621  _stampImageBlob and its helpers (Drop AG: saveAndShareStampedPhoto combo handler)
+// ·  L15452  Fiscal-day cutoff + archive UI handlers
+// §  L15590  SETTINGS MODAL — dirty tracking, forced-collapse, save prompt
+// ·  L16219  Supercharge with AI modal handlers
+// ·  L16274  End-of-Day Debrief (Phase 4b — item 9)
+// ·  L16479  Ask Your Data — Conversational stop-data inquiry (Phase 4b — item 14)
+// §  L16877  INSPECTOR ID
+// §  L16882  SHARE APP LINK / CLIPBOARD
+// §  L16917  INFO TAB — STATIC DATA
+// §  L17657  INFO / CREDENTIALS TAB
+// ·  L17705  Customize Modal
+// ·  L17914  Text Editor Modal
+// ·  L17955  Reference Docs
+// ·  L18091  Rotate the stored ID photo
+// ·  L18142  showFullscreen view renderers
+// ·  L18564  Metrics log: append a day-session entry
+// ·  L18604  Core metrics computation
+// §  L18606  computeMetrics and its helpers
+// ·  L18871  Render data tab
+// ·  L19305  Export: CSV
+// ·  L19318  Google Sheets smart push
+// ·  L19660  Share: text summary
+// ·  L19741  Init: schedule auto-send on app load
 //
 // ============================================================================
 
 // ============================================================
+// SECTION: app-constants
 // APP CONSTANTS — all in one place
 // ============================================================
 const RESET_ICON_URI = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAFAAAABQCAMAAAC5zwKfAAAAflBMVEWiISVzGSIrFh6xGx7PEC/FHiTfICXQICSqAFUAAADmHiPwICb/AADbHSOrAAB+AAC0HCHQHSPWHSO/AD/IHSKpGyL/AFWRGx3FHSP/AD92GBr/Pz+5HCHVICXaICZPGBgAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAJTcqwAAAAIHRSTlMgEwhOBWfjkQMA/P0B7wMCS7DTBJAyAyVyBBYEa7PTCplQrKIAAALuSURBVHja7ZhZk6IwEIAbHXVzkYNTFPz//3KTDoxTkkDQediqhQcLNPno9N0C+eULduAO3IH/LlDmecFzyX8FKIv6+57f+KfAHAkAR6Wq6uHuC/4BkNvN0PaDYIxRJoRu3Xr+NtDuVJo5GF7ujg2nA77nDaC1QaWfMDrdmJPVxBtAu6ekbJRMuGsSlemO1JuBOekMQ5roWwXZIQPV6jMy2RlIsRGYE/A80TY/vm5a4d9SxU4NMXOAwI1lZx8K59Nc5s5jutIJyRg4k/E8ESh55uRjQlm/kz9/sOsVEs2jCHpkGFgTjZuAXF838S9SIbG0DxWkAWtyR14XVL0loq2V0vbjVZcQPDAqkDaRmPjC9zmmA/J1YE1KJ6Ai15hPdWL0c9ElACVpnIA6wuNE9XQKGzM7RAB4RQFpFY7YP97KI7Akt3UgPxgXXpHoqi2QfgNnNgkAc3KkKGAkFCRRYuIJmXDkK2ntWhPPepw0ZsoS81UQWK9ROVETO+csfRpqZyoMuo3BpcViplTOcdhxniJgrqLOqiieTSa9ZDb3ikfCkSXmGdEQSVaqw/3cBhQNcyM3KcBoXXkb6IRMSl+SVA4I68BECb1RKCwbZVMZPTgrn5bcZhuQox/Oo/5t4M2FATMHvmaSVGBOFOYRnq/weHIZRSXqeHOwWNDDCZau2NlVxR54Yhm1wUcXSgC+8siCqWa5SN1teYu0KQ3F3yEROJZRm3GKMO9hXPuZ8eTOwRd6es5CMlrNahYsJ+utyLmaJRV5JV3vO5F6g/Ul980hvbsO68nMLcTn6uFR8y3uZAuRbwR1hdNEYQcV7Jsq7Qt8NBvFG85mbGC16qYvH+riO9gh7qQLLXGmxw5b6LJVx7bUwvcMrM/iTg9L0dpS9pwnpvGCWY9eyL6wWDUa/exjJnTZvDunoJBwMSjgKKW5wCeTFMH5E04XM5hh6PXJmbyWHw2P8iX6QG7O2HN7gx9q+RUSCtf+n8MO3IE7cAf+t8C/3nfveQDllUEAAAAASUVORK5CYII=';
@@ -3326,6 +3392,7 @@ function _recordUsage(feature, data) {
 }
 
 // ============================================================
+// SECTION: core-utilities
 // CORE UTILITIES
 // ============================================================
 
@@ -3519,6 +3586,7 @@ window._newClientId = _newClientId;
 // stack and restores focus, but does NOT hide the modal — the caller
 // is expected to wire Escape to its own close function via onEscape.
 
+// MODULE: Accessibility — modal focus stack + Escape-to-close
 const Accessibility = (function() {
   // Stack of {modal, prevFocus, onEscape}
   var _stack = [];
@@ -3543,9 +3611,33 @@ const Accessibility = (function() {
       // is null for display:none elements, so use that as a coarse
       // filter.
       var candidates = modal.querySelectorAll(FOCUSABLE_SELECTOR);
-      for (var i = 0; i < candidates.length; i++) {
-        var el = candidates[i];
-        if (el.offsetParent !== null || el === document.activeElement) {
+      // Drop AG (2026-05-04): two-pass scan. Mobile keyboards pop up
+      // automatically when a textarea/text-input gets focus, which can
+      // cover the action buttons on a small phone. Pass 1: find a
+      // focusable that is NOT a text-entry control (buttons, links,
+      // selects, [tabindex]). Pass 2: fall back to anything focusable
+      // (preserves a11y when the modal really is text-only). The
+      // explicit `initialFocus` option still wins over both passes —
+      // see _resolveInitialFocus.
+      function isTextEntry(el) {
+        if (!el) return false;
+        var tag = (el.tagName || '').toLowerCase();
+        if (tag === 'textarea') return true;
+        if (tag === 'input') {
+          var t = (el.type || 'text').toLowerCase();
+          // Anything that summons a soft keyboard.
+          var typingTypes = ['text','password','email','search','url','tel','number','date','datetime-local','month','week','time'];
+          return typingTypes.indexOf(t) !== -1;
+        }
+        if (el.isContentEditable) return true;
+        return false;
+      }
+      for (var pass = 0; pass < 2; pass++) {
+        for (var i = 0; i < candidates.length; i++) {
+          var el = candidates[i];
+          var visible = (el.offsetParent !== null || el === document.activeElement);
+          if (!visible) continue;
+          if (pass === 0 && isTextEntry(el)) continue;
           return el;
         }
       }
@@ -3656,6 +3748,7 @@ window.Accessibility = Accessibility;
 const LS_PREFIX = 'stlcr:';
 
 // ============================================================
+// SECTION: profiles-storage
 // PROFILES — multi-profile support (Drop I, Phase 1)
 // ============================================================
 // The app supports multiple independent user profiles on the same device,
@@ -4112,6 +4205,7 @@ _migrateToProfiles();
  * @see Profiles — consumed for new-profile creation and switching
  * @see MapLayers.addCustom — used during custom-layer restore
  */
+// MODULE: ProfileBackup — encrypted profile export/import
 const ProfileBackup = (function() {
   // Keys we explicitly skip — they're either device-bound or about session
   // ephemera that shouldn't migrate. Use exact matches and prefix matches.
@@ -4733,6 +4827,7 @@ window.ProfileBackup = ProfileBackup;
  * @namespace StopArchive
  * @see _migrateExpiredStops — the boot-time integration point
  */
+// MODULE: StopArchive — multi-route archive + restore
 const StopArchive = (function() {
   var ARCHIVE_KEY = 'stops-archive';
   var CUTOFF_KEY  = 'fiscal-day-cutoff';  // 'HH:MM' string; default '17:00'
@@ -4910,6 +5005,7 @@ const StopArchive = (function() {
 window.StopArchive = StopArchive;
 
 // ============================================================
+// SECTION: profiles-ui
 // PROFILES — multi-profile management UI handlers (Drop J)
 // ============================================================
 //
@@ -5314,6 +5410,7 @@ async function confirmProfileImport() {
 }
 
 // ============================================================
+// SECTION: reset
 // RESET — wipe everything, run setup wizard on next launch
 // ============================================================
 //
@@ -5335,6 +5432,7 @@ async function confirmProfileImport() {
 // After all of that, hard reload. init() will see no 'setup-complete'
 // flag and trigger openSetupWizard.
 // ============================================================
+// SECTION: diagnostics
 // DIAGNOSTICS — Settings panel viewer for the _swallowedLog ring buffer
 // ============================================================
 // renderDiagnosticsLog reads the buffer captured by _tryLog (see helpers
@@ -5858,6 +5956,7 @@ function testGPSNow() {
 
 
 // ============================================================
+// SECTION: core-utilities-recovered
 // CORE UTILITIES (recovered)
 // ============================================================
 
@@ -5868,6 +5967,7 @@ function testGPSNow() {
 
 
 // ============================================================
+// SECTION: date-helpers
 // DATE HELPERS
 // ============================================================
 function normalizeAddr(a) {
@@ -5908,6 +6008,7 @@ function findCase() { return null; }
 function applyCaseloadFlagsToStop() {}
 
 // ============================================================
+// SECTION: state
 // STATE
 // ============================================================
 // Load from atomic inspector-data key (legacy separate keys removed — unused since 2024)
@@ -6015,6 +6116,7 @@ function markRouteChanged() {
 
 
 // ============================================================
+// SECTION: boot-and-init
 // INIT
 // ============================================================
 function init() {
@@ -6486,11 +6588,17 @@ function _initBody() {
 }
 
 // ============================================================
+// SECTION: stops-core
 // STOPS
 // ============================================================
 // ── Pending duplicate stop for modal resolution ───────────────
 let _pendingDupeStop = null;
 let _pendingDupeExisting = null;
+// Drop AG (2026-05-04): when the user picks "combine all" or "add all as
+// separate" inside a bulk-add queue, the choice is sticky for the rest of
+// that queue. Cleared at queue-end (dupeAction with empty queue) and on
+// fresh modal open. Values: null | 'combine' | 'keep_both'.
+let _dupeBatchAutoChoice = null;
 
 function showDupeModal(addr, existing, newStop) {
   document.getElementById('dupe-stop-addr').textContent = addr;
@@ -6500,6 +6608,14 @@ function showDupeModal(addr, existing, newStop) {
     `Type: ${typeLabel(existing.type)}<br>` +
     (existing.notes ? `Notes: ${escHtml(existing.notes)}<br>` : '') +
     `Added: ${new Date(existing.addedAt).toLocaleTimeString('en-US',{hour:'numeric',minute:'2-digit'})}`;
+  // Drop AG: show batch shortcuts ONLY if a bulk-add callback is queued.
+  // _scanAddNextCallback is set by importSpreadsheetStops, paste/scan flow,
+  // etc. — see addNext closures at L7937 / L12413.
+  var batchEl = document.getElementById('dupe-batch-shortcuts');
+  if (batchEl) {
+    var inBatch = (typeof window._scanAddNextCallback === 'function');
+    batchEl.style.display = inBatch ? 'flex' : 'none';
+  }
   var modal = document.getElementById('dupe-stop-modal');
   modal.style.display = 'flex';
   Accessibility.modalOpened(modal, { onEscape: closeDupeModal });
@@ -6513,34 +6629,58 @@ function closeDupeModal() {
   Accessibility.modalClosed(modal);
 }
 
+// Drop AG: extracted shared "combine into existing" logic so dupeAction
+// (single combine) and the auto-applied combine-all path can both call it.
+function _combineDupeIntoExisting(newStop, existing) {
+  const typePriority = { service_request: 2, vacancy_inspection: 1, priority_list: 0 };
+  const existIdx = stops.indexOf(existing);
+  if (existIdx < 0) return false;
+  if ((typePriority[newStop.type]||0) > (typePriority[existing.type]||0)) {
+    stops[existIdx].type = newStop.type;
+  }
+  if (newStop.notes && !stops[existIdx].notes) {
+    stops[existIdx].notes = newStop.notes;
+  } else if (newStop.notes && stops[existIdx].notes && !stops[existIdx].notes.includes(newStop.notes)) {
+    stops[existIdx].notes = stops[existIdx].notes + ' · ' + newStop.notes;
+  }
+  stops[existIdx].updatedAt = new Date().toISOString();
+  applyCaseloadFlagsToStop(stops[existIdx]);
+  return true;
+}
+
 function dupeAction(choice) {
   const newStop  = _pendingDupeStop;
   const existing = _pendingDupeExisting;
   closeDupeModal();
   if (!newStop) return;
 
+  // Drop AG: "apply to all" choices set _dupeBatchAutoChoice and then run
+  // the equivalent single-shot action for THIS dupe. Subsequent dupes in
+  // the same batch will be auto-resolved without showing the modal — see
+  // commitStopWithAddr's bulk-mode shortcut.
+  if (choice === 'combine_all') {
+    _dupeBatchAutoChoice = 'combine';
+    choice = 'combine';
+  } else if (choice === 'keep_both_all') {
+    _dupeBatchAutoChoice = 'keep_both';
+    choice = 'keep_both';
+  }
+
   if (choice === 'discard') {
     showToast('New entry discarded — existing stop kept');
   } else if (choice === 'keep_both') {
     commitStop(newStop);
   } else if (choice === 'combine') {
-    const typePriority = { service_request: 2, vacancy_inspection: 1, priority_list: 0 };
-    const existIdx = stops.indexOf(existing);
-    if (existIdx >= 0) {
-      if ((typePriority[newStop.type]||0) > (typePriority[existing.type]||0)) {
-        stops[existIdx].type = newStop.type;
+    if (_combineDupeIntoExisting(newStop, existing)) {
+      saveStops();
+      renderAll();
+      // Toast suppressed in batch mode — would spam "Stops combined ✓"
+      // for every duplicate. Final batch toast comes from importSpreadsheet
+      // / scan flow when queue empties.
+      if (typeof window._scanAddNextCallback !== 'function') {
+        showToast('Stops combined ✓');
       }
-      if (newStop.notes && !stops[existIdx].notes) {
-        stops[existIdx].notes = newStop.notes;
-      } else if (newStop.notes && stops[existIdx].notes && !stops[existIdx].notes.includes(newStop.notes)) {
-        stops[existIdx].notes = stops[existIdx].notes + ' · ' + newStop.notes;
-      }
-      stops[existIdx].updatedAt = new Date().toISOString();
-      applyCaseloadFlagsToStop(stops[existIdx]);
     }
-    saveStops();
-    renderAll();
-    showToast('Stops combined ✓');
   }
 
   // Continue bulk-add queue (scan/paste/spreadsheet import) if one is in progress
@@ -6548,6 +6688,10 @@ function dupeAction(choice) {
     const cb = window._scanAddNextCallback;
     window._scanAddNextCallback = null;
     setTimeout(cb, 0);
+  } else {
+    // Queue ended (or none). Clear batch auto-choice so the next manual
+    // single-add isn't influenced by an old session's "apply to all".
+    _dupeBatchAutoChoice = null;
   }
 }
 
@@ -6578,6 +6722,7 @@ function dupeAction(choice) {
 // reaching into a private global. Slightly more verbose at the inline-handler
 // site, but no global leakage.
 
+// MODULE: AddressAutocomplete — Nominatim + Photon typeahead
 const AddressAutocomplete = (function() {
 
   // Private state — formerly 4 top-level lets. Nothing outside the IIFE can
@@ -7025,6 +7170,25 @@ function commitStopWithAddr(addr, fullAddress, type, notes, verified, lat, lng, 
 
   const existing = stops.find(s => !s.done && normalizeAddr(s.address) === normalizeAddr(addr));
   if (existing) {
+    // Drop AG (2026-05-04): bulk-add shortcut. If the user picked
+    // "combine all" or "add all as separate" earlier in this batch,
+    // auto-apply that choice without re-prompting. We deliberately
+    // DO NOT fire _scanAddNextCallback here — the bulk caller's
+    // addNext closure already checks `!_pendingDupeStop` after
+    // commitStopWithAddr returns and self-schedules its next iteration.
+    // Firing the callback here too would schedule TWO parallel addNext
+    // chains and process the queue out of order.
+    if (_dupeBatchAutoChoice === 'combine') {
+      if (_combineDupeIntoExisting(stop, existing)) {
+        saveStops();
+        renderAll();
+      }
+      return;
+    }
+    if (_dupeBatchAutoChoice === 'keep_both') {
+      commitStop(stop);
+      return;
+    }
     _pendingDupeStop = stop;
     _pendingDupeExisting = existing;
     showDupeModal(addr, existing, stop);
@@ -7202,6 +7366,7 @@ function commitStop(stop) {
 }
 
 // ============================================================
+// SECTION: close-stop-modal
 // CLOSE STOP MODAL (Complete vs Delete)
 // ============================================================
 let _closeStopId = null;
@@ -7720,6 +7885,7 @@ function _initClock() {
 
 
 // ============================================================
+// SECTION: delete-all
 // DELETE ALL
 // ============================================================
 function openDeleteAllModal() {
@@ -7750,6 +7916,7 @@ function confirmDeleteAll() {
 function deleteStop(id) { openCloseModal(id); }
 
 // ============================================================
+// SECTION: spreadsheet-csv-upload
 // SPREADSHEET / CSV UPLOAD
 // ============================================================
 let _spreadsheetParsed = [];
@@ -7897,11 +8064,19 @@ function importSpreadsheetStops() {
   const type = document.getElementById('spreadsheet-type-select').value;
   closeSpreadsheetModal();
 
+  // Drop AG (2026-05-04): clear any sticky "apply to all" choice from a
+  // previous batch. Each bulk-add session starts fresh — the user gets the
+  // dupe modal again on the first dupe.
+  _dupeBatchAutoChoice = null;
+
   // Queue through commitStopWithAddr so dupe detection fires
   let queue = _spreadsheetParsed.filter(Boolean).slice();
   let added = 0;
   function addNext() {
     if (!queue.length) {
+      // Drop AG: clear sticky choice on queue completion so the next
+      // single-add isn't influenced by an old session.
+      _dupeBatchAutoChoice = null;
       if (added) showToast(`${added} stop${added!==1?'s':''} added ✓`);
       return;
     }
@@ -7919,6 +8094,7 @@ function importSpreadsheetStops() {
 // CSB NAVIGATOR
 // ============================================================
 // ============================================================
+// SECTION: csb-navigator
 // CSB NAVIGATOR — confirmed STL CSB URLs + two-tap clipboard flow
 // ============================================================
 // URL pattern:
@@ -8396,6 +8572,7 @@ function clearCompletedStops() {
 }
 
 // ============================================================
+// SECTION: stop-type-change
 // STOP TYPE CHANGE
 // ============================================================
 let activeTypeChangeId = null;
@@ -8490,6 +8667,9 @@ function saveEditStop() {
   if (s.address !== newAddr) { s.address = newAddr; s.fullAddress = newAddr + ', St. Louis, MO'; s.verified = null; s.lat = null; s.lng = null;
     // Address changed → invalidate geo metadata so the new address gets a fresh lookup
     s.neighborhood = null; s.neighborhoodName = null; s.ward = null; s.geoLookedUpAt = null;
+    // Drop AH: also clear any prior geocode-failure flag so the next optimize
+    // gives the new address a clean retry without showing the warning badge.
+    if (s._geocodeFailed) { delete s._geocodeFailed; delete s._geocodeFailedAt; }
     changed.push('address'); }
   if (s.type !== newType) { s.type = newType; changed.push('type'); }
   if ((s.notes || '') !== newNotes) { s.notes = newNotes; changed.push('notes'); }
@@ -8726,6 +8906,10 @@ function renderStops() {
       if (s.notes) lines.push(`<div class="addr-sub">${escHtml(s.notes)}</div>`);
       if (s.addedAt) lines.push(`<div style="font-size:0.5rem;color:#bbb;font-family:Space Mono,monospace;margin-top:1px">Added ${new Date(s.addedAt).toLocaleDateString('en-US',{month:'short',day:'numeric'})}</div>`);
       if (s.verified === false) lines.push(`<div style="font-size:0.52rem;color:var(--warn);font-family:Syne,sans-serif;font-weight:700;margin-top:2px">\u26a0 Address unverified</div>`);
+      // Drop AH: geocode-failure badge. Mirrors the same badge in
+      // renderRouteStopHtml so the user sees the warning on whichever tab
+      // they happen to be viewing.
+      if (s._geocodeFailed) lines.push(`<div style="font-size:0.52rem;color:var(--danger,#c0392b);font-family:Syne,sans-serif;font-weight:800;margin-top:2px;background:#fee;border:1px solid rgba(192,57,43,0.35);border-radius:6px;padding:3px 6px">\u26a0 Could not geocode \u2014 not in optimized route. Edit address or delete.</div>`);
       if (s.addrNote) lines.push(`<div style="font-size:0.52rem;color:#2980b9;font-family:Syne,sans-serif;font-weight:700;margin-top:2px">\u2139 ${escHtml(s.addrNote)}</div>`);
       if (s.photoCount || (Array.isArray(s.transactions) && s.transactions.length)) {
         const photoBadge = s.photoCount ? `<span style="font-family:'Space Mono',monospace;font-size:0.5rem;background:#fff4e0;color:#8c4a00;border:1px solid rgba(140,74,0,0.25);border-radius:10px;padding:1px 6px;font-weight:700">📷 ${s.photoCount}</span>` : '';
@@ -8765,6 +8949,7 @@ function renderStops() {
 }
 
 // ============================================================
+// SECTION: route-optimization
 // ROUTE OPTIMIZATION
 // ============================================================
 // LRU haversine cache — 2000 entries, evict oldest 500 when full
@@ -9087,6 +9272,7 @@ function barrierAwareDistKm(lat1, lng1, lat2, lng2) {
 // rate limits, the fallback to barrier-aware Manhattan keeps Optimize working;
 // they can also paste a self-hosted OSRM URL in Settings (future work).
 
+// MODULE: OSRM — distance matrix + route geometry prefetch
 const OSRM = (function() {
   // The public demo endpoint. Rate-limited. We use it because (a) it's the
   // canonical OSRM demo, (b) no signup or key required, (c) appropriate for
@@ -9105,11 +9291,20 @@ const OSRM = (function() {
   // we keep it as-is rather than converting to a Map because the access
   // pattern is "look up the index of a stop ID, then index into a row".
   // `idToIndex` is the cached id-to-row-index map.
+  //
+  // Drop AF: also caches the route geometry (an array of [lat,lng] pairs
+  // tracing the actual road network through the ordered stops). Fetched
+  // separately from the matrix via fetchRouteGeometry() and read back via
+  // getRouteGeometry() at map-refresh time. Lives in module state alongside
+  // the matrix so a single optimize→refresh cycle reuses both without an
+  // extra fetch.
   let _state = {
     points: null,        // [{ id, lat, lng }, ...] | null when no matrix loaded
     distances: null,     // number[][] in meters | null
     idToIndex: null,     // Map<stopId, index> | null
     timestamp: 0,        // ms when prefetch completed; used for staleness checks
+    routeGeometry: null, // [[lat,lng],...] tracing real roads | null when not fetched
+    routeStopIds: null,  // [id1,id2,...] of stops (incl. ORIGIN_ID) the geometry traces; lets us invalidate if the route reorders
   };
 
   // Build the OSRM Table URL for a list of [lng,lat] coordinates.
@@ -9217,10 +9412,122 @@ const OSRM = (function() {
     return !!_state.distances;
   }
 
+  // ── Drop AF: road-route geometry ─────────────────────────────────────
+  // OSRM has two services we use: Table (distance matrix, used by the
+  // optimizer) and Route (turn-by-turn polyline through ordered waypoints).
+  // The Route service is what gives us the "real road" overlay on the map.
+  //
+  // fetchRouteGeometry submits an ORDERED list of stops to OSRM /route/v1/
+  // driving and asks for a full GeoJSON LineString. The returned coordinate
+  // array (after lat/lng swap) replaces the straight stop-to-stop polyline
+  // on the map tab. Cached in _state.routeGeometry so subsequent map
+  // refreshes don't refetch.
+  //
+  // `orderedStops` is the post-optimize array (same shape as prefetchMatrix
+  // input). `origin` is the inspector's start point (gets an ORIGIN_ID
+  // sentinel as the first waypoint). Returns true on success and false on
+  // any failure — callers fall back to the existing straight-line polyline.
+  //
+  // OSRM Route caps coordinates similarly to Table; the public endpoint
+  // typically allows ~25 waypoints reliably for a single Route call.
+  // Larger counts may return a 400 — we fail soft and let the caller draw
+  // the straight-line fallback.
+  async function fetchRouteGeometry(orderedStops, origin) {
+    clearRouteGeometry();
+    if (!Array.isArray(orderedStops) || orderedStops.length === 0) return false;
+
+    var points = [];
+    if (origin && typeof origin.lat === 'number' && typeof origin.lng === 'number') {
+      points.push({ id: ORIGIN_ID, lat: origin.lat, lng: origin.lng });
+    }
+    for (var i = 0; i < orderedStops.length; i++) {
+      var s = orderedStops[i];
+      if (typeof s.lat === 'number' && typeof s.lng === 'number') {
+        points.push({ id: s.id, lat: s.lat, lng: s.lng });
+      }
+    }
+    // Route API needs ≥2 waypoints. With only one point there's no route.
+    if (points.length < 2) return false;
+    // Conservative cap to avoid 400s on the public endpoint. If the user
+    // has more pending stops than this, we draw the straight-line fallback
+    // for the whole route — better than a partial road overlay that
+    // visually implies the route ends mid-trip.
+    var ROUTE_MAX = 25;
+    if (points.length > ROUTE_MAX) return false;
+
+    var coords = points.map(function(p) { return p.lng + ',' + p.lat; }).join(';');
+    var url = _endpoint() + '/route/v1/driving/' + coords +
+              '?overview=full&geometries=geojson&steps=false';
+
+    try {
+      var res = await fetchWithTimeout(url, { timeout: 12000 });
+      if (!res.ok) return false;
+      var data = await res.json();
+      if (data.code !== 'Ok' || !data.routes || !data.routes.length) return false;
+      var geom = data.routes[0].geometry;
+      if (!geom || geom.type !== 'LineString' || !Array.isArray(geom.coordinates)) return false;
+
+      // OSRM returns [lng,lat]; Leaflet wants [lat,lng]. Swap once here so
+      // every consumer downstream can use the cached array directly.
+      var latlngs = geom.coordinates.map(function(c) { return [c[1], c[0]]; });
+      _state.routeGeometry = latlngs;
+      _state.routeStopIds = points.map(function(p) { return p.id; });
+      return true;
+    } catch (e) {
+      return false;
+    }
+  }
+
+  // Read the cached route geometry. Returns the [[lat,lng],...] array or
+  // null when no geometry has been fetched (or the last fetch failed).
+  function getRouteGeometry() {
+    return _state.routeGeometry || null;
+  }
+
+  // Returns true when the cached geometry was generated for the given list
+  // of stop IDs (in order). Used by refreshRouteMap to detect when the
+  // pending order has changed since the geometry was fetched — in that
+  // case we fall back to the straight-line polyline rather than draw a
+  // stale road trace. Order matters: the geometry traces a specific
+  // sequence, not just a set.
+  function routeGeometryMatchesIds(idsInOrder) {
+    var have = _state.routeStopIds;
+    if (!have || !Array.isArray(idsInOrder)) return false;
+    if (have.length !== idsInOrder.length) return false;
+    for (var i = 0; i < have.length; i++) {
+      if (have[i] !== idsInOrder[i]) return false;
+    }
+    return true;
+  }
+
+  // Drop the cached route geometry. Called when stops are reordered, when
+  // a new optimize starts, or when the OSRM mode is turned off.
+  function clearRouteGeometry() {
+    _state.routeGeometry = null;
+    _state.routeStopIds = null;
+  }
+
   // Reset the matrix. Called between optimizations so a stale matrix from
   // a previous run can't leak into a new one with different stops.
+  // Drop AF: also drop any cached route geometry so the next optimize
+  // starts from a clean slate (geometry without a matching matrix is a
+  // contradiction we'd have to defend against everywhere otherwise).
   function clearMatrix() {
-    _state = { points: null, distances: null, idToIndex: null, timestamp: 0 };
+    _state = { points: null, distances: null, idToIndex: null, timestamp: 0,
+               routeGeometry: null, routeStopIds: null };
+  }
+
+  // Drop AF: drop only the matrix-related fields, leaving the route
+  // geometry intact. Used by _optimizeRouteInner after a successful
+  // optimize+geometry-fetch — the matrix is no longer needed (the
+  // optimizer is done) but the geometry must survive until refreshRouteMap
+  // can render it. The next prefetchMatrix() will reset both via its
+  // own clearMatrix() call.
+  function clearMatrixKeepGeometry() {
+    _state.points = null;
+    _state.distances = null;
+    _state.idToIndex = null;
+    _state.timestamp = 0;
   }
 
   // Sentinel ID used for the origin point in the matrix. Exposed so callers
@@ -9232,6 +9539,11 @@ const OSRM = (function() {
     dist: dist,
     hasMatrix: hasMatrix,
     clearMatrix: clearMatrix,
+    clearMatrixKeepGeometry: clearMatrixKeepGeometry,
+    fetchRouteGeometry: fetchRouteGeometry,
+    getRouteGeometry: getRouteGeometry,
+    routeGeometryMatchesIds: routeGeometryMatchesIds,
+    clearRouteGeometry: clearRouteGeometry,
     ORIGIN_ID: ORIGIN_ID,
   };
 })();
@@ -9376,7 +9688,15 @@ async function _pingGPSAfterClose() {
           mapGPSMarker = L.marker([lat, lng], { icon: youIcon })
             .addTo(routeMap)
             .bindPopup(`<b>📡 GPS ±${Math.round(acc)}m</b>`);
-          routeMap.setView([lat, lng], 15, { animate: false });
+          // Drop AG (2026-05-04): only recenter if the user isn't actively
+          // using the map. The marker still updates so the "you" pin reflects
+          // current location; the viewport stays where the user put it.
+          // refreshRouteMap is called either way so polylines/markers
+          // reflect the new origin — its own fitBounds is gated by the
+          // same interaction check.
+          if (!_userMapRecentlyInteracted()) {
+            routeMap.setView([lat, lng], 15, { animate: false });
+          }
           refreshRouteMap(true);
         }
       } catch(_) {}
@@ -9394,6 +9714,7 @@ async function _pingGPSAfterClose() {
 
 
 // ============================================================
+// SECTION: ai-features
 // AI FEATURES — silently enhanced when API key is present
 // Non-API users see identical UX with no degradation
 // ============================================================
@@ -9519,6 +9840,7 @@ async function geocodeAddress(address) {
 }
 
 // ============================================================
+// SECTION: pin-stops
 // PIN START STOP
 // ============================================================
 function togglePinnedStart(id) {
@@ -9812,17 +10134,100 @@ async function _resolveOrigin(pending, statusEl) {
 }
 
 // ── Step 2: geocode stops missing coordinates ─────────────────────────────
+//
+// CORRECTNESS-CRITICAL (Drop AH, 2026-05-05): this function MUST account for
+// every input stop. Previously this function silently filtered out any stop
+// whose geocode returned null (e.g., Nominatim rate-limit, network blip, no
+// result for the address as written). The optimizer downstream then produced
+// a route containing only the successfully-geocoded subset, with NO toast and
+// NO visual indication that stops had been dropped. A user with 37 input
+// stops could see "Route optimized ✓ — 19 stops" and not realize 18 were
+// silently missing from the route.
+//
+// New contract: returns { geocoded, failed } where geocoded.length +
+// failed.length === pending.length. Caller is responsible for surfacing
+// the failures to the user and keeping failed stops visible in the route
+// list (typically appended to routeOrder after the optimized run).
+//
+// Retry strategy: one retry pass for first-pass failures, with a longer
+// delay (1100ms — above Nominatim's documented 1 req/s rate limit) to
+// recover from transient throttling. The 250ms delay between first-pass
+// requests is borderline for Nominatim and can trigger silent throttle on
+// long stop lists; the retry catches the throttled subset.
 async function _geocodeStops(pending) {
-  try {
-    for (const s of pending) {
-        if (!s.lat) {
-          const c = await geocodeAddress(s.fullAddress || s.address + ', St. Louis, MO');
-          if (c) { s.lat = c.lat; s.lng = c.lng; }
-          await new Promise(r => setTimeout(r, 250));
+  const FIRST_PASS_DELAY_MS = 250;
+  const RETRY_PASS_DELAY_MS = 1100;
+  const failedFirstPass = [];
+
+  // First pass: geocode any stop missing coords. 250ms inter-request delay.
+  for (const s of pending) {
+    if (s.lat && s.lng) continue; // already geocoded — skip
+    try {
+      const c = await geocodeAddress(s.fullAddress || s.address + ', St. Louis, MO');
+      if (c && Number.isFinite(c.lat) && Number.isFinite(c.lng)) {
+        s.lat = c.lat;
+        s.lng = c.lng;
+        // Clear any prior failure flag — this stop now has coords.
+        if (s._geocodeFailed) {
+          delete s._geocodeFailed;
+          delete s._geocodeFailedAt;
         }
+      } else {
+        failedFirstPass.push(s);
       }
-      return pending.filter(s => s.lat);
-  } catch(e) { console.warn("[geocode] batch failed:", e.message); }
+    } catch (_) {
+      failedFirstPass.push(s);
+    }
+    await new Promise(r => setTimeout(r, FIRST_PASS_DELAY_MS));
+  }
+
+  // Retry pass: any stop that failed the first pass gets one more chance,
+  // this time with a delay safely above Nominatim's rate limit. This
+  // recovers the common case of transient throttling on long stop lists.
+  const stillFailed = [];
+  if (failedFirstPass.length) {
+    for (const s of failedFirstPass) {
+      try {
+        const c = await geocodeAddress(s.fullAddress || s.address + ', St. Louis, MO');
+        if (c && Number.isFinite(c.lat) && Number.isFinite(c.lng)) {
+          s.lat = c.lat;
+          s.lng = c.lng;
+          if (s._geocodeFailed) {
+            delete s._geocodeFailed;
+            delete s._geocodeFailedAt;
+          }
+        } else {
+          stillFailed.push(s);
+        }
+      } catch (_) {
+        stillFailed.push(s);
+      }
+      await new Promise(r => setTimeout(r, RETRY_PASS_DELAY_MS));
+    }
+  }
+
+  // Stamp failure metadata on stops that still have no coords. The route
+  // tab and stops tab read this to render a warning badge.
+  const now = Date.now();
+  for (const s of stillFailed) {
+    s._geocodeFailed = true;
+    s._geocodeFailedAt = now;
+  }
+
+  // Hard invariant check: every input stop must end up in either geocoded
+  // or failed. If this fails, there's a logic bug — fail loud rather than
+  // ship a wrong route.
+  const geocoded = pending.filter(s => Number.isFinite(s.lat) && Number.isFinite(s.lng));
+  const failed = pending.filter(s => !(Number.isFinite(s.lat) && Number.isFinite(s.lng)));
+  if (geocoded.length + failed.length !== pending.length) {
+    // This branch should be unreachable. If we hit it, something has gone
+    // sideways with the stop objects themselves (e.g., id collision making
+    // .filter double-count). Throw rather than silently produce a bad route.
+    throw new Error('_geocodeStops invariant: ' + geocoded.length + ' + ' +
+                    failed.length + ' !== ' + pending.length);
+  }
+
+  return { geocoded, failed };
 }
 
 // Drop X.2 (2026-04-30): one-time wipe of LS keys retired by removing the
@@ -10285,8 +10690,40 @@ async function _optimizeRouteInner() {
     // visually one phase from the user's perspective, so use a single
     // "Optimizing…" image rather than flashing through Geocoding/Sorting.
     _setOptimizeButtonState('optimizing');
-    const withCoords = await _geocodeStops(pending);
-    if (!withCoords.length) { showToast('Could not geocode any stops'); return; }
+    // Drop AH (2026-05-05): _geocodeStops now returns { geocoded, failed }.
+    // Stops that fail to geocode after a first pass + retry pass are flagged
+    // (s._geocodeFailed = true) and appended to routeOrder after the
+    // optimized stops, so they remain visible in the route list with a
+    // warning badge. The user sees a persistent toast about the failures.
+    // This replaces the previous behavior where geocode failures were
+    // silently dropped from the route.
+    const _geoResult = await _geocodeStops(pending);
+    const withCoords = _geoResult.geocoded;
+    const _geoFailed = _geoResult.failed;
+
+    // Hard invariant: every pending stop must be accounted for in either
+    // the geocoded subset or the failed subset. If not, fail loudly rather
+    // than ship a wrong route. (_geocodeStops also checks this internally;
+    // we re-check here as a belt-and-suspenders defense at the call site.)
+    if (withCoords.length + _geoFailed.length !== pending.length) {
+      throw new Error('Optimize invariant: ' + withCoords.length + ' geocoded + ' +
+                      _geoFailed.length + ' failed !== ' + pending.length + ' pending');
+    }
+
+    if (!withCoords.length) {
+      // Total geocoding failure — surface every stop as failed.
+      if (_geoFailed.length) {
+        // Append failed stops to routeOrder so they remain visible in the
+        // route list with their warning badge.
+        for (const s of _geoFailed) {
+          if (!routeOrder.includes(s.id)) routeOrder.push(s.id);
+        }
+        saveStops();
+        renderRoute();
+      }
+      showToast('⚠ Could not geocode any stops — check connection and try again', 8000);
+      return;
+    }
 
     // Drop AB: when the user has selected OSRM, prefetch the road-network
     // distance matrix once so the synchronous optimizer can do O(1) lookups.
@@ -10303,12 +10740,43 @@ async function _optimizeRouteInner() {
 
     const ordered = _sortStops(withCoords, origin);
 
+    // Drop AF: with the route order finalized, fetch the actual road-
+    // network geometry from OSRM /route so the map tab can draw the
+    // pending polyline along real streets instead of straight stop-to-
+    // stop hashes. Pending-only — done stops live in the green history
+    // trail which stays as straight lines (different visual purpose).
+    // Best-effort: any failure leaves _state.routeGeometry null and
+    // refreshRouteMap falls back to the existing straight-line polyline.
+    // Run before clearMatrix so the geometry can be cached on the same
+    // _state object (clearMatrix wipes both together; the geometry
+    // outlives only because we move clearMatrix below the geometry fetch).
+    if (getRouteAlgoMetric() === 'osrm') {
+      try {
+        // Pending-only: skip stops already marked done. ordered is the
+        // full sorted route; the pending subset is what the user will
+        // actually drive next.
+        var pendingOrdered = ordered.filter(function(s) { return !s.done; });
+        await OSRM.fetchRouteGeometry(pendingOrdered, origin);
+      } catch (_) { /* fall through to straight-line */ }
+    }
+
     // Drop AB: clear the matrix immediately after sort so it doesn't leak
     // into a subsequent optimize call (which may have a different stop list).
     // Cheap operation; the next optimize will prefetch fresh.
-    OSRM.clearMatrix();
+    // Drop AF: use clearMatrixKeepGeometry instead of clearMatrix so the
+    // route geometry just fetched survives until refreshRouteMap can read
+    // it. clearMatrix() (full reset) still runs on the catch path below.
+    OSRM.clearMatrixKeepGeometry();
 
+    // Drop AH: routeOrder = optimized stops first, then any geocode-failed
+    // stops appended at the end. Failed stops keep their _geocodeFailed flag
+    // and render with a warning badge in the route list and stops tab. They
+    // are NOT silently dropped; the user sees them and can edit the address
+    // or delete. The warning toast below tells them how many fell out.
     routeOrder = ordered.map(s => s.id);
+    for (const s of _geoFailed) {
+      if (!routeOrder.includes(s.id)) routeOrder.push(s.id);
+    }
     saveStops();
     renderRoute(); // route-only: optimize changes order, stop content unchanged
     markRouteChanged();
@@ -10329,7 +10797,15 @@ async function _optimizeRouteInner() {
   var stopMinutes = ordered.length * 5;
   var totalMinutes = driveMinutes + stopMinutes;
   var driveStr = totalDistKm > 0 ? (' — ~' + totalDistKm.toFixed(1) + ' km drive · ~' + (totalMinutes >= 60 ? Math.floor(totalMinutes/60) + 'h ' + (totalMinutes%60) + 'm' : totalMinutes + 'm') + ' est.') : '';
-  showToast('Route optimized ✓ — ' + ordered.length + ' stops' + pinNote + endNote + driveStr);
+  // Drop AH: when some stops couldn't be geocoded, the success toast becomes
+  // a warning. The failed stops are NOT dropped from the route list — they
+  // sit at the end with a warning badge so the user can fix or delete them.
+  if (_geoFailed.length) {
+    showToast('⚠ Route optimized — ' + ordered.length + ' stops · ' +
+              _geoFailed.length + ' could not be geocoded (see end of route)', 8000);
+  } else {
+    showToast('Route optimized ✓ — ' + ordered.length + ' stops' + pinNote + endNote + driveStr);
+  }
   _aiRouteNarrative(getPendingStops(), totalDistKm).catch(() => {});
     setTimeout(() => {
       try { refreshRouteMap(); } catch(e) {}
@@ -10477,6 +10953,11 @@ function renderRouteStopHtml(s, i, pendingLen, clusterIds) {
       if (followLine) lines.push(followLine);
       if (s.notes) lines.push(`<div class="addr-sub">${escHtml(s.notes)}</div>`);
       if (s.verified === false) lines.push(`<div style="font-size:0.52rem;color:var(--warn);font-family:Syne,sans-serif;font-weight:700;margin-top:2px">\u26a0 Address unverified</div>`);
+      // Drop AH: geocode-failure badge. When optimize couldn't pin coords on
+      // this stop after a retry pass, the stop is appended to routeOrder at
+      // the end (not silently dropped) and tagged here so the user can see
+      // and fix it. Tap Edit Stop to retype, or Delete Stop to remove.
+      if (s._geocodeFailed) lines.push(`<div style="font-size:0.52rem;color:var(--danger,#c0392b);font-family:Syne,sans-serif;font-weight:800;margin-top:2px;background:#fee;border:1px solid rgba(192,57,43,0.35);border-radius:6px;padding:3px 6px">\u26a0 Could not geocode \u2014 not in optimized route. Edit address or delete.</div>`);
       if (s.addrNote) lines.push(`<div style="font-size:0.52rem;color:#2980b9;font-family:Syne,sans-serif;font-weight:700;margin-top:2px">\u2139 ${escHtml(s.addrNote)}</div>`);
       if (s.photoCount || (Array.isArray(s.transactions) && s.transactions.length)) {
         const photoBadge = s.photoCount ? `<span style="font-family:'Space Mono',monospace;font-size:0.5rem;background:#fff4e0;color:#8c4a00;border:1px solid rgba(140,74,0,0.25);border-radius:10px;padding:1px 6px;font-weight:700">📷 ${s.photoCount}</span>` : '';
@@ -10650,6 +11131,7 @@ function routeReorder(fromIdx, toIdx) {
 }
 
 // ============================================================
+// SECTION: gps-location
 // GPS LOCATION FUNCTIONS
 // ============================================================
 // ============================================================
@@ -10791,6 +11273,7 @@ async function _pingGPSOnMapInner() {
 }
 
 // ============================================================
+// SECTION: visual-map
 // VISUAL MAP — updated with interactive markers
 // ============================================================
 let activeMapStopId = null;
@@ -10905,18 +11388,32 @@ function _buildRoutePaths(origin, doneCoords, pendingCoords) {
 
 // Draw the polyline segments on the map. Mutates polylinesOut (push per
 // drawn polyline). Skips a segment if its path has fewer than 2 points.
-function _drawRoutePolylines(map, donePath, pendingPath, polylinesOut) {
+//
+// Drop AF: optional `pendingRoadGeometry` argument — when present, an
+// [[lat,lng],...] array tracing the actual road network through the pending
+// stops (returned by OSRM /route). When given, replaces the straight-line
+// pendingPath as the visible polyline. Style switches to a solid line at
+// slightly higher weight, since the road trace already conveys order
+// through its curve and the dashes would compete visually with the
+// underlying street grid.
+function _drawRoutePolylines(map, donePath, pendingPath, polylinesOut, pendingRoadGeometry) {
   if (donePath && donePath.length > 1) {
     var donePolyline = L.polyline(donePath, {
       color: '#2c8a3a', weight: 4, opacity: 0.75, lineCap: 'round', lineJoin: 'round'
     }).addTo(map);
     polylinesOut.push(donePolyline);
   }
-  if (pendingPath && pendingPath.length > 1) {
-    var pendingPolyline = L.polyline(pendingPath, {
-      color: '#2563eb', weight: 4, opacity: 0.85,
-      dashArray: '8, 8', lineCap: 'round', lineJoin: 'round'
-    }).addTo(map);
+  // Prefer the road geometry when supplied. Fall back to the straight
+  // pendingPath when geometry is null (offline, OSRM disabled, fetch
+  // failed, or geometry stale relative to current stop order).
+  var pathToDraw = (pendingRoadGeometry && pendingRoadGeometry.length > 1)
+    ? pendingRoadGeometry
+    : pendingPath;
+  if (pathToDraw && pathToDraw.length > 1) {
+    var styleOpts = pendingRoadGeometry
+      ? { color: '#2563eb', weight: 5, opacity: 0.9, lineCap: 'round', lineJoin: 'round' }
+      : { color: '#2563eb', weight: 4, opacity: 0.85, dashArray: '8, 8', lineCap: 'round', lineJoin: 'round' };
+    var pendingPolyline = L.polyline(pathToDraw, styleOpts).addTo(map);
     polylinesOut.push(pendingPolyline);
   }
 }
@@ -11001,12 +11498,39 @@ async function refreshRouteMap(silent) {
     _addPendingStopMarkers(routeMap, ordered.pendingCoords, ordered.doneCoords.length, routeMapMarkers, bounds);
 
     var paths = _buildRoutePaths(origin, ordered.doneCoords, ordered.pendingCoords);
-    _drawRoutePolylines(routeMap, paths.donePath, paths.pendingPath, routeMapPolylines);
 
+    // Drop AF: when OSRM mode is on AND a route geometry is cached AND it
+    // matches the current pending order, draw the road-network polyline
+    // for the pending segment. Any failure of those checks leaves the
+    // straight-line fallback in place — _drawRoutePolylines handles the
+    // null gracefully.
+    var pendingRoadGeometry = null;
+    if (typeof OSRM !== 'undefined' && getRouteAlgoMetric() === 'osrm') {
+      var pendingIds = [OSRM.ORIGIN_ID].concat(ordered.pendingCoords.map(function(s) { return s.id; }));
+      if (OSRM.routeGeometryMatchesIds(pendingIds)) {
+        pendingRoadGeometry = OSRM.getRouteGeometry();
+      }
+    }
+
+    _drawRoutePolylines(routeMap, paths.donePath, paths.pendingPath, routeMapPolylines, pendingRoadGeometry);
+
+    // Direction arrows still ride the straight stop-to-stop pendingPath
+    // (NOT the road geometry) — putting an arrow at every bend in a
+    // multi-mile road trace would cover the map in chevrons. The logical
+    // stop sequence is what the inspector wants to see directionally.
     if (paths.donePath)    _addRouteDirectionArrows(routeMap, paths.donePath,    '#2c8a3a', true,  routeMapPolylines);
     if (paths.pendingPath) _addRouteDirectionArrows(routeMap, paths.pendingPath, '#2563eb', false, routeMapPolylines);
 
-    routeMap.fitBounds(L.latLngBounds(bounds).pad(0.12));
+    // Drop AG (2026-05-04): skip fitBounds when this is a background refresh
+    // (silent=true, e.g. post-stop-close, post-GPS-resolve) AND the user has
+    // touched the map within the last few seconds. The user's pan/zoom takes
+    // priority over auto-recentering — yanking the viewport away from
+    // someone who's actively scouting is the bug we're fixing here. An
+    // explicit user-initiated refresh (silent=false, e.g. the refresh
+    // button) still recenters, which is the expected behavior of that path.
+    if (!(silent && _userMapRecentlyInteracted())) {
+      routeMap.fitBounds(L.latLngBounds(bounds).pad(0.12));
+    }
 
     if (!silent) {
       var pendingN = ordered.pendingCoords.length;
@@ -11822,6 +12346,7 @@ function launchGoogleMaps() {
   window.open(routeUrl, '_blank');
 }
 // ============================================================
+// SECTION: photo-scan
 // PHOTO SCAN — Anthropic vision API (primary) or on-device TextDetector (fallback)
 // ============================================================
 
@@ -12184,10 +12709,16 @@ function addScannedStops() {
   const selected = scannedAddresses.filter(a=>a.checked);
   if (!selected.length) { showToast('No addresses selected'); return; }
 
+  // Drop AG (2026-05-04): clear any sticky "apply to all" choice from a
+  // previous batch. Each bulk-add session starts fresh.
+  _dupeBatchAutoChoice = null;
+
   // Route through commitStopWithAddr so dupe detection fires for each address
   let queued = [...selected];
   function addNext() {
     if (!queued.length) {
+      // Drop AG: clear sticky choice on queue completion.
+      _dupeBatchAutoChoice = null;
       document.getElementById('scan-results-panel').style.display='none';
       document.getElementById('scan-preview').style.display='none';
       document.getElementById('paste-panel').style.display='none';
@@ -12241,6 +12772,7 @@ function addScannedStops() {
 // hook in switchScreen and the inline onclick handlers in the DOM) keeps
 // working unchanged. Future code should call Voice.toggle('paste') etc.
 // directly instead.
+// MODULE: Voice — Web Speech API wrapper for hands-free entry
 const Voice = (function() {
 
   // Private state — formerly 6 top-level lets. Now keyed on channel name
@@ -12774,6 +13306,18 @@ function parsePastedText() {
 // ============================================================
 let routeMap=null, routeMapMarkers=[], routeMapPolylines=[];
 
+// Drop AG (2026-05-04): track when the user last manually interacted with
+// the route map (drag, pinch, zoom, tap-to-pan). Background refreshes —
+// post-close map redraw, post-GPS-resolve recenter — check this before
+// calling fitBounds() / setView() so they don't yank the viewport out from
+// under a user who's actively exploring. The 3-second window is the gap
+// between the user releasing a pan and a GPS-ping resolving (1-3s typical).
+let _userMapInteractionTs = 0;
+function _userMapRecentlyInteracted(windowMs) {
+  if (windowMs == null) windowMs = 3000;
+  return (Date.now() - _userMapInteractionTs) < windowMs;
+}
+
 // STL City bounding box — never need to show anything outside this
 const STL_CENTER = STL_CITY_CENTER;
 
@@ -12802,6 +13346,28 @@ function initRouteMap() {
   // `if (window._routeMap) window._routeMap.invalidateSize()` line in
   // switchTab's map branch was a silent no-op (latent bug, fixed in Drop N).
   window._routeMap = routeMap;
+
+  // Drop AG (2026-05-04): wire interaction tracking. We listen on DOM
+  // events (mousedown, touchstart, wheel) on the map container — these
+  // fire on actual user input but NOT on programmatic moves. We also
+  // listen for Leaflet's `dragstart` (which is user-only — only emitted
+  // by L.Drag on real pointer drags). We deliberately do NOT listen for
+  // `movestart` / `zoomstart` / `moveend` etc. — those fire on
+  // programmatic fitBounds/setView calls too, which would create a
+  // self-perpetuating false positive (a programmatic recenter would
+  // mark "user interaction" and then suppress the next recenter).
+  try {
+    routeMap.on('dragstart', function() {
+      _userMapInteractionTs = Date.now();
+    });
+    var stamp = function() { _userMapInteractionTs = Date.now(); };
+    var container = routeMap.getContainer && routeMap.getContainer();
+    if (container) {
+      container.addEventListener('mousedown',  stamp, { passive: true });
+      container.addEventListener('touchstart', stamp, { passive: true });
+      container.addEventListener('wheel',      stamp, { passive: true });
+    }
+  } catch(_) {}
 
   // Primary: CartoDB Positron — lightweight, reliable, no token needed
   const cartoTiles = L.tileLayer(
@@ -13341,6 +13907,7 @@ function exportTransactionsCSV() {
 
 
 // ============================================================
+// SECTION: photo-stamping
 // PHOTO STAMPING — native camera handoff + configurable canvas stamp
 // ============================================================
 // Design:
@@ -14846,6 +15413,7 @@ function _formatCompassHeading(deg) {
  * @namespace PhotoCache
  * @see toggleSavePhotoscan — opt-out switch in Settings
  */
+// MODULE: PhotoCache — IndexedDB photo storage layer
 const PhotoCache = (function() {
   var DB_NAME       = 'stlcr-photo-cache';
   var DB_VERSION    = 2;  // v1→v2: added source / ownerKind / ownerId / meta fields + indices
@@ -15557,6 +16125,7 @@ const STL_NEIGHBORHOODS_BY_NAME = {
  *
  * @namespace GeoCache
  */
+// MODULE: GeoCache — neighborhood + ward geo cache (IDB-backed)
 const GeoCache = (function() {
   var DB_NAME = 'stlcr-geo-cache';
   var DB_VERSION = 2;                    // bumped to coordinate with MapLayers
@@ -15844,6 +16413,7 @@ const GeoCache = (function() {
  * @see GeoCache — used internally to fetch built-in polygon data
  * @see refreshRouteMap — primary consumer
  */
+// MODULE: MapLayers — overlay layer registry + persistence
 const MapLayers = (function() {
   var DB_NAME = 'stlcr-geo-cache';
   var DB_VERSION = 2;                    // bumped from 1 to add 'mapLayers' store
@@ -15899,25 +16469,39 @@ const MapLayers = (function() {
       geocacheKind: 'neighborhoods',
       geomType: 'polygon',
       // No minZoom — small dataset (~88 polygons), renders fine at any zoom
-      style: { color: '#7c3aed', fillColor: '#7c3aed', fillOpacity: 0.05, weight: 1.5, dashArray: '4,3' },
+      // Drop AF: thicker / more prominent dash so neighborhood borders read
+      // clearly even when stacked under the wards layer. Higher fillOpacity
+      // gives a faint purple wash that hints at the boundary without
+      // obscuring the basemap or stop markers.
+      style: { color: '#7c3aed', fillColor: '#7c3aed', fillOpacity: 0.06, weight: 2.5, opacity: 0.85, dashArray: '10,5' },
       // Drop W: permanent labels at polygon centers. minZoom ensures
       // the screen doesn't fill with overlapping labels at low zooms;
       // 88 neighborhoods need at least zoom 13 (city scale) to be readable.
       labelOptions: {
         getText: function(props) {
-          return props.NHD_NAME || props.name || props.NAME || props.Name || props.neighborhood || '';
+          // Drop AF: include the city's neighborhood number after the name
+          // (e.g., "Southwest Garden #13"). NHD_NUM comes from the inline
+          // GeoJSON's properties; fall back to nhd_num / NBRHD / id for
+          // alternate schemas. Number is appended only when both a name and
+          // a number are available — name-only or number-only stay clean.
+          var name = props.NHD_NAME || props.name || props.NAME || props.Name || props.neighborhood || '';
+          var num = props.NHD_NUM || props.nhd_num || props.NBRHD || props.id;
+          if (name && num != null && num !== '') return name + ' #' + num;
+          return name;
         },
         minZoom: 13,
         className: 'boundary-label-nbhd'
       },
       popup: function(props) {
         var name = props.name || props.NAME || props.Name || props.NHD_NAME || props.neighborhood || '(unknown)';
+        var num = props.NHD_NUM || props.nhd_num || props.NBRHD || props.id;
+        var headline = (num != null && num !== '') ? (name + ' #' + num) : name;
         // Neighborhoods don't have an associated address; the popup is informational
         return {
           address: '',  // empty signals to renderer to skip "Add as Stop" button
           html:
             '<div style="font-family:Syne,sans-serif;font-weight:800;font-size:0.78rem;color:#4c1d95;margin-bottom:3px">' +
-              _escHtmlBuiltin(name) +
+              _escHtmlBuiltin(headline) +
             '</div>' +
             '<div style="font-family:\'Space Mono\',monospace;font-size:0.55rem;color:#555;line-height:1.5">St. Louis neighborhood</div>'
         };
@@ -15933,7 +16517,11 @@ const MapLayers = (function() {
       source: 'geocache',
       geocacheKind: 'wards',
       geomType: 'polygon',
-      style: { color: '#0d9488', fillColor: '#0d9488', fillOpacity: 0.04, weight: 2, dashArray: '6,4' },
+      // Drop AF: solid, much thicker stroke so wards stand apart from
+      // neighborhoods (which are dashed). Wards are larger / fewer, so a
+      // heavier line is legible even at city-wide zoom. Slightly higher
+      // fillOpacity for tap-target generosity.
+      style: { color: '#0d9488', fillColor: '#0d9488', fillOpacity: 0.06, weight: 4.5, opacity: 0.9 },
       // Drop W: permanent labels. Always visible (only 14 features, all
       // large enough to fit a "Ward N" label even when zoomed to city level).
       labelOptions: {
@@ -16181,6 +16769,7 @@ const MapLayers = (function() {
 // Public API:
 //   MapLayerRenderer.refresh()  — re-render all active layers from current state
 //   MapLayerRenderer.removeAll() — clear all layers (used when map is destroyed)
+// MODULE: MapLayerRenderer — Leaflet GeoJSON layer rendering
 const MapLayerRenderer = (function() {
   // id → Leaflet LayerGroup currently on the map
   var _rendered = {};
@@ -17638,6 +18227,36 @@ async function shareStampedPhoto() {
   if (_photoContext.stampedBlob) downloadStampedPhoto();
 }
 
+// Drop AG (2026-05-04): combo handler — save to Downloads first, then open
+// the share sheet so the user can email/Drive/etc. the photo too. Both
+// actions hit the same blob so the file the user sends is byte-identical
+// to the file in Downloads. We download FIRST because the share sheet may
+// dismiss the modal on iOS (shareStampedPhoto closes the preview on a
+// successful iOS session-share), and we want the local copy guaranteed.
+async function saveAndShareStampedPhoto() {
+  if (!_photoContext.stampedBlob) {
+    // Session-mode (multiple shots queued) shareStampedPhoto handles its
+    // own no-current-blob case; fall through to it directly.
+    if (_photoSession.active && _photoSession.shots.length > 0) {
+      try { await shareStampedPhoto(); } catch(_) {}
+      return;
+    }
+    showToast('No photo'); return;
+  }
+  try { downloadStampedPhoto(); } catch(_) {}
+  // Tiny gap so the download click finishes before the share sheet steals
+  // focus. Without it, iOS Safari occasionally cancels the download.
+  await new Promise(function(r) { setTimeout(r, 80); });
+  // If Web Share isn't available on this device, shareStampedPhoto falls
+  // back to downloadStampedPhoto — which we just ran. Skip the second
+  // call to avoid two downloads of the same file.
+  if (!(navigator.canShare && navigator.share)) {
+    showToast('💾 Saved (sharing not available — file in Downloads)');
+    return;
+  }
+  try { await shareStampedPhoto(); } catch(_) {}
+}
+
 // Done button — handles session-end with iOS warn-if-unsaved
 function handlePreviewDone() {
   if (_photoSession.active && _isIOS() && _photoSession.shots.length > 0) {
@@ -18424,60 +19043,99 @@ function toggleHeaderClockVisible(on) {
 }
 
 // ============================================================
+// SECTION: api-key-crypto
 // API KEY ENCRYPTION — AES-GCM via Web Crypto API
 // Key is encrypted with a user PIN; only the encrypted blob
 // is stored in localStorage. The PIN lives in sessionStorage
 // (cleared when the tab closes). Raw key never touches disk.
 // ============================================================
-// _deriveKey takes an explicit salt (Uint8Array) so we can use a per-install
-// random salt for new blobs while still decrypting legacy static-salt blobs.
-async function _deriveKey(pin, salt) {
+//
+// Drop AH (2026-05-05): bumped PBKDF2 iterations from 100k → 600k to align
+// with current OWASP 2023 recommendations for PBKDF2-SHA256. The threat
+// model here (single-user device-local PIN; no server-side hash database)
+// is not really about iteration count — for a 4-digit PIN, an attacker
+// with the encrypted blob and any iteration count below ~10M is going to
+// brute-force successfully on commodity GPU hardware. The win from 600k
+// is alignment with current best-practice and future-proofing against
+// any review that flags 100k as out-of-date.
+//
+// Blob format is now versioned WITH iteration count baked in, so we don't
+// need a v4 next time OWASP bumps the recommendation. Existing v1 (legacy
+// static salt) and v2 (per-install salt, 100k) blobs continue to decrypt;
+// the next time the user saves their key it migrates to v3.
+
+// _deriveKey takes an explicit salt (Uint8Array) AND iteration count so we
+// can use a per-install random salt for new blobs while still decrypting
+// legacy static-salt blobs at their original iteration count.
+async function _deriveKey(pin, salt, iterations) {
   const enc   = new TextEncoder();
   const base  = await crypto.subtle.importKey('raw', enc.encode(pin), 'PBKDF2', false, ['deriveKey']);
   return crypto.subtle.deriveKey(
-    { name:'PBKDF2', salt, iterations:100000, hash:'SHA-256' },
+    { name:'PBKDF2', salt, iterations, hash:'SHA-256' },
     base, { name:'AES-GCM', length:256 }, false, ['encrypt','decrypt']
   );
 }
 
-// Blob format v2 (current): 1 version byte (0x02) + 16 salt + 12 iv + ciphertext
-// Blob format v1 (legacy):   12 iv + ciphertext, salt was the static string
-//                            'stlcityroute-salt-v1'. We decrypt both; we only
-//                            write v2. Re-saving a key migrates it.
-const _LEGACY_STATIC_SALT = new TextEncoder().encode('stlcityroute-salt-v1');
-const _BLOB_VERSION       = 0x02;
+// Blob format v3 (current): [ver(1)=0x03 | iter(4 BE uint32) | salt(16) | iv(12) | ct]
+// Blob format v2 (legacy):   [ver(1)=0x02 | salt(16) | iv(12) | ct], iter=100k
+// Blob format v1 (legacy):   [iv(12) | ct], salt=static, iter=100k
+// We decrypt all three; we only write v3. Re-saving a key migrates it.
+const _LEGACY_STATIC_SALT       = new TextEncoder().encode('stlcityroute-salt-v1');
+const _LEGACY_PBKDF2_ITERATIONS = 100000; // for v1/v2 decrypt only
+const PBKDF2_ITERATIONS_CURRENT = 600000; // for v3 encrypt/decrypt
+const _BLOB_VERSION             = 0x03;
 
 async function _encryptKey(plaintext, pin) {
   const salt = crypto.getRandomValues(new Uint8Array(16));
   const iv   = crypto.getRandomValues(new Uint8Array(12));
-  const key  = await _deriveKey(pin, salt);
+  const iter = PBKDF2_ITERATIONS_CURRENT;
+  const key  = await _deriveKey(pin, salt, iter);
   const enc  = new TextEncoder();
   const ct   = await crypto.subtle.encrypt({ name:'AES-GCM', iv }, key, enc.encode(plaintext));
-  // Pack: [version(1) | salt(16) | iv(12) | ciphertext(...)]
-  const combined = new Uint8Array(1 + salt.length + iv.length + ct.byteLength);
+  // Pack: [version(1) | iter(4 BE) | salt(16) | iv(12) | ciphertext(...)]
+  const combined = new Uint8Array(1 + 4 + salt.length + iv.length + ct.byteLength);
   combined[0] = _BLOB_VERSION;
-  combined.set(salt, 1);
-  combined.set(iv, 1 + salt.length);
-  combined.set(new Uint8Array(ct), 1 + salt.length + iv.length);
+  // Big-endian 32-bit iteration count starting at offset 1.
+  combined[1] = (iter >>> 24) & 0xff;
+  combined[2] = (iter >>> 16) & 0xff;
+  combined[3] = (iter >>>  8) & 0xff;
+  combined[4] =  iter         & 0xff;
+  combined.set(salt, 5);
+  combined.set(iv, 5 + salt.length);
+  combined.set(new Uint8Array(ct), 5 + salt.length + iv.length);
   return btoa(String.fromCharCode(...combined));
 }
 
 async function _decryptKey(b64, pin) {
   try {
     const bytes = Uint8Array.from(atob(b64), c => c.charCodeAt(0));
-    // v2: starts with version byte 0x02
-    if (bytes.length > 29 && bytes[0] === _BLOB_VERSION) {
+    // v3: [0x03 | iter(4) | salt(16) | iv(12) | ct]
+    if (bytes.length > 33 && bytes[0] === 0x03) {
+      const iter = (bytes[1] << 24) | (bytes[2] << 16) | (bytes[3] << 8) | bytes[4];
+      // Sanity-check the iteration count. If a corrupt blob claims 4 billion
+      // iterations, deriveKey would hang. Cap at 10M (well above any sane
+      // value) and floor at 1k (well below any sane value).
+      if (iter < 1000 || iter > 10000000) return null;
+      const salt = bytes.slice(5, 21);
+      const iv   = bytes.slice(21, 33);
+      const ct   = bytes.slice(33);
+      const key  = await _deriveKey(pin, salt, iter);
+      const plain = await crypto.subtle.decrypt({ name:'AES-GCM', iv }, key, ct);
+      return new TextDecoder().decode(plain);
+    }
+    // v2: [0x02 | salt(16) | iv(12) | ct], iter was hardcoded 100k
+    if (bytes.length > 29 && bytes[0] === 0x02) {
       const salt = bytes.slice(1, 17);
       const iv   = bytes.slice(17, 29);
       const ct   = bytes.slice(29);
-      const key  = await _deriveKey(pin, salt);
+      const key  = await _deriveKey(pin, salt, _LEGACY_PBKDF2_ITERATIONS);
       const plain = await crypto.subtle.decrypt({ name:'AES-GCM', iv }, key, ct);
       return new TextDecoder().decode(plain);
     }
     // v1 fallback: legacy static-salt blob (12-byte iv + ciphertext)
     const iv  = bytes.slice(0, 12);
     const ct  = bytes.slice(12);
-    const key = await _deriveKey(pin, _LEGACY_STATIC_SALT);
+    const key = await _deriveKey(pin, _LEGACY_STATIC_SALT, _LEGACY_PBKDF2_ITERATIONS);
     const plain = await crypto.subtle.decrypt({ name:'AES-GCM', iv }, key, ct);
     return new TextDecoder().decode(plain);
   } catch(e) { return null; }
