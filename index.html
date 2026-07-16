@@ -854,7 +854,8 @@ header{
    Permanent labels rendered at the center of ward/neighborhood polygons.
 */
 .leaflet-tooltip.boundary-label-ward,
-.leaflet-tooltip.boundary-label-nbhd {
+.leaflet-tooltip.boundary-label-nbhd,
+.leaflet-tooltip.boundary-label-police {
   background: transparent;
   border: none;
   box-shadow: none;
@@ -870,7 +871,8 @@ header{
     0 0 6px rgba(255,255,255,0.7);
 }
 .leaflet-tooltip.boundary-label-ward::before,
-.leaflet-tooltip.boundary-label-nbhd::before {
+.leaflet-tooltip.boundary-label-nbhd::before,
+.leaflet-tooltip.boundary-label-police::before {
   display: none !important;
 }
 .leaflet-tooltip.boundary-label-ward {
@@ -880,6 +882,10 @@ header{
 .leaflet-tooltip.boundary-label-nbhd {
   color: #4c1d95;
   font-size: 0.62rem;
+}
+.leaflet-tooltip.boundary-label-police {
+  color: #7c2d12;
+  font-size: 0.74rem;
 }
 </style>
 </head>
@@ -17526,6 +17532,17 @@ const GeoCache = (function() {
     'https://maps8.stlouis-mo.gov/arcgis/rest/services/WARDS/Wards_2020/MapServer/0/query?where=1%3D1&outFields=*&f=geojson&returnGeometry=true&outSR=4326',
     'https://maps8.stlouis-mo.gov/arcgis/rest/services/WARDS/Wards_2010/MapServer/0/query?where=1%3D1&outFields=*&f=geojson&returnGeometry=true&outSR=4326'
   ];
+  // Police district boundaries. Source confirmed live via the ArcGIS REST
+  // directory (maps8.stlouis-mo.gov/arcgis/rest/services/STLOUIS) — the
+  // STLOUIS/POLICE_DISTRICT service, layer 0, fields OBJECTID/DISTNO/ID1/
+  // DISTNUM. Six polygons (1st-6th District). No inline-baked copy yet
+  // (unlike wards/neighborhoods) — this drop wires the live network path
+  // only; IndexedDB caching still makes it work offline after first load.
+  // A future drop can bake the fetched FeatureCollection inline the same
+  // way Drop V did for wards, once a fetched copy has been reviewed.
+  var SOURCES_POLICE_DISTRICTS = [
+    'https://maps8.stlouis-mo.gov/arcgis/rest/services/STLOUIS/POLICE_DISTRICT/MapServer/0/query?where=1%3D1&outFields=*&f=geojson&returnGeometry=true&outSR=4326'
+  ];
 
   var _dbPromise = null;
   function _open() {
@@ -17671,6 +17688,35 @@ const GeoCache = (function() {
     return null;
   }
 
+  // Get police district polygons.
+  //
+  // Unlike getNeighborhoods/getWards, there is no inline-baked fallback
+  // yet — lookup order is:
+  //   1. IndexedDB cache — fastest, and the normal path after first load.
+  //   2. Network fetch against the live ArcGIS REST endpoint (see
+  //      SOURCES_POLICE_DISTRICTS above), cached to IndexedDB on success.
+  //
+  // Returns null if IndexedDB is empty AND the network fetch fails (e.g.
+  // first-ever load while offline) — MapLayerRenderer shows a "boundaries
+  // unavailable offline" banner in that case, same as the other builtins.
+  async function getPoliceDistricts() {
+    try {
+      var rec = await _txGet('policeDistricts');
+      if (rec && rec.geojson) return rec.geojson;
+    } catch(_) { /* fall through to network */ }
+    if (!SOURCES_POLICE_DISTRICTS.length) return null;
+    try {
+      var fresh = await _fetchOne(SOURCES_POLICE_DISTRICTS);
+      if (fresh) {
+        await _tryLogAsync('geocache-put-police-districts', function() {
+          return _txPut({ kind: 'policeDistricts', fetchedAt: new Date().toISOString(), geojson: fresh });
+        });
+        return fresh;
+      }
+    } catch(_) {}
+    return null;
+  }
+
   async function clear() {
     try {
       var db = await _open();
@@ -17682,7 +17728,7 @@ const GeoCache = (function() {
     } catch(_) { return false; }
   }
 
-  return { getNeighborhoods: getNeighborhoods, getWards: getWards, clear: clear };
+  return { getNeighborhoods: getNeighborhoods, getWards: getWards, getPoliceDistricts: getPoliceDistricts, clear: clear };
 })();
 
 // ── MapLayers: registry + storage for togglable map overlays ─────────────────
@@ -17775,6 +17821,22 @@ const MapLayers = (function() {
     return null;
   }
 
+  // ── Shared helper for police-district label/popup text ────────────
+  // Live field names confirmed against the ArcGIS REST layer schema
+  // (STLOUIS/POLICE_DISTRICT, layer 0): DISTNO and DISTNUM are both
+  // strings; DISTNO is the display field. Precedence favors DISTNO,
+  // falls back to DISTNUM, then ID1 (integer). Values may already read
+  // like "1" or "1st District" depending on how the source data was
+  // authored, so only prefix "District " when the value looks like a
+  // bare number.
+  function _policeDistrictLabelFromProps(props) {
+    var raw = props.DISTNO || props.DISTNUM || props.ID1;
+    if (raw == null || raw === '') return null;
+    var s = String(raw).trim();
+    if (/^\d+$/.test(s)) return 'District ' + s;
+    return s;
+  }
+
   var BUILTIN_LAYERS = [
     // Boundary overlays. These read pre-fetched polygons from the GeoCache
     // module — the same polygons drive the point-in-polygon stop-metadata
@@ -17803,6 +17865,15 @@ const MapLayers = (function() {
       // Drop W: permanent labels at polygon centers. minZoom ensures
       // the screen doesn't fill with overlapping labels at low zooms;
       // 88 neighborhoods need at least zoom 13 (city scale) to be readable.
+      //
+      // Drop AK: below that, full names get cramped/overlapping long before
+      // they'd need to disappear entirely — 88 polygons is small enough
+      // that the boundaries themselves stay legible all the way down to
+      // the map's practical floor (tile layers bottom out at zoom 11). So
+      // instead of a hard cutoff at 13, labels shrink to bare "#13"
+      // (getShortText) for the 11–13 range, and only disappear below 11.
+      // Same NHD_NUM-or-fallback field precedence as getText, kept in
+      // sync by both reading through the same field list.
       labelOptions: {
         getText: function(props) {
           // Drop AF: include the city's neighborhood number after the name
@@ -17815,7 +17886,17 @@ const MapLayers = (function() {
           if (name && num != null && num !== '') return name + ' #' + num;
           return name;
         },
-        minZoom: 13,
+        // Drop AK: short form shown between shortMinZoom and minZoom.
+        // Falls back to empty when there's no number to show — a feature
+        // with no recognized number field just has no short label (it may
+        // still have a full-name label above minZoom if NHD_NAME resolved
+        // some other way, but that's a defensive edge case, not the norm).
+        getShortText: function(props) {
+          var num = props.NHD_NUM || props.nhd_num || props.NBRHD || props.id;
+          return (num != null && num !== '') ? ('#' + num) : '';
+        },
+        minZoom: 13,      // full "Name #N" at/above this zoom
+        shortMinZoom: 11, // "#N" only between shortMinZoom and minZoom
         className: 'boundary-label-nbhd'
       },
       popup: function(props) {
@@ -17879,6 +17960,42 @@ const MapLayers = (function() {
               _escHtmlBuiltin(label) +
             '</div>' +
             '<div style="font-family:\'Space Mono\',monospace;font-size:0.55rem;color:#555;line-height:1.5">St. Louis aldermanic ward</div>'
+        };
+      }
+    },
+    {
+      id: 'stl-police-districts',
+      kind: 'builtin',
+      label: 'Police Districts',
+      group: 'Boundaries',
+      defaultOn: false,
+      refreshDays: 365,  // district boundaries are very stable
+      source: 'geocache',
+      geocacheKind: 'policeDistricts',
+      geomType: 'polygon',
+      // Six large polygons (1st-6th District) — visually distinct from
+      // wards (teal, solid) and neighborhoods (purple, dashed). Red-orange
+      // reads as "public safety" without clashing with the route-stop
+      // marker palette used elsewhere on the map.
+      style: { color: '#c2410c', fillColor: '#c2410c', fillOpacity: 0.05, weight: 3.5, opacity: 0.85, dashArray: '2,6' },
+      // Only 6 features citywide — always visible, no min-zoom gating
+      // needed (same reasoning as wards).
+      labelOptions: {
+        getText: function(props) {
+          return _policeDistrictLabelFromProps(props) || '';
+        },
+        minZoom: 0,
+        className: 'boundary-label-police'
+      },
+      popup: function(props) {
+        var label = _policeDistrictLabelFromProps(props) || '(police district)';
+        return {
+          address: '',
+          html:
+            '<div style="font-family:Syne,sans-serif;font-weight:800;font-size:0.78rem;color:#7c2d12;margin-bottom:3px">' +
+              _escHtmlBuiltin(label) +
+            '</div>' +
+            '<div style="font-family:\'Space Mono\',monospace;font-size:0.55rem;color:#555;line-height:1.5">SLMPD police district</div>'
         };
       }
     }
@@ -18191,6 +18308,8 @@ const MapLayerRenderer = (function() {
         fc = await GeoCache.getNeighborhoods();
       } else if (layer.geocacheKind === 'wards' && typeof GeoCache !== 'undefined') {
         fc = await GeoCache.getWards();
+      } else if (layer.geocacheKind === 'policeDistricts' && typeof GeoCache !== 'undefined') {
+        fc = await GeoCache.getPoliceDistricts();
       }
       if (!fc || !Array.isArray(fc.features) || !fc.features.length) {
         // No polygons available (offline + never cached, or no source URL configured)
@@ -18243,13 +18362,19 @@ const MapLayerRenderer = (function() {
     // public marker.bindTooltip / marker.unbindTooltip API. Slightly
     // more allocation per zoom event but stays in supported territory.
     if (layer.labelOptions && typeof layer.labelOptions.getText === 'function') {
-      var labelEntries = [];  // {marker, text, ttOpts} per labeled feature
+      var labelEntries = [];  // {marker, text, shortText, ttOpts} per labeled feature
       var ttOpts = {
         permanent: true,
         direction: 'center',
         className: layer.labelOptions.className || '',
         opacity: 1
       };
+      // Drop AK: optional short-form text (e.g. "#13" instead of
+      // "Southwest Garden #13") shown in the zoom band below minZoom but
+      // still above shortMinZoom, instead of hiding the label outright.
+      // Layers that don't define getShortText keep the old binary
+      // shown/hidden behavior untouched.
+      var hasShortText = typeof layer.labelOptions.getShortText === 'function';
       for (var fi = 0; fi < features.length; fi++) {
         var feat = features[fi];
         var fprops = (feat && feat.properties) || {};
@@ -18259,6 +18384,10 @@ const MapLayerRenderer = (function() {
         var text;
         try { text = layer.labelOptions.getText(fprops); } catch(_) { text = ''; }
         if (!text) continue;
+        var shortText = '';
+        if (hasShortText) {
+          try { shortText = layer.labelOptions.getShortText(fprops) || ''; } catch(_) { shortText = ''; }
+        }
         var center = _featureLabelCenter(feat);
         if (!center) continue;
         // Invisible marker (zero-size icon) just to anchor the tooltip
@@ -18269,29 +18398,48 @@ const MapLayerRenderer = (function() {
           keyboard: false
         });
         group.addLayer(m);
-        labelEntries.push({ marker: m, text: text });
+        labelEntries.push({ marker: m, text: text, shortText: shortText, bound: false });
       }
 
-      // Min-zoom gating: bind tooltips on all anchors when zoom is at
-      // or above the configured minZoom; unbind them when below. Using
-      // public API (bindTooltip / unbindTooltip) instead of mutating
-      // tooltip._container.style — survives Leaflet upgrades.
+      // Zoom gating: bind tooltips on all anchors when zoom is at or
+      // above the configured minZoom; unbind them when below. Using
+      // public API (bindTooltip / unbindTooltip / setTooltipContent)
+      // instead of mutating tooltip._container.style — survives Leaflet
+      // upgrades.
+      //
+      // Drop AK: this is now three-way ('full' / 'short' / 'none')
+      // instead of binary, for layers that define getShortText +
+      // shortMinZoom. Layers without those (wards, police districts —
+      // their labels are already short) fall back to the original
+      // two-state behavior: shortMinZoom defaults to minZoom, so the
+      // 'short' band is zero-width and mode is only ever 'full' or 'none'.
       var minZoom = layer.labelOptions.minZoom || 0;
-      var _labelsCurrentlyShown = null;  // tri-state: null = uninitialized
+      var shortMinZoom = hasShortText
+        ? (layer.labelOptions.shortMinZoom != null ? layer.labelOptions.shortMinZoom : minZoom)
+        : minZoom;
+      var _labelsCurrentMode = null;  // null = uninitialized, else 'full'|'short'|'none'
       function _updateLabelVisibility() {
         var z = routeMap.getZoom();
-        var shouldShow = (z >= minZoom);
-        // Skip the bind/unbind churn if visibility hasn't changed since
-        // the last call. Common case: pan-only or small-zoom-no-cross
-        // events fire zoomend but don't cross the threshold.
-        if (shouldShow === _labelsCurrentlyShown) return;
-        _labelsCurrentlyShown = shouldShow;
+        var mode = (z >= minZoom) ? 'full' : (hasShortText && z >= shortMinZoom) ? 'short' : 'none';
+        // Skip the bind/unbind/relabel churn if the mode hasn't changed
+        // since the last call. Common case: pan-only or small-zoom-no-
+        // cross events fire zoomend but don't cross either threshold.
+        if (mode === _labelsCurrentMode) return;
+        _labelsCurrentMode = mode;
         for (var i = 0; i < labelEntries.length; i++) {
           var entry = labelEntries[i];
-          if (shouldShow) {
-            entry.marker.bindTooltip(entry.text, ttOpts);
+          var content = (mode === 'full') ? entry.text : (mode === 'short') ? entry.shortText : '';
+          if (!content) {
+            if (entry.bound) { entry.marker.unbindTooltip(); entry.bound = false; }
+            continue;
+          }
+          if (entry.bound) {
+            // setTooltipContent updates an already-bound tooltip in place
+            // (full ↔ short swap) without an unbind/rebind cycle.
+            entry.marker.setTooltipContent(content);
           } else {
-            entry.marker.unbindTooltip();
+            entry.marker.bindTooltip(content, ttOpts);
+            entry.bound = true;
           }
         }
       }
