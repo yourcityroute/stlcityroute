@@ -15869,12 +15869,16 @@ function _photoSetupViewRadiusM() {
 }
 
 function _parcelLabelHtml(addr, highlighted) {
-  // Syne (the app's bold display font, used for buttons/headers everywhere
-  // else) instead of tiny Space Mono; larger size; darker, more saturated
-  // border/text for contrast against the pale basemap.
+  // Contrast fix: the previous version used orange/brown for the label
+  // border AND text, which is the same hue family as the parcel fill/
+  // outline sitting behind it — everything read as one wash of orange.
+  // Now: fully opaque white background, near-black text, and a neutral
+  // dark border (not orange) so the label visually separates from the
+  // parcel shading regardless of what's under it. cursor:pointer signals
+  // it's tappable (see also the tap-to-search fix below).
   return highlighted
-    ? '<div style="background:#ffd54a;border:2.5px solid #6b3900;border-radius:5px;padding:3px 7px;font-family:Syne,sans-serif;font-size:0.68rem;color:#4a2900;white-space:nowrap;font-weight:800;box-shadow:0 2px 10px rgba(0,0,0,0.45)">' + escHtml(addr) + '</div>'
-    : '<div style="background:rgba(255,255,255,0.97);border:1.5px solid #a85d00;border-radius:5px;padding:2px 6px;font-family:Syne,sans-serif;font-size:0.64rem;color:#5c3400;white-space:nowrap;font-weight:800">' + escHtml(addr) + '</div>';
+    ? '<div style="background:#ffd54a;border:2.5px solid #1a1a1a;border-radius:5px;padding:3px 7px;font-family:Syne,sans-serif;font-size:0.68rem;color:#1a0f00;white-space:nowrap;font-weight:800;box-shadow:0 2px 10px rgba(0,0,0,0.45);cursor:pointer">' + escHtml(addr) + '</div>'
+    : '<div style="background:#ffffff;border:1.5px solid #2a2a2a;border-radius:5px;padding:2px 6px;font-family:Syne,sans-serif;font-size:0.64rem;color:#111;white-space:nowrap;font-weight:800;box-shadow:0 1px 4px rgba(0,0,0,0.25);cursor:pointer">' + escHtml(addr) + '</div>';
 }
 
 // Fetches + draws parcels/streets for the given center + radius. Does NOT
@@ -15912,8 +15916,7 @@ async function _drawPhotoSetupParcelsAndStreets(centerLat, centerLng, radiusM) {
 
   // Parcel outlines + address-number labels. Darker, more saturated
   // outline color and a touch more fill so parcels read clearly against
-  // the pale basemap; markers are now interactive with a tap-to-search
-  // popup (see below) instead of purely decorative labels.
+  // the pale basemap; markers are interactive with a tap-to-search popup.
   parcels.forEach(function(p) {
     try {
       if (p.geometry) {
@@ -15921,8 +15924,17 @@ async function _drawPhotoSetupParcelsAndStreets(centerLat, centerLng, radiusM) {
         _photoSetupMapLayers.push(poly);
       }
       var highlighted = (p.address === _photoSetupHighlightedAddr);
+      // Explicit iconSize/iconAnchor instead of the previous iconSize:null
+      // "auto-size" pattern. null left Leaflet's hit-testing box undefined,
+      // which is where the tap-to-search popup was silently failing to
+      // register taps on some devices — Leaflet had no defined clickable
+      // area to attach to. Width is a rough estimate from address length
+      // (Syne bold ~7px/char at this size) rather than exact text
+      // measurement, so it can run a little generous — better a slightly
+      // oversized tap target than an undersized one.
+      var dims = _parcelIconSize(p.address, highlighted);
       var marker = L.marker([p.lat, p.lng], {
-        icon: L.divIcon({ className: '', html: _parcelLabelHtml(p.address, highlighted), iconSize: null }),
+        icon: L.divIcon({ className: '', html: _parcelLabelHtml(p.address, highlighted), iconSize: dims.iconSize, iconAnchor: dims.iconAnchor }),
         interactive: true,
         zIndexOffset: highlighted ? 500 : 0
       }).addTo(_photoSetupMap);
@@ -15931,6 +15943,11 @@ async function _drawPhotoSetupParcelsAndStreets(centerLat, centerLng, radiusM) {
         '<button data-fn="openPropertySearch" data-arg="' + escHtml(p.address) + '" style="width:100%;padding:7px 10px;background:linear-gradient(135deg,#1a5276,#2874a6);border:none;border-radius:7px;color:white;font-family:Syne,sans-serif;font-weight:800;font-size:0.6rem;cursor:pointer">🔍 Property Search</button>',
         { closeButton: true, autoPan: true }
       );
+      // Explicit click → open, alongside bindPopup's own automatic
+      // click-to-open. Redundant on browsers where the automatic binding
+      // works fine, but makes the tap-to-search behavior deterministic
+      // rather than depending entirely on Leaflet's internal click wiring.
+      marker.on('click', function() { marker.openPopup(); });
       _photoSetupMapLayers.push(marker);
       _photoSetupParcelMarkers[p.address] = marker;
     } catch(_e) {}
@@ -16023,12 +16040,23 @@ async function _refreshPhotoSetupParcels(gps) {
 // that address isn't currently drawn on the map (e.g. it scrolled out of
 // the visible parcel set after a zoom/pan redraw) — the address still gets
 // set in the field either way, this is a visual bonus, not load-bearing.
+// Shared box-size estimate for parcel label divIcons — used both when
+// first drawing a parcel and when re-icon-ing it on highlight/unhighlight,
+// so the clickable area stays consistent (explicit size, not the old
+// iconSize:null "auto" pattern that left Leaflet's hit-testing undefined).
+function _parcelIconSize(addr, highlighted) {
+  var w = Math.min(230, Math.max(90, (addr || '').length * 7 + 26));
+  var h = highlighted ? 30 : 26;
+  return { iconSize: [w, h], iconAnchor: [w/2, h/2] };
+}
+
 function _highlightPhotoSetupParcel(addr) {
   if (_photoSetupHighlightedAddr && _photoSetupHighlightedAddr !== addr) {
     var prev = _photoSetupParcelMarkers[_photoSetupHighlightedAddr];
     if (prev) {
       try {
-        prev.setIcon(L.divIcon({ className: '', html: _parcelLabelHtml(_photoSetupHighlightedAddr, false), iconSize: null }));
+        var prevDims = _parcelIconSize(_photoSetupHighlightedAddr, false);
+        prev.setIcon(L.divIcon({ className: '', html: _parcelLabelHtml(_photoSetupHighlightedAddr, false), iconSize: prevDims.iconSize, iconAnchor: prevDims.iconAnchor }));
         prev.setZIndexOffset(0);
       } catch(_e) {}
     }
@@ -16037,7 +16065,8 @@ function _highlightPhotoSetupParcel(addr) {
   var marker = _photoSetupParcelMarkers[addr];
   if (marker) {
     try {
-      marker.setIcon(L.divIcon({ className: '', html: _parcelLabelHtml(addr, true), iconSize: null }));
+      var dims = _parcelIconSize(addr, true);
+      marker.setIcon(L.divIcon({ className: '', html: _parcelLabelHtml(addr, true), iconSize: dims.iconSize, iconAnchor: dims.iconAnchor }));
       marker.setZIndexOffset(500);
     } catch(_e) {}
   }
