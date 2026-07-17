@@ -15801,6 +15801,35 @@ function _geoJsonLineToLatLngs(geom) {
   return [];
 }
 
+// Midpoint + on-screen rotation angle for a street name label, so the text
+// runs parallel to the road instead of always sitting flat/horizontal.
+// Works in actual screen pixels (via the map's own projection), not raw
+// lat/lng deltas — lat/lng degrees aren't equal-length on screen, so a
+// naive atan2 on coordinates would give a subtly wrong angle. Normalized
+// to [-90, 90] so the text is never upside-down. `latlngs` is whatever
+// _geoJsonLineToLatLngs returned — either a flat [lat,lng] point list
+// (LineString) or an array of such lists (MultiLineString, in which case
+// the longest segment is used).
+function _streetLabelMidpointAndAngle(map, latlngs) {
+  if (!map || !latlngs || !latlngs.length) return null;
+  var line = latlngs;
+  if (Array.isArray(line[0][0])) {
+    line = line.reduce(function(best, seg) { return seg.length > best.length ? seg : best; }, line[0]);
+  }
+  if (line.length < 2) return null;
+  var midIdx = Math.floor(line.length / 2);
+  var a = line[Math.max(0, midIdx - 1)];
+  var b = line[Math.min(line.length - 1, midIdx)];
+  try {
+    var aPt = map.latLngToContainerPoint([a[0], a[1]]);
+    var bPt = map.latLngToContainerPoint([b[0], b[1]]);
+    var deg = Math.atan2(bPt.y - aPt.y, bPt.x - aPt.x) * 180 / Math.PI;
+    if (deg > 90) deg -= 180;
+    if (deg < -90) deg += 180;
+    return { latlng: [(a[0]+b[0])/2, (a[1]+b[1])/2], angleDeg: deg };
+  } catch(_e) { return null; }
+}
+
 // ── Prepare Photo situational-awareness map ──────────────────────────────
 // Independent Leaflet instance (separate from the Map tab's routeMap) shown
 // at the top of the setup modal. Lazily created on first Photostamp open,
@@ -15822,7 +15851,13 @@ function _initPhotoSetupMap() {
   var el = document.getElementById('photo-setup-map');
   if (!el || typeof L === 'undefined') return;
   try {
-    _photoSetupMap = L.map('photo-setup-map', { zoomControl: true, tap: false, attributionControl: false })
+    // zoomSnap/zoomDelta 0.5 + minZoom 18.5: the baseline GPS-driven view
+    // always opens at zoom 19, so this caps how far out you can go to
+    // exactly one press of the +/- control (19 → 18.5) — this map is meant
+    // for "what am I near right now," not general-purpose exploring, and
+    // going further out was mostly just adding clutter (see
+    // _parcelZoomTier for the font-shrink side of the same idea).
+    _photoSetupMap = L.map('photo-setup-map', { zoomControl: true, tap: false, attributionControl: false, zoomSnap: 0.5, zoomDelta: 0.5, minZoom: 18.5 })
       .setView(STL_CENTER, 16);
     L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', {
       subdomains: 'abcd', maxZoom: 20, minZoom: 12
@@ -15874,22 +15909,28 @@ function _photoSetupViewRadiusM() {
 // fresh GPS fix (new modal open), not on pan/zoom itself.
 var _photoSetupBaselineZoom = 19;
 
+// Matches the map's zoomSnap/zoomDelta (see _initPhotoSetupMap) — one
+// "press" of the +/- control moves the zoom by this much. minZoom is set
+// to baseline − 1 press, so the map physically cannot be zoomed out
+// further than this regardless of what thresholds are used below.
+var _PHOTO_SETUP_PRESS_ZOOM = 0.5;
+
 // How much detail to render at a given zoom, relative to where the screen
-// started. diff=0 is "still at the zoom it opened at"; diff=1 is "zoomed
-// out one step" (one tap of the map's − control, or an equivalent pinch);
-// diff>=2 is "zoomed out more than one step."
-//   diff <= 1: full font size, tappable (Property Search popup works)
-//   diff >= 2: smaller font, NOT tappable — markers stop intercepting taps
-//              entirely so panning/zooming around feels smooth instead of
-//              fighting a popup that keeps grabbing the tap.
-// Font keeps shrinking gradually beyond that so a heavily-zoomed-out view
-// doesn't turn into a wall of full-size text on top of itself.
+// started (in units of "presses" of the +/- control):
+//   < half a press out : full size, tappable (Property Search popup works)
+//   half a press to one full press out (the map's actual zoom-out limit):
+//     shrunk text, still tappable
+//   beyond one press (not reachable today given minZoom, but the rule
+//     stays here in case that limit ever loosens): smaller still, and the
+//     tap-to-search popup stops being wired up entirely so a zoomed-out
+//     view is free to pan around without a label grabbing the tap.
 function _parcelZoomTier(zoom) {
   var diff = _photoSetupBaselineZoom - zoom;
-  if (diff <= 1) return { fontRem: 0.64, interactive: true };
-  if (diff === 2) return { fontRem: 0.54, interactive: false };
-  if (diff === 3) return { fontRem: 0.48, interactive: false };
-  return { fontRem: 0.42, interactive: false };
+  var presses = diff / _PHOTO_SETUP_PRESS_ZOOM;
+  if (presses < 0.5) return { fontRem: 0.64, interactive: true };
+  if (presses <= 1)  return { fontRem: 0.50, interactive: true };
+  if (presses <= 2)  return { fontRem: 0.44, interactive: false };
+  return { fontRem: 0.40, interactive: false };
 }
 
 function _parcelLabelHtml(addr, highlighted, fontRem) {
@@ -15927,17 +15968,38 @@ async function _drawPhotoSetupParcelsAndStreets(centerLat, centerLng, radiusM) {
     if (results[1].status === 'fulfilled') streets = results[1].value;
   } catch(_e) {}
 
-  // Streets drawn first (under parcels) as thin labeled lines. Darker slate
-  // (was a pale #999 that all but disappeared against light basemap tiles)
-  // and a dedicated, more-readable label class (photo-setup-street-label —
-  // see CSS) instead of reusing the Ward layer's teal styling.
+  // Zoom tier drives font size (both streets and parcels) and whether
+  // Property Search is even wired up (parcels only) — computed once up
+  // front so streets and parcels stay in sync.
+  var zoom = _photoSetupMap.getZoom();
+  var tier = _parcelZoomTier(zoom);
+
+  // Streets drawn first (under parcels) as thin lines, with a name label
+  // ROTATED to run parallel to the street itself — a divIcon marker at the
+  // segment's midpoint rather than a Leaflet tooltip, since tooltips don't
+  // support rotation without fighting Leaflet's own positioning transform.
   streets.forEach(function(s) {
     try {
       var latlngs = _geoJsonLineToLatLngs(s.geometry);
       if (!latlngs.length) return;
       var line = L.polyline(latlngs, { color:'#4a5a6a', weight:3.5, opacity:0.85 }).addTo(_photoSetupMap);
-      line.bindTooltip(s.name, { permanent:true, direction:'center', className:'photo-setup-street-label', opacity:0.95 });
       _photoSetupMapLayers.push(line);
+
+      var mid = _streetLabelMidpointAndAngle(_photoSetupMap, latlngs);
+      if (mid) {
+        var boxW = Math.max(60, (s.name || '').length * (tier.fontRem * 10.5) + 10);
+        var boxH = Math.max(14, Math.round(tier.fontRem * 24));
+        var labelHtml =
+          '<div style="width:' + boxW + 'px;height:' + boxH + 'px;display:flex;align-items:center;justify-content:center;pointer-events:none">' +
+          '<div style="transform:rotate(' + mid.angleDeg + 'deg);font-family:Syne,sans-serif;font-weight:800;font-size:' + tier.fontRem + 'rem;color:#2c3e50;white-space:nowrap;text-shadow:0 0 2px rgba(255,255,255,0.98),0 0 4px rgba(255,255,255,0.98),0 0 7px rgba(255,255,255,0.85)">' +
+          escHtml(s.name) + '</div></div>';
+        var streetLabel = L.marker(mid.latlng, {
+          icon: L.divIcon({ className: '', html: labelHtml, iconSize: [boxW, boxH], iconAnchor: [boxW/2, boxH/2] }),
+          interactive: false,
+          zIndexOffset: -100
+        }).addTo(_photoSetupMap);
+        _photoSetupMapLayers.push(streetLabel);
+      }
     } catch(_e) {}
   });
 
@@ -15947,8 +16009,6 @@ async function _drawPhotoSetupParcelsAndStreets(centerLat, centerLng, radiusM) {
   // _parcelZoomTier. At a glance-out zoom level this deliberately does
   // LESS, not more: no popup binding at all, so a zoomed-out view is free
   // to pan/zoom without a label grabbing the tap.
-  var zoom = _photoSetupMap.getZoom();
-  var tier = _parcelZoomTier(zoom);
   parcels.forEach(function(p) {
     try {
       if (p.geometry) {
