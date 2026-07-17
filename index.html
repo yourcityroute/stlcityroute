@@ -15868,17 +15868,44 @@ function _photoSetupViewRadiusM() {
   } catch(_e) { return ParcelLookup.RADIUS_M; }
 }
 
-function _parcelLabelHtml(addr, highlighted) {
-  // Contrast fix: the previous version used orange/brown for the label
-  // border AND text, which is the same hue family as the parcel fill/
-  // outline sitting behind it — everything read as one wash of orange.
-  // Now: fully opaque white background, near-black text, and a neutral
-  // dark border (not orange) so the label visually separates from the
-  // parcel shading regardless of what's under it. cursor:pointer signals
-  // it's tappable (see also the tap-to-search fix below).
-  return highlighted
-    ? '<div style="background:#ffd54a;border:2.5px solid #1a1a1a;border-radius:5px;padding:3px 7px;font-family:Syne,sans-serif;font-size:0.68rem;color:#1a0f00;white-space:nowrap;font-weight:800;box-shadow:0 2px 10px rgba(0,0,0,0.45);cursor:pointer">' + escHtml(addr) + '</div>'
-    : '<div style="background:#ffffff;border:1.5px solid #2a2a2a;border-radius:5px;padding:2px 6px;font-family:Syne,sans-serif;font-size:0.64rem;color:#111;white-space:nowrap;font-weight:800;box-shadow:0 1px 4px rgba(0,0,0,0.25);cursor:pointer">' + escHtml(addr) + '</div>';
+// Zoom set by the initial GPS-driven load (_refreshPhotoSetupParcels
+// always requests zoom 19) — later zoom/pan redraws compare the CURRENT
+// zoom against this to decide how much detail to show. Resets on every
+// fresh GPS fix (new modal open), not on pan/zoom itself.
+var _photoSetupBaselineZoom = 19;
+
+// How much detail to render at a given zoom, relative to where the screen
+// started. diff=0 is "still at the zoom it opened at"; diff=1 is "zoomed
+// out one step" (one tap of the map's − control, or an equivalent pinch);
+// diff>=2 is "zoomed out more than one step."
+//   diff <= 1: full font size, tappable (Property Search popup works)
+//   diff >= 2: smaller font, NOT tappable — markers stop intercepting taps
+//              entirely so panning/zooming around feels smooth instead of
+//              fighting a popup that keeps grabbing the tap.
+// Font keeps shrinking gradually beyond that so a heavily-zoomed-out view
+// doesn't turn into a wall of full-size text on top of itself.
+function _parcelZoomTier(zoom) {
+  var diff = _photoSetupBaselineZoom - zoom;
+  if (diff <= 1) return { fontRem: 0.64, interactive: true };
+  if (diff === 2) return { fontRem: 0.54, interactive: false };
+  if (diff === 3) return { fontRem: 0.48, interactive: false };
+  return { fontRem: 0.42, interactive: false };
+}
+
+function _parcelLabelHtml(addr, highlighted, fontRem) {
+  // The selected/highlighted parcel keeps a distinct bordered box — it's
+  // meant to stand out, and there's only ever one on screen at once, so it
+  // doesn't contribute to the "too busy" problem the way a box on every
+  // single label did. Font size here is fixed regardless of zoom tier;
+  // this is a deliberate one-off emphasis, not part of the base density.
+  if (highlighted) {
+    return '<div style="background:#ffd54a;border:2.5px solid #1a1a1a;border-radius:5px;padding:3px 7px;font-family:Syne,sans-serif;font-size:0.68rem;color:#1a0f00;white-space:nowrap;font-weight:800;box-shadow:0 2px 10px rgba(0,0,0,0.45);cursor:pointer">' + escHtml(addr) + '</div>';
+  }
+  // Every other label: plain text, no background/border/bubble — a strong
+  // white halo (same technique as the street-name labels) keeps it legible
+  // over both basemap and the gold parcel fill without a box. Font size
+  // comes from the current zoom tier.
+  return '<div style="font-family:Syne,sans-serif;font-size:' + fontRem + 'rem;color:#1a1a1a;white-space:nowrap;font-weight:800;text-shadow:0 0 2px rgba(255,255,255,0.95),0 0 3px rgba(255,255,255,0.95),0 0 5px rgba(255,255,255,0.85)">' + escHtml(addr) + '</div>';
 }
 
 // Fetches + draws parcels/streets for the given center + radius. Does NOT
@@ -15914,9 +15941,14 @@ async function _drawPhotoSetupParcelsAndStreets(centerLat, centerLng, radiusM) {
     } catch(_e) {}
   });
 
-  // Parcel outlines + address-number labels. Darker, more saturated
-  // outline color and a touch more fill so parcels read clearly against
-  // the pale basemap; markers are interactive with a tap-to-search popup.
+  // Parcel outlines + address-number labels. Detail level (font size,
+  // whether the tap-to-search popup is even wired up) depends on how far
+  // zoomed out the map currently is relative to where it opened — see
+  // _parcelZoomTier. At a glance-out zoom level this deliberately does
+  // LESS, not more: no popup binding at all, so a zoomed-out view is free
+  // to pan/zoom without a label grabbing the tap.
+  var zoom = _photoSetupMap.getZoom();
+  var tier = _parcelZoomTier(zoom);
   parcels.forEach(function(p) {
     try {
       if (p.geometry) {
@@ -15924,30 +15956,25 @@ async function _drawPhotoSetupParcelsAndStreets(centerLat, centerLng, radiusM) {
         _photoSetupMapLayers.push(poly);
       }
       var highlighted = (p.address === _photoSetupHighlightedAddr);
-      // Explicit iconSize/iconAnchor instead of the previous iconSize:null
-      // "auto-size" pattern. null left Leaflet's hit-testing box undefined,
-      // which is where the tap-to-search popup was silently failing to
-      // register taps on some devices — Leaflet had no defined clickable
-      // area to attach to. Width is a rough estimate from address length
-      // (Syne bold ~7px/char at this size) rather than exact text
-      // measurement, so it can run a little generous — better a slightly
-      // oversized tap target than an undersized one.
-      var dims = _parcelIconSize(p.address, highlighted);
+      var effFontRem = highlighted ? 0.68 : tier.fontRem; // highlighted always renders at a fixed size — see _parcelLabelHtml
+      var dims = _parcelIconSize(p.address, highlighted, effFontRem);
       var marker = L.marker([p.lat, p.lng], {
-        icon: L.divIcon({ className: '', html: _parcelLabelHtml(p.address, highlighted), iconSize: dims.iconSize, iconAnchor: dims.iconAnchor }),
-        interactive: true,
+        icon: L.divIcon({ className: '', html: _parcelLabelHtml(p.address, highlighted, tier.fontRem), iconSize: dims.iconSize, iconAnchor: dims.iconAnchor }),
+        interactive: tier.interactive,
         zIndexOffset: highlighted ? 500 : 0
       }).addTo(_photoSetupMap);
-      marker.bindPopup(
-        '<div style="font-family:Syne,sans-serif;font-weight:800;font-size:0.66rem;color:#5c3400;margin-bottom:6px">' + escHtml(p.address) + '</div>' +
-        '<button data-fn="openPropertySearch" data-arg="' + escHtml(p.address) + '" style="width:100%;padding:7px 10px;background:linear-gradient(135deg,#1a5276,#2874a6);border:none;border-radius:7px;color:white;font-family:Syne,sans-serif;font-weight:800;font-size:0.6rem;cursor:pointer">🔍 Property Search</button>',
-        { closeButton: true, autoPan: true }
-      );
-      // Explicit click → open, alongside bindPopup's own automatic
-      // click-to-open. Redundant on browsers where the automatic binding
-      // works fine, but makes the tap-to-search behavior deterministic
-      // rather than depending entirely on Leaflet's internal click wiring.
-      marker.on('click', function() { marker.openPopup(); });
+      if (tier.interactive) {
+        marker.bindPopup(
+          '<div style="font-family:Syne,sans-serif;font-weight:800;font-size:0.66rem;color:#5c3400;margin-bottom:6px">' + escHtml(p.address) + '</div>' +
+          '<button data-fn="openPropertySearch" data-arg="' + escHtml(p.address) + '" style="width:100%;padding:7px 10px;background:linear-gradient(135deg,#1a5276,#2874a6);border:none;border-radius:7px;color:white;font-family:Syne,sans-serif;font-weight:800;font-size:0.6rem;cursor:pointer">🔍 Property Search</button>',
+          { closeButton: true, autoPan: true }
+        );
+        // Explicit click → open, alongside bindPopup's own automatic
+        // click-to-open. Redundant on browsers where the automatic binding
+        // works fine, but makes the tap-to-search behavior deterministic
+        // rather than depending entirely on Leaflet's internal click wiring.
+        marker.on('click', function() { marker.openPopup(); });
+      }
       _photoSetupMapLayers.push(marker);
       _photoSetupParcelMarkers[p.address] = marker;
     } catch(_e) {}
@@ -15988,6 +16015,11 @@ async function _refreshPhotoSetupParcels(gps) {
   if (!_photoSetupMap) { if (statusEl) statusEl.textContent = ''; return; }
   _photoSetupHighlightedAddr = null;
   _photoSetupMap.setView([gps.lat, gps.lng], 19);
+  // Read back the actual zoom setView landed on (should always be 19, but
+  // reading it rather than hardcoding is one less thing that can drift out
+  // of sync if tile maxZoom or similar ever changes) — this is the
+  // reference point _parcelZoomTier measures "zoomed out N steps" against.
+  _photoSetupBaselineZoom = _photoSetupMap.getZoom();
 
   // Pin at the inspector's current position — separate from
   // _photoSetupMapLayers so zoom/pan redraws never touch it.
@@ -16044,19 +16076,26 @@ async function _refreshPhotoSetupParcels(gps) {
 // first drawing a parcel and when re-icon-ing it on highlight/unhighlight,
 // so the clickable area stays consistent (explicit size, not the old
 // iconSize:null "auto" pattern that left Leaflet's hit-testing undefined).
-function _parcelIconSize(addr, highlighted) {
-  var w = Math.min(230, Math.max(90, (addr || '').length * 7 + 26));
-  var h = highlighted ? 30 : 26;
+function _parcelIconSize(addr, highlighted, fontRem) {
+  fontRem = fontRem || 0.64;
+  // Per-char width scales with font size; highlighted keeps extra room for
+  // its border/padding, plain labels are tighter since there's no box.
+  var charW = fontRem * 10.5;
+  var w = highlighted
+    ? Math.min(230, Math.max(90, (addr || '').length * charW + 26))
+    : Math.min(210, Math.max(50, (addr || '').length * charW + 6));
+  var h = highlighted ? 30 : Math.max(14, Math.round(fontRem * 22) + 4);
   return { iconSize: [w, h], iconAnchor: [w/2, h/2] };
 }
 
 function _highlightPhotoSetupParcel(addr) {
+  var tier = _photoSetupMap ? _parcelZoomTier(_photoSetupMap.getZoom()) : { fontRem: 0.64, interactive: true };
   if (_photoSetupHighlightedAddr && _photoSetupHighlightedAddr !== addr) {
     var prev = _photoSetupParcelMarkers[_photoSetupHighlightedAddr];
     if (prev) {
       try {
-        var prevDims = _parcelIconSize(_photoSetupHighlightedAddr, false);
-        prev.setIcon(L.divIcon({ className: '', html: _parcelLabelHtml(_photoSetupHighlightedAddr, false), iconSize: prevDims.iconSize, iconAnchor: prevDims.iconAnchor }));
+        var prevDims = _parcelIconSize(_photoSetupHighlightedAddr, false, tier.fontRem);
+        prev.setIcon(L.divIcon({ className: '', html: _parcelLabelHtml(_photoSetupHighlightedAddr, false, tier.fontRem), iconSize: prevDims.iconSize, iconAnchor: prevDims.iconAnchor }));
         prev.setZIndexOffset(0);
       } catch(_e) {}
     }
@@ -16065,8 +16104,8 @@ function _highlightPhotoSetupParcel(addr) {
   var marker = _photoSetupParcelMarkers[addr];
   if (marker) {
     try {
-      var dims = _parcelIconSize(addr, true);
-      marker.setIcon(L.divIcon({ className: '', html: _parcelLabelHtml(addr, true), iconSize: dims.iconSize, iconAnchor: dims.iconAnchor }));
+      var dims = _parcelIconSize(addr, true, 0.68); // highlighted always renders at a fixed size — see _parcelLabelHtml
+      marker.setIcon(L.divIcon({ className: '', html: _parcelLabelHtml(addr, true, tier.fontRem), iconSize: dims.iconSize, iconAnchor: dims.iconAnchor }));
       marker.setZIndexOffset(500);
     } catch(_e) {}
   }
