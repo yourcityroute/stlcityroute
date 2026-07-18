@@ -889,6 +889,35 @@ header{
   font-size: 0.74rem;
 }
 
+/* ── Prepare Photo situational-awareness map: street name labels ──────
+   Dedicated class (not reusing boundary-label-ward) so this map's colors/
+   sizing can be tuned independently of the Map tab's ward/neighborhood/
+   police-district layers. Syne (the app's bold display font used
+   everywhere else — buttons, headers) instead of the tiny Space Mono used
+   here previously; darker, more saturated color; larger size; a stronger
+   white halo so it stays legible over both light tile background and the
+   gold parcel outlines it often sits on top of.
+*/
+.leaflet-tooltip.photo-setup-street-label {
+  background: transparent;
+  border: none;
+  box-shadow: none;
+  padding: 1px 4px;
+  font-family: Syne, sans-serif;
+  font-weight: 800;
+  font-size: 0.68rem;
+  letter-spacing: 0.3px;
+  white-space: nowrap;
+  pointer-events: none;
+  color: #2c3e50;
+  text-shadow:
+    0 0 2px rgba(255,255,255,0.98),
+    0 0 4px rgba(255,255,255,0.98),
+    0 0 7px rgba(255,255,255,0.85);
+}
+.leaflet-tooltip.photo-setup-street-label::before {
+  display: none !important;
+}
 </style>
 </head>
 <body>
@@ -1900,6 +1929,8 @@ header{
      two groups to opposite ends; gap inside each group keeps elements
      spaced consistently. -->
 <div id="stop-count-bar" style="background:rgba(0,0,0,0.25);color:var(--pale);font-family:'Space Mono',monospace;font-size:0.62rem;letter-spacing:0.4px;display:flex;align-items:center;justify-content:space-between;gap:8px;padding:5px 12px;border-bottom:1px solid rgba(255,255,255,0.08)"><span id="stop-count-bar-left" style="display:flex;align-items:center;gap:8px;flex-wrap:wrap"><span id="stop-count-bar-date">—</span><span id="supercharge-link-slot"></span></span><span id="stop-count-bar-right"></span></div>
+<!-- Survey session strip — visible on every tab while a survey is active. Hidden otherwise. -->
+<div id="survey-session-strip" style="display:none;align-items:center;gap:7px;background:#1a4a8c;color:#eaf3ff;font-family:'Space Mono',monospace;font-size:0.6rem;padding:5px 12px;border-bottom:1px solid rgba(255,255,255,0.15)"></div>
 
 <div id="swipe-indicator"></div>
 <div class="content" id="main-content">
@@ -2045,8 +2076,19 @@ header{
       style="flex:1;min-width:0;border:none;background:transparent 100% 100% no-repeat;background-size:100% 100%;padding:0;cursor:pointer"></button>
     <button data-fn="resetRouteOrder" id="btn-reset-route" title="Reset to original add order" aria-label="Reset route order"
       style="flex:0 0 68px;width:68px;border:none;background:transparent center/contain no-repeat;padding:0;cursor:pointer"></button>
-    <button data-fn="launchGoogleMaps" id="btn-nav-full-route" title="Open the entire route in Google Maps with all waypoints" aria-label="Navigate full route"
-      style="flex:1;min-width:0;border:none;background:transparent 100% 100% no-repeat;background-size:100% 100%;padding:0;cursor:pointer"></button>
+    <!-- 2026-07-18: replaces the old "Navigate Route" (launchGoogleMaps)
+         button — same slot (flex:1, 68px row height), now the entry point
+         for Survey Mode instead. launchGoogleMaps() itself is untouched
+         in case it needs a home elsewhere later; it just has no button
+         wired to it in this row anymore. Content is populated by
+         _renderSurveyRouteButton() rather than a baked background-image,
+         since the face needs to switch between an idle "Start Survey"
+         state and a live "neighborhood · elapsed" status — a static
+         image can't show that. -->
+    <button data-fn="openSurveyModeModal" id="btn-survey-mode" title="Survey Mode" aria-label="Survey Mode"
+      style="flex:1;min-width:0;border:none;border-radius:10px;padding:0;cursor:pointer;overflow:hidden">
+      <div id="survey-route-btn-content" style="width:100%;height:100%;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:1px;padding:2px 4px"><!-- filled by _renderSurveyRouteButton() --></div>
+    </button>
   </div>
   <!-- Drop X.2 (2026-04-30): Route Algorithm panel replaces the old SET BEGIN/END.
        The Set Begin/End functionality was supplanted by the start/end pin buttons
@@ -2688,7 +2730,7 @@ header{
     <details class="help-panel">
       <summary>📷 Photo Stamping &amp; Cache</summary>
       <div class="help-panel-body">
-        <b>What is photostamping?</b> The 📷 button in the top header (and the 📷 button in any stop's Utility menu) opens <b>Prepare Photo</b> — a full-screen setup step, not the camera directly. It shows a live map of nearby parcels (street names come from the base map itself), with your nearest 10 addresses listed below as tappable candidates (each with its own 🔍 Property Search button). Tap a candidate to fill the address, or type it manually — 📍 GPS only re-centers the map on your current position, it doesn't fill the address field. Add optional notes and a tracking number, then tap <b>📷 Open Camera</b> or <b>🖼 Pick Existing</b> (choose one or more photos from your gallery — all get stamped with the same address). ⚙ Stamp jumps to Stamp Settings; ✕ Exit backs out without taking a photo.<br><br>
+        <b>What is photostamping?</b> The 📷 button in the top header (and the 📷 button in any stop's Utility menu) opens <b>Prepare Photo</b> — a full-screen setup step, not the camera directly. It shows a live map of parcels and street names near your GPS position, with your nearest 10 addresses listed below as tappable candidates (each with its own 🔍 Property Search button). Tap a candidate to fill the address, use 📍 GPS to reverse-lookup instead, or type it manually. Add optional notes and a tracking number, then tap <b>📷 Open Camera</b> or <b>🖼 Pick Existing</b> (choose one or more photos from your gallery — all get stamped with the same address). ⚙ Stamp jumps to Stamp Settings; ✕ Exit backs out without taking a photo.<br><br>
         <b>Per-stop photo sessions:</b> Opening Prepare Photo from a specific stop's Utility menu links the photo to that stop. Each stamped shot increments a 📷 counter on the stop card so you can see at a glance how many photos you've taken at that address.<br><br>
         <b>Filenames are searchable:</b> Stamped photos are named like <code style="font-size:0.95em">2801daltonavenue_042326_101832847.jpg</code> — address, then date (mmddyy), then time (hhmmss) + milliseconds, underscore-separated. You can search this exact name in your Photos / Files app to find any photo later.<br><br>
         <b>What gets burned in</b> — Settings → 📷 Stamp Settings has individual toggles for: address, date, time, inspector name, title/department, GPS coordinates, compass bearing, case number, photo sequence number, neighborhood name, neighborhood number, ward number, and notes. Turn any subset on. Compact form: "Tower Grove South #15 · Ward 8".<br><br>
@@ -3031,7 +3073,7 @@ header{
     <label style="display:block;font-family:'Space Mono',monospace;font-size:0.56rem;color:#666;margin-bottom:4px">Address</label>
     <div style="display:flex;gap:6px;margin-bottom:8px">
       <input type="text" id="photo-setup-addr" placeholder="Street address (optional)" style="flex:1;padding:9px 10px;border:1.5px solid #ead3b0;border-radius:8px;font-family:'Space Mono',monospace;font-size:0.68rem;color:#222;background:#fff">
-      <button data-fn="photoSetupGpsRefresh" title="Refresh map at your current location" style="background:#fff4e0;border:1.5px solid #ead3b0;border-radius:8px;padding:6px 10px;font-family:Syne,sans-serif;font-weight:700;font-size:0.6rem;color:#8c4a00;cursor:pointer;white-space:nowrap">📍 GPS</button>
+      <button data-fn="photoReverseLookup" title="Use GPS to find address" style="background:#fff4e0;border:1.5px solid #ead3b0;border-radius:8px;padding:6px 10px;font-family:Syne,sans-serif;font-weight:700;font-size:0.6rem;color:#8c4a00;cursor:pointer;white-space:nowrap">📍 GPS</button>
     </div>
 
     <!-- Tappable nearby-parcel address candidates — filled by
@@ -6112,6 +6154,11 @@ function switchTab(name) {
   // channel, replacing two earlier per-system if-blocks that read private
   // module globals directly.
   try { if (typeof Voice !== 'undefined') Voice.stopAll(); } catch(_) {}
+  // Self-healing safety net: re-sync the survey strip to actual storage
+  // state on every tab switch, rather than relying solely on the 60s
+  // timer. Cheap (one LS read + a conditional innerHTML write) and closes
+  // the window on any future render/state desync to well under a minute.
+  try { if (typeof _renderSurveyStrip === 'function') _renderSurveyStrip(); } catch(_) {}
   if (name === 'data') {
     setTimeout(function() { if (typeof _onDataTabOpen === 'function') _onDataTabOpen(); }, 80);
   }
@@ -6128,6 +6175,8 @@ function switchTab(name) {
           mapGPSMarker = null;
         }
       }
+      try { if (typeof _redrawBreadcrumbLayer === 'function') _redrawBreadcrumbLayer(); } catch(_e) {}
+      try { if (typeof _redrawChronicLayer === 'function') _redrawChronicLayer(); } catch(_e) {}
     }, 120);
   }
   if (name === 'creds') {
@@ -6789,8 +6838,6 @@ function _wireInlineButtonImages() {
     if (_optBtn) _optBtn.style.backgroundImage = 'url("' + OPTIMIZE_ICON_URI + '")';
     var _rstBtn = document.getElementById('btn-reset-route');
     if (_rstBtn) _rstBtn.style.backgroundImage = 'url("' + RESET_ICON_URI + '")';
-    var _navBtn = document.getElementById('btn-nav-full-route');
-    if (_navBtn) _navBtn.style.backgroundImage = 'url("' + NAVIGATE_ROUTE_ICON_URI + '")';
     var _aiBtn = document.getElementById('ai-btn');
     if (_aiBtn) _aiBtn.style.backgroundImage = 'url("' + AI_ICON_URI + '")';
   } catch(_e) {}
@@ -6932,6 +6979,7 @@ function _initBody() {
   // Initial render + clock + custom-type CSS
   renderAll();
   _initClock();
+  try { _initSurveyStrip(); } catch(_e) {}
   try { renderCustomTypeStyles(); } catch(_e) {}
 
   _injectInlineStyles();
@@ -15470,7 +15518,9 @@ var _photoContext = {
   // original (unstamped) blob so we can re-stamp with edited fields
   originalBlob: null,
   // User-supplied fields at setup time — may be edited later in preview
-  address: '', notes: '', gps: null, capturedAt: null
+  address: '', notes: '', gps: null, capturedAt: null,
+  // Chronic-tracking commit guard — see _recordChronicFromContext
+  chronicRecorded: false
 };
 
 // _photoSession holds the burst of stamped shots taken under a single setup
@@ -15728,47 +15778,56 @@ function closePhotoSetup() {
   Accessibility.modalClosed(modal);
 }
 
-// "📍 GPS" button on the Prepare Photo map: re-fixes GPS and snaps the map
-// back to the inspector's current position at whatever zoom they already
-// had. Deliberately does NOT touch the Address field — filling it is only
-// ever done by tapping a candidate from the list below or typing it
-// manually (this used to also reverse-geocode and auto-fill the field via
-// Nominatim; that's gone, since a reverse-geocoded street guess could be
-// wrong in a way a tapped/typed address can't be).
-async function photoSetupGpsRefresh() {
-  var statusEl = document.getElementById('photo-setup-map-status');
-  if (statusEl) statusEl.textContent = '📡 Getting your location…';
+// Reverse-geocode current GPS into an address (uses Nominatim if available)
+async function photoReverseLookup() {
+  var addrField = document.getElementById('photo-setup-addr');
+  if (!addrField) return;
+  showToast('📍 Looking up address…');
   try {
     var gps = await _tryGetLocationForStamp();
-    if (!gps) {
-      if (statusEl) statusEl.textContent = '⚠ GPS unavailable';
-      showToast('⚠ GPS unavailable');
+    if (!gps) { showToast('⚠ GPS unavailable'); return; }
+    // Try Nominatim reverse lookup
+    var built = await _tryLogAsync('photostamp-reverse-geocode', async function() {
+      var url = 'https://nominatim.openstreetmap.org/reverse?format=json&lat=' + gps.lat + '&lon=' + gps.lng + '&zoom=18&addressdetails=1';
+      // RAW FETCH: this is the reverse-geocode for the photostamp address
+      // auto-fill. TODO migrate to fetchWithTimeout — there's no external
+      // signal here, no fire-and-forget reason. Tracked in the "raw fetch
+      // audit" lane; not converted in this drop because the photostamp flow
+      // is already covered by an outer try/catch and is low-priority.
+      var resp = await fetch(url, { headers: { 'Accept':'application/json' } });
+      if (resp.ok) {
+        var data = await resp.json();
+        if (data && data.address) {
+          var a = data.address;
+          var street = (a.house_number ? a.house_number + ' ' : '') + (a.road || a.pedestrian || a.footway || '');
+          return street.trim() || (data.display_name || '').split(',')[0] || '';
+        }
+      }
+      return '';
+    });
+    if (built) {
+      addrField.value = built;
+      showToast('📍 Address filled');
       return;
     }
-    _photoContext.gps = gps;
-    // Radius derived from whatever's currently visible on screen (same
-    // logic a pan/zoom redraw uses) so the refresh matches the zoom level
-    // it's about to recenter at, rather than always re-querying the
-    // original tight modal-open radius.
-    var radius = _photoSetupMap ? _photoSetupViewRadiusM() : ParcelLookup.RADIUS_M;
-    await _refreshPhotoSetupParcels(gps, { resetZoom: false, radius: radius });
+    // Fallback: just fill GPS coords
+    addrField.value = 'GPS: ' + gps.lat.toFixed(5) + ', ' + gps.lng.toFixed(5);
+    showToast('📍 GPS filled (no address found)');
   } catch(err) {
-    if (statusEl) statusEl.textContent = '';
-    showToast('⚠ GPS unavailable');
+    showToast('⚠ Lookup failed');
   }
 }
 
-// ── ParcelLookup: nearby parcel addresses ────────────────────────────────
+// ── ParcelLookup: nearby parcel addresses + street names ────────────────
 // Queries the City of St. Louis's own public assessor ArcGIS service — same
 // trusted domain (maps8.stlouis-mo.gov) the app already hits for Wards and
 // Police Districts. No key, no server, no rate-limit auth. Powers the
-// Prepare Photo situational-awareness map: "what parcels am I near right
-// now?" Best-effort only — every caller treats failures as "no candidates,"
-// never as a blocking error. (Street names used to be queried/drawn here
-// too; removed since the base map's own tile labels already show streets —
-// see the GPS-refresh drop.)
+// Prepare Photo situational-awareness map: "what parcels/streets am I near
+// right now?" Best-effort only — every caller treats failures as "no
+// candidates," never as a blocking error.
 var ParcelLookup = (function() {
   var PARCELS_URL = 'https://maps8.stlouis-mo.gov/arcgis/rest/services/ASSESSOR/Assessor_Public_Parcels/MapServer/11/query';
+  var STREETS_URL = 'https://maps8.stlouis-mo.gov/arcgis/rest/services/ASSESSOR/Assessor_Public_Parcels/MapServer/5/query';
   var RADIUS_M = 55; // ~180ft — a handful of parcels either side on a typical STL block
 
   // Rough centroid of a polygon's outer ring — good enough for a label
@@ -15786,6 +15845,35 @@ var ParcelLookup = (function() {
     return [p.StPreDir, p.StName, p.StType].filter(Boolean).join(' ').trim();
   }
 
+  // 2026-07-19 fix: reported bug — the situational map and nearby-addresses
+  // list were showing street names only, no house numbers, and the
+  // candidate list was collapsing down to just a handful of street names
+  // instead of ~10 distinct addresses. Root cause found by inspection:
+  // LowAddrNum/HighAddrNum were already being requested in outFields
+  // above but were never actually used anywhere — the address logic went
+  // straight from "does SITEADDR have a value?" to "just use the street
+  // name, no number at all" with nothing in between. When SITEADDR comes
+  // back empty for a parcel (which happens for real on this service —
+  // assessor addressing data has gaps), every affected parcel degraded to
+  // an address consisting of only its street name. Since dozens of
+  // parcels along the same block share that same street name, the
+  // candidate list's de-dupe-by-address step then collapsed all of them
+  // into a single entry per street — exactly the "only lists nearby
+  // streets, not addresses" symptom. This wasn't the ArcGIS service being
+  // unresponsive (it was responding fine, with real geometry) — it just
+  // didn't have SITEADDR populated for those parcels, and the app had no
+  // fallback for that case despite already fetching the fields that would
+  // let it construct one. Now: SITEADDR first, then a number built from
+  // LowAddrNum + the street name, and only true street-name-only as a
+  // last resort when even the address range is missing.
+  function _addrFromRange(p) {
+    var num = p.LowAddrNum;
+    if (num == null || num === '') return null;
+    var street = _fullStreetNameFromParcel(p);
+    if (!street) return null;
+    return (String(num).trim() + ' ' + street).trim();
+  }
+
   async function queryParcels(lat, lng, radiusM) {
     var url = PARCELS_URL + '?geometry=' + encodeURIComponent(lng + ',' + lat) +
       '&geometryType=esriGeometryPoint&inSR=4326&distance=' + (radiusM || RADIUS_M) +
@@ -15798,13 +15886,33 @@ var ParcelLookup = (function() {
     var feats = (gj && gj.features) || [];
     return feats.map(function(f) {
       var p = f.properties || {};
-      var addr = (p.SITEADDR || '').trim() || _fullStreetNameFromParcel(p);
+      var addr = (p.SITEADDR || '').trim() || _addrFromRange(p) || _fullStreetNameFromParcel(p);
       var geom = f.geometry;
       var center = null;
       if (geom && geom.type === 'Polygon') center = _polygonCentroid(geom.coordinates);
       else if (geom && geom.type === 'MultiPolygon' && geom.coordinates.length) center = _polygonCentroid(geom.coordinates[0]);
       return { address: addr, lat: center && center.lat, lng: center && center.lng, geometry: geom };
     }).filter(function(x) { return x.address && x.lat && x.lng; });
+  }
+
+  async function queryStreets(lat, lng, radiusM) {
+    var url = STREETS_URL + '?geometry=' + encodeURIComponent(lng + ',' + lat) +
+      '&geometryType=esriGeometryPoint&inSR=4326&distance=' + (radiusM || RADIUS_M) +
+      '&units=esriSRUnit_Meter&spatialRel=esriSpatialRelIntersects' +
+      '&outFields=StreetName,StreetNamePreDirection,StreetNamePostType' +
+      '&returnGeometry=true&outSR=4326&f=geojson';
+    var resp = await fetch(url);
+    if (!resp.ok) throw new Error('street query failed: ' + resp.status);
+    var gj = await resp.json();
+    var feats = (gj && gj.features) || [];
+    var out = [];
+    feats.forEach(function(f) {
+      var p = f.properties || {};
+      var name = [p.StreetNamePreDirection, p.StreetName, p.StreetNamePostType].filter(Boolean).join(' ').trim();
+      if (!name || !f.geometry) return;
+      out.push({ name: name, geometry: f.geometry });
+    });
+    return out;
   }
 
   function haversineM(lat1, lng1, lat2, lng2) {
@@ -15814,9 +15922,51 @@ var ParcelLookup = (function() {
     return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
   }
 
-  return { queryParcels: queryParcels, haversineM: haversineM, RADIUS_M: RADIUS_M };
+  return { queryParcels: queryParcels, queryStreets: queryStreets, haversineM: haversineM, RADIUS_M: RADIUS_M };
 })();
 window.ParcelLookup = ParcelLookup;
+
+// GeoJSON LineString/MultiLineString → Leaflet-shaped [lat,lng] pairs.
+// GeoJSON stores [lng,lat]; Leaflet wants [lat,lng] — has to be swapped.
+function _geoJsonLineToLatLngs(geom) {
+  if (!geom) return [];
+  if (geom.type === 'LineString') {
+    return geom.coordinates.map(function(c) { return [c[1], c[0]]; });
+  }
+  if (geom.type === 'MultiLineString') {
+    return geom.coordinates.map(function(seg) { return seg.map(function(c) { return [c[1], c[0]]; }); });
+  }
+  return [];
+}
+
+// Midpoint + on-screen rotation angle for a street name label, so the text
+// runs parallel to the road instead of always sitting flat/horizontal.
+// Works in actual screen pixels (via the map's own projection), not raw
+// lat/lng deltas — lat/lng degrees aren't equal-length on screen, so a
+// naive atan2 on coordinates would give a subtly wrong angle. Normalized
+// to [-90, 90] so the text is never upside-down. `latlngs` is whatever
+// _geoJsonLineToLatLngs returned — either a flat [lat,lng] point list
+// (LineString) or an array of such lists (MultiLineString, in which case
+// the longest segment is used).
+function _streetLabelMidpointAndAngle(map, latlngs) {
+  if (!map || !latlngs || !latlngs.length) return null;
+  var line = latlngs;
+  if (Array.isArray(line[0][0])) {
+    line = line.reduce(function(best, seg) { return seg.length > best.length ? seg : best; }, line[0]);
+  }
+  if (line.length < 2) return null;
+  var midIdx = Math.floor(line.length / 2);
+  var a = line[Math.max(0, midIdx - 1)];
+  var b = line[Math.min(line.length - 1, midIdx)];
+  try {
+    var aPt = map.latLngToContainerPoint([a[0], a[1]]);
+    var bPt = map.latLngToContainerPoint([b[0], b[1]]);
+    var deg = Math.atan2(bPt.y - aPt.y, bPt.x - aPt.x) * 180 / Math.PI;
+    if (deg > 90) deg -= 180;
+    if (deg < -90) deg += 180;
+    return { latlng: [(a[0]+b[0])/2, (a[1]+b[1])/2], angleDeg: deg };
+  } catch(_e) { return null; }
+}
 
 // ── Prepare Photo situational-awareness map ──────────────────────────────
 // Independent Leaflet instance (separate from the Map tab's routeMap) shown
@@ -15824,7 +15974,7 @@ window.ParcelLookup = ParcelLookup;
 // then just recentered/invalidated on later opens.
 var _photoSetupMap = null;
 var _photoSetupPinMarker = null;   // the inspector's GPS position — persists across zoom/pan redraws
-var _photoSetupMapLayers = [];     // parcel polygons + labels ONLY — cleared/rebuilt on every redraw
+var _photoSetupMapLayers = [];     // parcel polygons + labels + street lines ONLY — cleared/rebuilt on every redraw
 var _photoSetupParcelMarkers = {}; // address -> Leaflet marker, so the candidate list can highlight one on tap
 var _photoSetupHighlightedAddr = null;
 var _photoSetupViewChangeTimer = null;
@@ -15839,14 +15989,13 @@ function _initPhotoSetupMap() {
   var el = document.getElementById('photo-setup-map');
   if (!el || typeof L === 'undefined') return;
   try {
-    // zoomSnap/zoomDelta 0.5 + minZoom 18.0: the baseline GPS-driven view
+    // zoomSnap/zoomDelta 0.5 + minZoom 18.5: the baseline GPS-driven view
     // always opens at zoom 19, so this caps how far out you can go to
-    // exactly two presses of the +/- control (19 → 18.0) — this map is
-    // meant for "what am I near right now," not general-purpose exploring,
-    // and going further out was mostly just adding clutter (see
-    // _parcelZoomTier for the font-shrink/number-only side of the same
-    // idea).
-    _photoSetupMap = L.map('photo-setup-map', { zoomControl: true, tap: false, attributionControl: false, zoomSnap: 0.5, zoomDelta: 0.5, minZoom: 18.0 })
+    // exactly one press of the +/- control (19 → 18.5) — this map is meant
+    // for "what am I near right now," not general-purpose exploring, and
+    // going further out was mostly just adding clutter (see
+    // _parcelZoomTier for the font-shrink side of the same idea).
+    _photoSetupMap = L.map('photo-setup-map', { zoomControl: true, tap: false, attributionControl: false, zoomSnap: 0.5, zoomDelta: 0.5, minZoom: 18.5 })
       .setView(STL_CENTER, 16);
     L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', {
       subdomains: 'abcd', maxZoom: 20, minZoom: 12
@@ -15900,91 +16049,104 @@ var _photoSetupBaselineZoom = 19;
 
 // Matches the map's zoomSnap/zoomDelta (see _initPhotoSetupMap) — one
 // "press" of the +/- control moves the zoom by this much. minZoom is set
-// to baseline − 2 presses, so the map physically cannot be zoomed out
+// to baseline − 1 press, so the map physically cannot be zoomed out
 // further than this regardless of what thresholds are used below.
 var _PHOTO_SETUP_PRESS_ZOOM = 0.5;
 
 // How much detail to render at a given zoom, relative to where the screen
 // started (in units of "presses" of the +/- control):
 //   < half a press out : full size, tappable (Property Search popup works)
-//   half a press to one full press out: shrunk text, still tappable
-//   one to two full presses out (the map's actual zoom-out limit): smaller
-//     still, tap-to-search popup no longer wired up, AND labels drop their
-//     street name — number only — since a full "1200 MARKET ST" at this
-//     density is more clutter than the base map's own street labels
-//     already provide.
-//   beyond two presses (not reachable today given minZoom, but the rule
-//     stays here in case that limit ever loosens): same number-only
-//     treatment, smaller still.
+//   half a press to one full press out (the map's actual zoom-out limit):
+//     shrunk text, still tappable
+//   beyond one press (not reachable today given minZoom, but the rule
+//     stays here in case that limit ever loosens): smaller still, and the
+//     tap-to-search popup stops being wired up entirely so a zoomed-out
+//     view is free to pan around without a label grabbing the tap.
 function _parcelZoomTier(zoom) {
   var diff = _photoSetupBaselineZoom - zoom;
   var presses = diff / _PHOTO_SETUP_PRESS_ZOOM;
-  if (presses < 0.5) return { fontRem: 0.64, interactive: true,  numberOnly: false };
-  if (presses <= 1)  return { fontRem: 0.50, interactive: true,  numberOnly: false };
-  if (presses <= 2)  return { fontRem: 0.44, interactive: false, numberOnly: true };
-  return { fontRem: 0.40, interactive: false, numberOnly: true };
+  if (presses < 0.5) return { fontRem: 0.64, interactive: true };
+  if (presses <= 1)  return { fontRem: 0.50, interactive: true };
+  if (presses <= 2)  return { fontRem: 0.44, interactive: false };
+  return { fontRem: 0.40, interactive: false };
 }
 
-// Strips a full site address ("1200 MARKET ST", "1200-04 MARKET ST") down
-// to just the leading house-number token, for the number-only zoom tier.
-// Falls back to the original string if it doesn't start with a digit —
-// better to show something than nothing for whatever oddball format slips
-// through.
-function _addrNumberOnly(addr) {
-  if (!addr) return addr;
-  var m = String(addr).match(/^\s*(\d[\d\-\/]*)/);
-  return m ? m[1] : addr;
-}
-
-function _parcelLabelHtml(addr, highlighted, fontRem, numberOnly) {
+function _parcelLabelHtml(addr, highlighted, fontRem) {
   // The selected/highlighted parcel keeps a distinct bordered box — it's
   // meant to stand out, and there's only ever one on screen at once, so it
   // doesn't contribute to the "too busy" problem the way a box on every
   // single label did. Font size here is fixed regardless of zoom tier;
   // this is a deliberate one-off emphasis, not part of the base density.
-  // It also always shows the full address (never number-only) — it's the
-  // one label the inspector is actively looking at, so it should stay
-  // unambiguous even while every other label around it has shrunk to a
-  // bare number.
   if (highlighted) {
     return '<div style="background:#ffd54a;border:2.5px solid #1a1a1a;border-radius:5px;padding:3px 7px;font-family:Syne,sans-serif;font-size:0.68rem;color:#1a0f00;white-space:nowrap;font-weight:800;box-shadow:0 2px 10px rgba(0,0,0,0.45);cursor:pointer">' + escHtml(addr) + '</div>';
   }
   // Every other label: plain text, no background/border/bubble — a strong
-  // white halo keeps it legible over both basemap and the gold parcel fill
-  // without a box. Font size comes from the current zoom tier; text is
-  // either the full address or just the house number, per that same tier.
-  var text = numberOnly ? _addrNumberOnly(addr) : addr;
-  return '<div style="font-family:Syne,sans-serif;font-size:' + fontRem + 'rem;color:#1a1a1a;white-space:nowrap;font-weight:800;text-shadow:0 0 2px rgba(255,255,255,0.95),0 0 3px rgba(255,255,255,0.95),0 0 5px rgba(255,255,255,0.85)">' + escHtml(text) + '</div>';
+  // white halo (same technique as the street-name labels) keeps it legible
+  // over both basemap and the gold parcel fill without a box. Font size
+  // comes from the current zoom tier.
+  return '<div style="font-family:Syne,sans-serif;font-size:' + fontRem + 'rem;color:#1a1a1a;white-space:nowrap;font-weight:800;text-shadow:0 0 2px rgba(255,255,255,0.95),0 0 3px rgba(255,255,255,0.95),0 0 5px rgba(255,255,255,0.85)">' + escHtml(addr) + '</div>';
 }
 
 // Fetches + draws parcels/streets for the given center + radius. Does NOT
 // touch the pin marker and does NOT touch the candidate list — this is the
 // piece shared by both the initial GPS-driven load and later zoom/pan
 // redraws, which have different needs around those two things.
-async function _drawPhotoSetupParcels(centerLat, centerLng, radiusM) {
+async function _drawPhotoSetupParcelsAndStreets(centerLat, centerLng, radiusM) {
   if (!_photoSetupMap) return { parcels: [] };
   _clearPhotoSetupMapLayers();
   _photoSetupLastDrawnRadiusM = radiusM;
 
-  var parcels = [];
+  var parcels = [], streets = [];
   try {
-    parcels = await ParcelLookup.queryParcels(centerLat, centerLng, radiusM);
+    var results = await Promise.allSettled([
+      ParcelLookup.queryParcels(centerLat, centerLng, radiusM),
+      ParcelLookup.queryStreets(centerLat, centerLng, radiusM)
+    ]);
+    if (results[0].status === 'fulfilled') parcels = results[0].value;
+    if (results[1].status === 'fulfilled') streets = results[1].value;
   } catch(_e) {}
 
-  // Zoom tier drives parcel-label font size, number-only vs. full-address
-  // text, and whether Property Search is even wired up. Streets are no
-  // longer drawn here at all — the base map's own tile labels already show
-  // street names, so a second, separately-styled set of street lines/labels
-  // was just visual noise on top of them.
+  // Zoom tier drives font size (both streets and parcels) and whether
+  // Property Search is even wired up (parcels only) — computed once up
+  // front so streets and parcels stay in sync.
   var zoom = _photoSetupMap.getZoom();
   var tier = _parcelZoomTier(zoom);
 
-  // Parcel outlines + address labels. Detail level (font size, full
-  // address vs. number-only, whether the tap-to-search popup is even wired
-  // up) depends on how far zoomed out the map currently is relative to
-  // where it opened — see _parcelZoomTier. At a glance-out zoom level this
-  // deliberately does LESS, not more: no popup binding at all, so a
-  // zoomed-out view is free to pan/zoom without a label grabbing the tap.
+  // Streets drawn first (under parcels) as thin lines, with a name label
+  // ROTATED to run parallel to the street itself — a divIcon marker at the
+  // segment's midpoint rather than a Leaflet tooltip, since tooltips don't
+  // support rotation without fighting Leaflet's own positioning transform.
+  streets.forEach(function(s) {
+    try {
+      var latlngs = _geoJsonLineToLatLngs(s.geometry);
+      if (!latlngs.length) return;
+      var line = L.polyline(latlngs, { color:'#4a5a6a', weight:3.5, opacity:0.85 }).addTo(_photoSetupMap);
+      _photoSetupMapLayers.push(line);
+
+      var mid = _streetLabelMidpointAndAngle(_photoSetupMap, latlngs);
+      if (mid) {
+        var boxW = Math.max(60, (s.name || '').length * (tier.fontRem * 10.5) + 10);
+        var boxH = Math.max(14, Math.round(tier.fontRem * 24));
+        var labelHtml =
+          '<div style="width:' + boxW + 'px;height:' + boxH + 'px;display:flex;align-items:center;justify-content:center;pointer-events:none">' +
+          '<div style="transform:rotate(' + mid.angleDeg + 'deg);font-family:Syne,sans-serif;font-weight:800;font-size:' + tier.fontRem + 'rem;color:#2c3e50;white-space:nowrap;text-shadow:0 0 2px rgba(255,255,255,0.98),0 0 4px rgba(255,255,255,0.98),0 0 7px rgba(255,255,255,0.85)">' +
+          escHtml(s.name) + '</div></div>';
+        var streetLabel = L.marker(mid.latlng, {
+          icon: L.divIcon({ className: '', html: labelHtml, iconSize: [boxW, boxH], iconAnchor: [boxW/2, boxH/2] }),
+          interactive: false,
+          zIndexOffset: -100
+        }).addTo(_photoSetupMap);
+        _photoSetupMapLayers.push(streetLabel);
+      }
+    } catch(_e) {}
+  });
+
+  // Parcel outlines + address-number labels. Detail level (font size,
+  // whether the tap-to-search popup is even wired up) depends on how far
+  // zoomed out the map currently is relative to where it opened — see
+  // _parcelZoomTier. At a glance-out zoom level this deliberately does
+  // LESS, not more: no popup binding at all, so a zoomed-out view is free
+  // to pan/zoom without a label grabbing the tap.
   parcels.forEach(function(p) {
     try {
       if (p.geometry) {
@@ -15993,14 +16155,9 @@ async function _drawPhotoSetupParcels(centerLat, centerLng, radiusM) {
       }
       var highlighted = (p.address === _photoSetupHighlightedAddr);
       var effFontRem = highlighted ? 0.68 : tier.fontRem; // highlighted always renders at a fixed size — see _parcelLabelHtml
-      // Sizing is based on whatever text will actually render (full
-      // address, or just the house number once zoomed out past the
-      // number-only threshold) so the hit box never ends up oversized/stale
-      // relative to the shrunk label.
-      var displayAddr = (!highlighted && tier.numberOnly) ? _addrNumberOnly(p.address) : p.address;
-      var dims = _parcelIconSize(displayAddr, highlighted, effFontRem);
+      var dims = _parcelIconSize(p.address, highlighted, effFontRem);
       var marker = L.marker([p.lat, p.lng], {
-        icon: L.divIcon({ className: '', html: _parcelLabelHtml(p.address, highlighted, tier.fontRem, tier.numberOnly), iconSize: dims.iconSize, iconAnchor: dims.iconAnchor }),
+        icon: L.divIcon({ className: '', html: _parcelLabelHtml(p.address, highlighted, tier.fontRem), iconSize: dims.iconSize, iconAnchor: dims.iconAnchor }),
         interactive: tier.interactive,
         zIndexOffset: highlighted ? 500 : 0
       }).addTo(_photoSetupMap);
@@ -16024,10 +16181,10 @@ async function _drawPhotoSetupParcels(centerLat, centerLng, radiusM) {
   return { parcels: parcels };
 }
 
-// Debounced handler for map pan/zoom — redraws parcels around the CURRENT
-// map center (wherever the user has panned/zoomed to), at a radius derived
-// from what's now visible. Only fires once the map + candidate list have
-// already been through their initial GPS-driven load.
+// Debounced handler for map pan/zoom — redraws parcels/streets around the
+// CURRENT map center (wherever the user has panned/zoomed to), at a radius
+// derived from what's now visible. Only fires once the map + candidate
+// list have already been through their initial GPS-driven load.
 function _onPhotoSetupMapViewChange() {
   if (!_photoSetupMap || _photoSetupLastDrawnRadiusM == null) return;
   var radius = _photoSetupViewRadiusM();
@@ -16037,52 +16194,30 @@ function _onPhotoSetupMapViewChange() {
   var center = _photoSetupMap.getCenter();
   var statusEl = document.getElementById('photo-setup-map-status');
   if (statusEl) statusEl.textContent = '📡 Loading nearby parcels…';
-  _drawPhotoSetupParcels(center.lat, center.lng, radius).then(function(res) {
+  _drawPhotoSetupParcelsAndStreets(center.lat, center.lng, radius).then(function(res) {
     if (statusEl) statusEl.textContent = res.parcels.length ? ('📍 ' + res.parcels.length + ' nearby parcel' + (res.parcels.length===1?'':'s')) : '⚠ No parcel data found nearby';
   });
 }
 
-// Pull nearby parcels around the given GPS fix, draw them on the setup map
-// (pin + parcel outlines/address labels), and populate the tappable
-// address-candidate list above. Best-effort: any network failure just
-// leaves the base map showing with no candidates — the free-text Address
-// field still works independently of this.
-//
-// opts.resetZoom (default true): the initial GPS-driven load on modal-open
-// snaps to zoom 19 and that becomes the new baseline _parcelZoomTier
-// measures zoom-out against. The "📍 GPS" button's refresh
-// (photoSetupGpsRefresh) instead passes resetZoom:false — it recenters on
-// a fresh fix WITHOUT changing whatever zoom level the inspector already
-// had, so panning back to "where am I" doesn't also yank them back to
-// max-zoom.
-// opts.radius (default ParcelLookup.RADIUS_M): query radius around the fix.
-async function _refreshPhotoSetupParcels(gps, opts) {
-  opts = opts || {};
-  var resetZoom = opts.resetZoom !== false;
-  var radius = opts.radius || ParcelLookup.RADIUS_M;
+// Pull nearby parcels + streets around the given GPS fix, draw them on the
+// setup map (pin + parcel outlines/address labels + street-name lines), and
+// populate the tappable address-candidate list above. Best-effort: any
+// network failure just leaves the base map showing with no candidates —
+// the free-text Address field and the single-best-guess "📍 GPS" button
+// both still work independently of this.
+async function _refreshPhotoSetupParcels(gps) {
   var statusEl = document.getElementById('photo-setup-map-status');
   var listEl = document.getElementById('photo-setup-addr-candidates');
   if (!gps) { if (statusEl) statusEl.textContent = '⚠ GPS unavailable — enter address manually'; return; }
   _initPhotoSetupMap();
   if (!_photoSetupMap) { if (statusEl) statusEl.textContent = ''; return; }
   _photoSetupHighlightedAddr = null;
-
-  if (resetZoom) {
-    _photoSetupMap.setView([gps.lat, gps.lng], 19);
-    // Read back the actual zoom setView landed on (should always be 19,
-    // but reading it rather than hardcoding is one less thing that can
-    // drift out of sync if tile maxZoom or similar ever changes) — this is
-    // the reference point _parcelZoomTier measures "zoomed out N steps"
-    // against.
-    _photoSetupBaselineZoom = _photoSetupMap.getZoom();
-  } else {
-    // GPS-refresh from the map's own button: snap the VIEW back to the
-    // inspector's current position at whatever zoom they already had —
-    // baseline stays untouched, so the zoom tier (font size / number-only
-    // labels / popup interactivity) doesn't jump around from a recenter
-    // alone.
-    _photoSetupMap.setView([gps.lat, gps.lng], _photoSetupMap.getZoom());
-  }
+  _photoSetupMap.setView([gps.lat, gps.lng], 19);
+  // Read back the actual zoom setView landed on (should always be 19, but
+  // reading it rather than hardcoding is one less thing that can drift out
+  // of sync if tile maxZoom or similar ever changes) — this is the
+  // reference point _parcelZoomTier measures "zoomed out N steps" against.
+  _photoSetupBaselineZoom = _photoSetupMap.getZoom();
 
   // Pin at the inspector's current position — separate from
   // _photoSetupMapLayers so zoom/pan redraws never touch it.
@@ -16097,7 +16232,7 @@ async function _refreshPhotoSetupParcels(gps, opts) {
   if (statusEl) statusEl.textContent = '📡 Loading nearby parcels…';
   if (listEl) { listEl.style.display = 'none'; listEl.innerHTML = ''; }
 
-  var draw = await _drawPhotoSetupParcels(gps.lat, gps.lng, radius);
+  var draw = await _drawPhotoSetupParcelsAndStreets(gps.lat, gps.lng, ParcelLookup.RADIUS_M);
   var parcels = draw.parcels;
 
   if (statusEl) statusEl.textContent = parcels.length ? ('📍 ' + parcels.length + ' nearby parcel' + (parcels.length===1?'':'s')) : '⚠ No parcel data found nearby';
@@ -16157,9 +16292,8 @@ function _highlightPhotoSetupParcel(addr) {
     var prev = _photoSetupParcelMarkers[_photoSetupHighlightedAddr];
     if (prev) {
       try {
-        var prevDisplay = tier.numberOnly ? _addrNumberOnly(_photoSetupHighlightedAddr) : _photoSetupHighlightedAddr;
-        var prevDims = _parcelIconSize(prevDisplay, false, tier.fontRem);
-        prev.setIcon(L.divIcon({ className: '', html: _parcelLabelHtml(_photoSetupHighlightedAddr, false, tier.fontRem, tier.numberOnly), iconSize: prevDims.iconSize, iconAnchor: prevDims.iconAnchor }));
+        var prevDims = _parcelIconSize(_photoSetupHighlightedAddr, false, tier.fontRem);
+        prev.setIcon(L.divIcon({ className: '', html: _parcelLabelHtml(_photoSetupHighlightedAddr, false, tier.fontRem), iconSize: prevDims.iconSize, iconAnchor: prevDims.iconAnchor }));
         prev.setZIndexOffset(0);
       } catch(_e) {}
     }
@@ -16168,8 +16302,8 @@ function _highlightPhotoSetupParcel(addr) {
   var marker = _photoSetupParcelMarkers[addr];
   if (marker) {
     try {
-      var dims = _parcelIconSize(addr, true, 0.68); // highlighted always renders at a fixed size, full address — see _parcelLabelHtml
-      marker.setIcon(L.divIcon({ className: '', html: _parcelLabelHtml(addr, true, tier.fontRem, tier.numberOnly), iconSize: dims.iconSize, iconAnchor: dims.iconAnchor }));
+      var dims = _parcelIconSize(addr, true, 0.68); // highlighted always renders at a fixed size — see _parcelLabelHtml
+      marker.setIcon(L.divIcon({ className: '', html: _parcelLabelHtml(addr, true, tier.fontRem), iconSize: dims.iconSize, iconAnchor: dims.iconAnchor }));
       marker.setZIndexOffset(500);
     } catch(_e) {}
   }
@@ -16318,6 +16452,11 @@ async function _stampSingleFile(file, opts) {
   _photoContext.originalBlob = file;
   _photoContext.capturedAt = new Date();
   _photoContext.gps = await _tryGetLocationForStamp();
+  // Chronic-tracking guard: reset per-shot so downloadStampedPhoto/
+  // shareStampedPhoto (the two "this photo is actually saved" commit
+  // points) each record at most once per shot, even though a single save
+  // action (Save & Share) calls both in sequence.
+  _photoContext.chronicRecorded = false;
   _resetIdleTimer();
   // Track photo count on the stop if linked
   if (_photoContext.stopId !== null && typeof stops !== 'undefined') {
@@ -16356,7 +16495,8 @@ async function _stampSingleFile(file, opts) {
       filename: _photoContext.filename,
       dataUrl: _photoContext.stampedDataUrl,
       capturedAt: _photoContext.capturedAt,
-      gps: _photoContext.gps
+      gps: _photoContext.gps,
+      chronicRecorded: false
     };
     // Drift detection: if the new shot's GPS is far from the cluster
     // center of prior shots in this session, surface a warning. Pure
@@ -17931,6 +18071,1324 @@ window._relatedStopsAt          = _relatedStopsAt;
 window._showRelatedStopsHint    = _showRelatedStopsHint;
 
 
+// ============================================================
+// SECTION: survey-session
+// ============================================================
+// ── SURVEY SESSION — neighborhood-scoped work session ────────────────────────
+// A lightweight session wrapper: "I am now working neighborhood X." This is
+// purely a UI/scoping convenience — it does NOT auto-tag stops (those already
+// get neighborhood/ward from GPS-based polygon lookup via GeoCache; see the
+// point-in-polygon lookup that feeds Edit Stop's neighborhood/ward fields).
+// What Survey Session DOES provide:
+//   - a single source of truth for "which neighborhood am I in right now,"
+//     which future coverage tracking (breadcrumb trail + street checklist)
+//     and the chronic-photo-activity layer scope themselves to
+//   - a persisted log of past sessions per neighborhood, so multi-day
+//     assignments ("visited this neighborhood on 4 separate days") are
+//     queryable later for coverage reporting
+//
+// Storage:
+//   'survey-active' -> JSON {neighborhoodNum, neighborhoodName, startedAt} | ''
+//   'survey-log'    -> JSON array of {neighborhoodNum, neighborhoodName,
+//                       startedAt, endedAt}, capped at 200 entries (years
+//                       of realistic field assignments)
+var SurveySession = (function() {
+  var LOG_CAP = 200;
+
+  function _readActive() {
+    try {
+      var raw = LS.get('survey-active');
+      if (!raw) return null;
+      var obj = JSON.parse(raw);
+      return (obj && obj.neighborhoodName) ? obj : null;
+    } catch(_e) { return null; }
+  }
+  function _writeActive(obj) {
+    try { LS.set('survey-active', obj ? JSON.stringify(obj) : ''); } catch(_e) {}
+  }
+  function _readLog() {
+    try {
+      var log = JSON.parse(LS.get('survey-log') || '[]');
+      return Array.isArray(log) ? log : [];
+    } catch(_e) { return []; }
+  }
+  function _writeLog(log) {
+    try { LS.set('survey-log', JSON.stringify(log.slice(-LOG_CAP))); } catch(_e) {}
+  }
+  function _closeAndLog(session) {
+    var log = _readLog();
+    log.push({
+      neighborhoodNum: session.neighborhoodNum,
+      neighborhoodName: session.neighborhoodName,
+      startedAt: session.startedAt,
+      endedAt: new Date().toISOString()
+    });
+    _writeLog(log);
+  }
+
+  // Starts a new session, closing/logging any prior active session first
+  // (only one active session at a time — switching neighborhoods ends the
+  // old one automatically rather than requiring an explicit End first).
+  function start(neighborhoodNum, neighborhoodName) {
+    if (!neighborhoodName) return null;
+    var prior = _readActive();
+    if (prior) _closeAndLog(prior);
+    var session = {
+      neighborhoodNum: (neighborhoodNum != null && isFinite(neighborhoodNum)) ? neighborhoodNum : null,
+      neighborhoodName: neighborhoodName,
+      startedAt: new Date().toISOString()
+    };
+    _writeActive(session);
+    return session;
+  }
+
+  function end() {
+    var active = _readActive();
+    if (!active) return null;
+    _closeAndLog(active);
+    _writeActive(null);
+    return active;
+  }
+
+  function getActive() { return _readActive(); }
+
+  // Logged sessions for one neighborhood (matched by name), most recent first.
+  function getLogFor(neighborhoodName) {
+    if (!neighborhoodName) return [];
+    return _readLog()
+      .filter(function(s) { return s.neighborhoodName === neighborhoodName; })
+      .reverse();
+  }
+
+  function getAllLog() { return _readLog(); }
+
+  return { start: start, end: end, getActive: getActive, getLogFor: getLogFor, getAllLog: getAllLog };
+})();
+window.SurveySession = SurveySession;
+
+function _surveyElapsedLabel(startedAtISO) {
+  var ms = Date.now() - new Date(startedAtISO).getTime();
+  if (!isFinite(ms) || ms < 0) return '0m';
+  var mins = Math.floor(ms / 60000);
+  var h = Math.floor(mins / 60), m = mins % 60;
+  return h > 0 ? (h + 'h ' + m + 'm') : (m + 'm');
+}
+
+// Populate the neighborhood <select> in the Map Layers panel from GeoCache.
+// Idempotent — no-ops if already populated (more than the placeholder option).
+async function _populateSurveyNeighborhoodPicker() {
+  var sel = document.getElementById('survey-nbhd-select');
+  if (!sel || sel.options.length > 1) return;
+  try {
+    var fc = await GeoCache.getNeighborhoods();
+    if (!fc || !Array.isArray(fc.features) || !fc.features.length) {
+      _showSurveyPickerLoadError(sel);
+      return;
+    }
+    var names = fc.features
+      .map(function(f) { return { num: f.properties.NHD_NUM, name: f.properties.NHD_NAME }; })
+      .filter(function(n) { return n.name; })
+      .sort(function(a, b) { return a.name.localeCompare(b.name); });
+    if (!names.length) { _showSurveyPickerLoadError(sel); return; }
+    names.forEach(function(n) {
+      var opt = document.createElement('option');
+      opt.value = (n.num != null) ? String(n.num) : '';
+      opt.textContent = n.name;
+      opt.dataset.name = n.name;
+      sel.appendChild(opt);
+    });
+  } catch(_e) {
+    // 2026-07-18: this used to fail completely silently — the placeholder
+    // just sat there forever with no indication anything had gone wrong,
+    // which is indistinguishable from "still loading" or "working as
+    // intended" from the user's side. GeoCache._open() now has its own
+    // timeout guard so this path should be rare, but if it's still
+    // reached (genuinely offline AND the inline data somehow failed to
+    // parse — see _getInlineNeighborhoods), the user gets an explicit
+    // signal and a one-tap retry instead of a dropdown that looks broken
+    // with no explanation.
+    _showSurveyPickerLoadError(sel);
+  }
+}
+
+// Replaces the placeholder option with a visible failure state + retry,
+// re-querying the select fresh (rather than trusting the `sel` reference
+// passed in) in case the panel re-rendered while the load was in flight.
+function _showSurveyPickerLoadError(sel) {
+  var fresh = document.getElementById('survey-nbhd-select') || sel;
+  if (!fresh) return;
+  fresh.innerHTML = '<option value="">⚠ Couldn\'t load neighborhoods — tap to retry</option>';
+  fresh.onclick = function() {
+    fresh.onclick = null;
+    fresh.innerHTML = '<option value="">Pick a neighborhood…</option>';
+    _populateSurveyNeighborhoodPicker();
+  };
+}
+window._showSurveyPickerLoadError = _showSurveyPickerLoadError;
+
+function startSurveyFromPicker() {
+  var sel = document.getElementById('survey-nbhd-select');
+  if (!sel || !sel.value) { showToast('Pick a neighborhood first'); return; }
+  var opt = sel.options[sel.selectedIndex];
+  var name = opt.dataset.name || opt.textContent;
+  var num = sel.value ? parseInt(sel.value, 10) : null;
+  // 2026-07-18 fix: state mutation and re-render are unconditionally
+  // paired via try/finally — see endActiveSurvey below for why. Same
+  // class of bug could hide here (start "succeeds" in storage but the
+  // strip never appears if e.g. _startBreadcrumbWatch throws), so it
+  // gets the same treatment even though it wasn't the one reported.
+  try {
+    SurveySession.start(num, name);
+    // Fresh session starts with tracking un-paused, regardless of how a
+    // prior session was left — otherwise a forgotten pause silently
+    // carries over and the next day's survey collects no trail at all.
+    try { LS.set('survey-tracking-paused', '0'); } catch(_e) {}
+    try { _startBreadcrumbWatch(); } catch(_e) {}
+    try { showToast('🧭 Survey started: ' + name); } catch(_e) {}
+  } finally {
+    _renderSurveyPanel();
+    _renderSurveyStrip();
+  }
+}
+
+// Ending a survey isn't destructive — the session gets logged either way,
+// and starting a new one for the same neighborhood is always available —
+// so this deliberately skips a confirm() gate. (Earlier version had one;
+// removed both because it's unnecessary friction for a non-destructive
+// action, and because reaching it required opening the Map Layers modal —
+// this is now also reachable with one tap directly on the persistent
+// strip via _renderSurveyStrip below.)
+//
+// 2026-07-18 fix: reported bug — "couldn't get the survey to end." Root
+// cause: SurveySession.end() correctly updates storage (verified in
+// isolation), but the re-render calls that make the strip/panel actually
+// disappear ran AFTER a chain of cleanup steps (stop breadcrumb watch,
+// remove the Leaflet trail layer, show a toast) that weren't individually
+// guarded. If any one of them threw, the function returned early —
+// storage said "ended," but the strip kept showing "Surveying" because
+// _renderSurveyPanel()/_renderSurveyStrip() never ran. That reads to the
+// user as the End button doing nothing, even though the session really
+// did end underneath. Fix: each cleanup step gets its own try/catch, and
+// the re-render calls move into a `finally` so they run no matter what —
+// the UI is now guaranteed to reflect whatever storage actually says.
+function endActiveSurvey() {
+  var active = SurveySession.getActive();
+  if (!active) { try { _tryLog('end-survey-noop', function(){ throw new Error('End tapped with no active session'); }); } catch(_e) {} return; }
+  try {
+    SurveySession.end();
+    try { _stopBreadcrumbWatch(); } catch(_e) {}
+    try {
+      if (_surveyBreadcrumbLayer && typeof routeMap !== 'undefined' && routeMap) {
+        routeMap.removeLayer(_surveyBreadcrumbLayer);
+      }
+    } catch(_e) {}
+    _surveyBreadcrumbLayer = null;
+    try { showToast('🧭 Survey ended: ' + active.neighborhoodName); } catch(_e) {}
+  } finally {
+    _renderSurveyPanel();
+    _renderSurveyStrip();
+  }
+}
+
+// Renders the Survey Mode block inside the Map Layers modal.
+function _renderSurveyPanel() {
+  var el = document.getElementById('survey-panel-body');
+  if (!el) return;
+  var active = SurveySession.getActive();
+  if (active) {
+    var pastCount = SurveySession.getLogFor(active.neighborhoodName).length;
+    var trailLen = (typeof SurveyCoverage !== 'undefined') ? SurveyCoverage.getBreadcrumb(active.neighborhoodName).length : 0;
+    var paused = _isSurveyTrackingPaused();
+    el.innerHTML =
+      '<div style="background:#eef6ff;border:1.5px solid #b3d9f5;border-radius:9px;padding:10px 12px;margin-bottom:10px">' +
+        '<div style="font-family:Syne,sans-serif;font-weight:800;font-size:0.72rem;color:#1a4a8c;margin-bottom:2px">🧭 Surveying: ' + escHtml(active.neighborhoodName) + '</div>' +
+        '<div style="font-family:\'Space Mono\',monospace;font-size:0.56rem;color:#666;margin-bottom:8px">Started ' + _surveyElapsedLabel(active.startedAt) + ' ago' + (pastCount ? ' · ' + pastCount + ' prior session' + (pastCount===1?'':'s') + ' logged' : '') + '</div>' +
+        '<button data-fn="endActiveSurvey" style="width:100%;padding:9px;background:#fff;border:1.5px solid #c0392b;color:#c0392b;border-radius:7px;font-family:Syne,sans-serif;font-weight:800;font-size:0.62rem;cursor:pointer">■ End Survey</button>' +
+      '</div>' +
+      '<div style="background:#fff9ec;border:1.5px solid #f0dca0;border-radius:9px;padding:10px 12px;margin-bottom:10px;display:flex;align-items:center;gap:8px">' +
+        '<span style="flex:1;font-family:\'Space Mono\',monospace;font-size:0.58rem;color:#7a5000">' +
+          (paused ? '⏸ Tracking paused' : '📍 Tracking route') + ' · ' + trailLen + ' point' + (trailLen===1?'':'s') +
+        '</span>' +
+        '<button data-fn="toggleSurveyTracking" style="flex-shrink:0;padding:6px 10px;background:white;border:1.5px solid #e8c878;color:#7a5000;border-radius:6px;font-family:Syne,sans-serif;font-weight:800;font-size:0.58rem;cursor:pointer">' + (paused ? '▶ Resume' : '⏸ Pause') + '</button>' +
+      '</div>' +
+      _checklistPanelHtml(active.neighborhoodName);
+  } else {
+    el.innerHTML =
+      '<div style="background:#fafafa;border:1.5px solid #e5e7eb;border-radius:9px;padding:10px 12px">' +
+        '<select id="survey-nbhd-select" style="width:100%;padding:8px;border:1px solid #ddd;border-radius:7px;font-family:\'Space Mono\',monospace;font-size:0.62rem;margin-bottom:8px;background:white"><option value="">Pick a neighborhood…</option></select>' +
+        '<button data-fn="startSurveyFromPicker" style="width:100%;padding:9px;background:linear-gradient(135deg,#1a4a9c,#2563eb);color:white;border:none;border-radius:7px;font-family:Syne,sans-serif;font-weight:800;font-size:0.62rem;cursor:pointer">▶ Start Survey</button>' +
+      '</div>';
+    _populateSurveyNeighborhoodPicker();
+  }
+  // Report button is independent of active/inactive state — reachable any
+  // time there's at least one neighborhood with logged history, since a
+  // past (finished) neighborhood's report is often exactly what's wanted.
+  //
+  // 2026-07-19 fix: this used to be `el.innerHTML += '<button...'`, which
+  // is the actual root cause of "the neighborhood dropdown never
+  // populates" — NOT a network/GeoCache issue (that theory led to last
+  // session's IndexedDB timeout fix, which was a real but different bug
+  // and didn't touch this one). `innerHTML +=` forces the browser to
+  // serialize the CURRENT subtree back to a string, concatenate, and
+  // fully re-parse/rebuild every child node — including the <select>
+  // that _populateSurveyNeighborhoodPicker() (called synchronously just
+  // above, a few lines up) already grabbed a live reference to and is
+  // asynchronously appending <option> elements to. The moment this line
+  // ran, that select got torn down and replaced by a fresh, empty one
+  // parsed from the placeholder-only HTML that was captured at the time
+  // of serialization — the options landed on a detached, invisible copy.
+  // This fired on EVERY render once CoverageReport.knownNeighborhoods()
+  // had anything in it, i.e. reliably after your very first completed
+  // survey — not a rare race, a guaranteed miss. insertAdjacentHTML
+  // appends the new button as an additional child without touching (or
+  // rebuilding) any existing ones, so the select the picker is already
+  // working on stays exactly where it is.
+  try {
+    if (CoverageReport.knownNeighborhoods().length > 0) {
+      el.insertAdjacentHTML('beforeend', '<button data-fn="openCoverageReportModal" style="width:100%;margin-top:10px;padding:9px;background:none;border:1.5px solid #444;color:#444;border-radius:7px;font-family:Syne,sans-serif;font-weight:800;font-size:0.62rem;cursor:pointer">📄 Coverage &amp; Activity Report</button>');
+    }
+  } catch(_e) {}
+}
+
+// ── Coverage checklist UI ─────────────────────────────────────────────────
+function _checklistPanelHtml(neighborhoodName) {
+  var list = SurveyCoverage.getChecklist(neighborhoodName);
+  var checkedCount = list.filter(function(it) { return it.checked; }).length;
+  var rows = list.length
+    ? list.map(function(it) {
+        return '<div style="display:flex;align-items:center;gap:7px;padding:5px 2px;border-bottom:1px solid #eee">' +
+          '<input type="checkbox"' + (it.checked ? ' checked' : '') + ' data-fn="toggleChecklistItemUI" data-arg="' + escHtml(it.id) + '" style="flex-shrink:0;width:15px;height:15px;cursor:pointer">' +
+          '<span style="flex:1;font-family:\'Space Mono\',monospace;font-size:0.62rem;color:' + (it.checked ? '#999;text-decoration:line-through' : '#333') + '">' + escHtml(it.name) + (it.isAlley ? ' <span style="color:#999">(alley)</span>' : '') + '</span>' +
+          '<button data-fn="removeChecklistItemUI" data-arg="' + escHtml(it.id) + '" style="flex-shrink:0;background:none;border:none;color:#bbb;font-size:0.85rem;cursor:pointer;padding:0 3px;line-height:1">✕</button>' +
+        '</div>';
+      }).join('')
+    : '<div style="font-family:\'Space Mono\',monospace;font-size:0.58rem;color:#999;padding:6px 2px">No streets/alleys added yet.</div>';
+
+  return '<div style="background:#fafafa;border:1.5px solid #e5e7eb;border-radius:9px;padding:10px 12px">' +
+    '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">' +
+      '<span style="font-family:Syne,sans-serif;font-weight:800;font-size:0.68rem;color:#444">📋 Coverage Checklist</span>' +
+      '<span style="font-family:\'Space Mono\',monospace;font-size:0.56rem;color:#888">' + checkedCount + '/' + list.length + ' covered</span>' +
+    '</div>' +
+    '<div style="max-height:180px;overflow-y:auto;margin-bottom:8px">' + rows + '</div>' +
+    '<div style="display:flex;gap:6px;margin-bottom:6px">' +
+      '<input type="text" id="survey-checklist-input" placeholder="Street or alley name…" style="flex:1;padding:7px 9px;border:1px solid #ddd;border-radius:6px;font-family:\'Space Mono\',monospace;font-size:0.6rem">' +
+      '<button data-fn="addChecklistItemFromInput" style="flex-shrink:0;padding:7px 12px;background:#444;color:white;border:none;border-radius:6px;font-family:Syne,sans-serif;font-weight:800;font-size:0.58rem;cursor:pointer">+ Add</button>' +
+    '</div>' +
+    '<button data-fn="seedChecklistFromStopsUI" style="width:100%;padding:7px;background:none;border:1px dashed #ccc;color:#666;border-radius:6px;font-family:\'Space Mono\',monospace;font-size:0.56rem;cursor:pointer">↺ Add streets already seen on stops here</button>' +
+  '</div>';
+}
+
+function addChecklistItemFromInput() {
+  var active = SurveySession.getActive();
+  if (!active) return;
+  var input = document.getElementById('survey-checklist-input');
+  if (!input || !input.value.trim()) return;
+  var added = SurveyCoverage.addChecklistItem(active.neighborhoodName, input.value.trim(), false);
+  if (!added) { showToast('Already on the list'); return; }
+  _renderSurveyPanel();
+  // Re-focus the (freshly re-rendered) input so multi-item entry doesn't
+  // require re-tapping the field each time.
+  setTimeout(function() {
+    var freshInput = document.getElementById('survey-checklist-input');
+    if (freshInput) freshInput.focus();
+  }, 0);
+}
+
+function toggleChecklistItemUI(id) {
+  var active = SurveySession.getActive();
+  if (!active) return;
+  SurveyCoverage.toggleChecklistItem(active.neighborhoodName, id);
+  _renderSurveyPanel();
+}
+
+function removeChecklistItemUI(id) {
+  var active = SurveySession.getActive();
+  if (!active) return;
+  SurveyCoverage.removeChecklistItem(active.neighborhoodName, id);
+  _renderSurveyPanel();
+}
+
+function seedChecklistFromStopsUI() {
+  var active = SurveySession.getActive();
+  if (!active) return;
+  var added = SurveyCoverage.seedFromStops(active.neighborhoodName);
+  showToast(added ? ('+ ' + added + ' street' + (added===1?'':'s') + ' added') : 'Nothing new to add');
+  _renderSurveyPanel();
+}
+window.addChecklistItemFromInput = addChecklistItemFromInput;
+window.toggleChecklistItemUI      = toggleChecklistItemUI;
+window.removeChecklistItemUI      = removeChecklistItemUI;
+window.seedChecklistFromStopsUI   = seedChecklistFromStopsUI;
+
+// Small persistent banner shown on every tab (in the stop-count-bar area)
+// while a survey is active. Ticks every 60s to keep elapsed time fresh.
+// The End button lives directly on the strip — no need to open Map Layers
+// to end a session (that was the earlier design; digging into a modal to
+// find the only way to stop tracking was needless friction for an action
+// this common).
+function _renderSurveyStrip() {
+  var el = document.getElementById('survey-session-strip');
+  if (el) {
+    var active = SurveySession.getActive();
+    if (!active) { el.style.display = 'none'; el.innerHTML = ''; }
+    else {
+      el.style.display = 'flex';
+      el.innerHTML =
+        '<span style="flex-shrink:0">🧭</span>' +
+        '<span style="flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">Surveying <b>' + escHtml(active.neighborhoodName) + '</b> · ' + _surveyElapsedLabel(active.startedAt) + '</span>' +
+        '<button data-fn="endActiveSurvey" style="flex-shrink:0;background:rgba(255,255,255,0.15);border:1px solid rgba(255,255,255,0.35);color:inherit;border-radius:5px;padding:3px 8px;font-family:Syne,sans-serif;font-weight:800;font-size:0.56rem;cursor:pointer">■ End</button>';
+    }
+  }
+  // Same source of truth (active/inactive + neighborhood + elapsed) as the
+  // strip above, so folded into the same render call rather than requiring
+  // every call site to remember to update both independently.
+  try { _renderSurveyRouteButton(); } catch(_e) {}
+}
+
+// 2026-07-18: the Route-tab button that used to be "Navigate Route" is now
+// the Survey Mode entry point (btn-survey-mode / survey-route-btn-content).
+// No baked background-image for this one — the face has to switch between
+// an idle "Start Survey" prompt and a live "neighborhood · elapsed" status,
+// which a static image can't do. Tapping the button always opens the full
+// Survey Mode modal (openSurveyModeModal) regardless of state; the face
+// here is read-only status, not a second set of controls to keep in sync.
+//
+// 2026-07-19: color-matched to the Optimize Route button next to it —
+// #0137A3 is the actual solid fill color sampled directly from
+// OPTIMIZE_ICON_URI's baked pixels (not a guess from the CSS variable
+// palette, which uses different blues: --moss #1a4a9c, --leaf #2563eb —
+// neither matches what's actually in the image). Optimize's label is a
+// flat-filled bitmap so there's no literal "font-size" to copy 1:1, but
+// sized these labels up to be visually comparable rather than the
+// smaller sizing this button started with.
+function _renderSurveyRouteButton() {
+  var btn = document.getElementById('btn-survey-mode');
+  var content = document.getElementById('survey-route-btn-content');
+  if (!content) return;
+  if (btn) btn.style.background = '#0137A3';
+  var active = null;
+  try { active = SurveySession.getActive(); } catch(_e) {}
+  if (active) {
+    var nameShort = active.neighborhoodName.length > 16 ? active.neighborhoodName.slice(0, 15) + '…' : active.neighborhoodName;
+    content.innerHTML =
+      '<span style="font-size:0.95rem;line-height:1">🧭</span>' +
+      '<span style="font-family:Syne,sans-serif;font-weight:800;font-size:0.68rem;color:white;line-height:1.2;text-align:center;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">' + escHtml(nameShort) + '</span>' +
+      '<span style="font-family:\'Space Mono\',monospace;font-size:0.56rem;color:rgba(255,255,255,0.85);line-height:1">' + _surveyElapsedLabel(active.startedAt) + '</span>';
+  } else {
+    content.innerHTML =
+      '<span style="font-size:1rem;line-height:1">🧭</span>' +
+      '<span style="font-family:Syne,sans-serif;font-weight:800;font-size:0.7rem;color:white;line-height:1.2">Survey Mode</span>';
+  }
+}
+window._renderSurveyRouteButton = _renderSurveyRouteButton;
+
+function openSurveyModeModal() {
+  var modal = document.getElementById('survey-mode-modal');
+  modal.style.display = 'flex';
+  _renderSurveyPanel();
+  Accessibility.modalOpened(modal, { onEscape: closeSurveyModeModal });
+}
+function closeSurveyModeModal() {
+  var modal = document.getElementById('survey-mode-modal');
+  modal.style.display = 'none';
+  Accessibility.modalClosed(modal);
+}
+window.openSurveyModeModal  = openSurveyModeModal;
+window.closeSurveyModeModal = closeSurveyModeModal;
+
+var _surveyStripTimer = null;
+function _initSurveyStrip() {
+  _renderSurveyStrip();
+  if (_surveyStripTimer) clearInterval(_surveyStripTimer);
+  _surveyStripTimer = setInterval(_renderSurveyStrip, 60000);
+  // App reload mid-shift (tab refresh, PWA relaunch) shouldn't silently
+  // drop tracking for whatever survey was already active.
+  try { if (typeof _startBreadcrumbWatch === 'function') _startBreadcrumbWatch(); } catch(_e) {}
+}
+window._renderSurveyPanel = _renderSurveyPanel;
+window._renderSurveyStrip = _renderSurveyStrip;
+window._initSurveyStrip   = _initSurveyStrip;
+window.startSurveyFromPicker = startSurveyFromPicker;
+window.endActiveSurvey       = endActiveSurvey;
+
+
+// ============================================================
+// SECTION: survey-coverage
+// ============================================================
+// ── SURVEY COVERAGE — breadcrumb GPS trail + manual street/alley checklist ──
+// Two independent, complementary ways to see "have I covered this
+// neighborhood": a passive GPS trail (shows where the vehicle actually
+// went) and a manual checklist (catches alleys and anything the trail
+// missed/misjudged). Both are scoped to SurveySession.getActive().
+//
+// Deliberately NOT built as a MapLayers/MapLayerRenderer "layer" —
+// that abstraction is for static, toggleable feature sets sourced from
+// GeoCache polygons or a fixed custom-address list. A breadcrumb trail is
+// live, growing, single-purpose data tied to whichever survey is active
+// right now; it manages its own dedicated Leaflet polyline directly on
+// routeMap instead, the same way the Photostamp setup mini-map draws its
+// own lines outside the MapLayers system.
+//
+// Storage (both keyed by neighborhood NAME, not number — sessions are
+// matched by name elsewhere too, and manual/typo'd neighborhoods may
+// have no number):
+//   'survey-breadcrumb:<name>' -> JSON array of [lat, lng, ts] triples
+//                                  (compact array form, not objects, to
+//                                  keep 1000s of points reasonably small
+//                                  in localStorage). Capped at 3000 points.
+//   'survey-checklist:<name>'  -> JSON array of {id, name, checked, isAlley}
+
+var SurveyCoverage = (function() {
+  var BREADCRUMB_CAP = 3000;
+  var MIN_POINT_DISTANCE_M = 15; // downsample: only store a point if it's
+                                  // moved at least this far from the last
+                                  // one — keeps a full shift's trail well
+                                  // under the cap without losing route shape
+
+  function _bcKey(name) { return 'survey-breadcrumb:' + name; }
+  function _clKey(name) { return 'survey-checklist:' + name; }
+
+  function getBreadcrumb(name) {
+    if (!name) return [];
+    try {
+      var arr = JSON.parse(LS.get(_bcKey(name)) || '[]');
+      return Array.isArray(arr) ? arr : [];
+    } catch(_e) { return []; }
+  }
+
+  // Appends a point if it's the first one, or far enough from the last
+  // stored point. Returns true if a point was actually added (caller uses
+  // this to know whether a map redraw is worthwhile).
+  function addBreadcrumbPoint(name, lat, lng) {
+    if (!name || lat == null || lng == null) return false;
+    var trail = getBreadcrumb(name);
+    var last = trail.length ? trail[trail.length - 1] : null;
+    if (last) {
+      var dist = _haversineMeters({ lat: last[0], lng: last[1] }, { lat: lat, lng: lng });
+      if (dist != null && dist < MIN_POINT_DISTANCE_M) return false;
+    }
+    trail.push([lat, lng, Date.now()]);
+    if (trail.length > BREADCRUMB_CAP) trail = trail.slice(-BREADCRUMB_CAP);
+    try { LS.set(_bcKey(name), JSON.stringify(trail)); } catch(_e) {}
+    return true;
+  }
+
+  function clearBreadcrumb(name) {
+    if (!name) return;
+    try { LS.set(_bcKey(name), '[]'); } catch(_e) {}
+  }
+
+  // ── Checklist ──────────────────────────────────────────────────────────
+  function getChecklist(name) {
+    if (!name) return [];
+    try {
+      var arr = JSON.parse(LS.get(_clKey(name)) || '[]');
+      return Array.isArray(arr) ? arr : [];
+    } catch(_e) { return []; }
+  }
+  function _saveChecklist(name, list) {
+    try { LS.set(_clKey(name), JSON.stringify(list)); } catch(_e) {}
+  }
+
+  // Adds one item if its name isn't already present (case-insensitive).
+  // Returns the new item, or null if it was a duplicate.
+  function addChecklistItem(name, text, isAlley) {
+    if (!name || !text) return null;
+    var list = getChecklist(name);
+    var norm = text.trim().toLowerCase();
+    if (!norm) return null;
+    var dupe = list.some(function(it) { return it.name.toLowerCase() === norm; });
+    if (dupe) return null;
+    var item = { id: _newClientId(), name: text.trim(), checked: false, isAlley: !!isAlley };
+    list.push(item);
+    _saveChecklist(name, list);
+    return item;
+  }
+
+  function toggleChecklistItem(name, id) {
+    var list = getChecklist(name);
+    var item = list.find(function(it) { return it.id === id; });
+    if (!item) return;
+    item.checked = !item.checked;
+    _saveChecklist(name, list);
+  }
+
+  function removeChecklistItem(name, id) {
+    var list = getChecklist(name).filter(function(it) { return it.id !== id; });
+    _saveChecklist(name, list);
+  }
+
+  // Pulls unique street names already seen on stops tagged with this
+  // neighborhood and adds any not already on the checklist. Same
+  // number-stripping regex as _metricsStreetSpread, kept independent
+  // rather than sharing a helper since that one operates on a stop
+  // subset the caller already filtered by date range — different inputs,
+  // same small parsing rule not worth abstracting over for one line.
+  // Returns the count of NEW items added.
+  function seedFromStops(name) {
+    if (!name || typeof stops === 'undefined') return 0;
+    var found = {};
+    stops.forEach(function(s) {
+      if (s.neighborhoodName !== name) return;
+      var m = (s.address || '').match(/^\d+\s+(.+?)(?:,|$)/);
+      if (m) found[m[1].trim()] = true;
+    });
+    var added = 0;
+    Object.keys(found).forEach(function(streetName) {
+      if (addChecklistItem(name, streetName, false)) added++;
+    });
+    return added;
+  }
+
+  return {
+    getBreadcrumb: getBreadcrumb,
+    addBreadcrumbPoint: addBreadcrumbPoint,
+    clearBreadcrumb: clearBreadcrumb,
+    getChecklist: getChecklist,
+    addChecklistItem: addChecklistItem,
+    toggleChecklistItem: toggleChecklistItem,
+    removeChecklistItem: removeChecklistItem,
+    seedFromStops: seedFromStops
+  };
+})();
+window.SurveyCoverage = SurveyCoverage;
+
+// ── Breadcrumb GPS tracking lifecycle ────────────────────────────────────
+// One watchPosition at a time, tied to survey start/end plus an explicit
+// pause/resume toggle (LS 'survey-tracking-paused' — a single flag, not
+// per-neighborhood, since only one survey is ever active at once). This is
+// the app's first continuous-tracking use of watchPosition — everywhere
+// else in the file uses one-shot getCurrentPosition, so battery/lifecycle
+// discipline here matters more than usual: watch is cleared on End Survey,
+// on pause, and there is no "leave it running forever" path.
+var _surveyWatchId = null;
+
+function _isSurveyTrackingPaused() {
+  try { return LS.get('survey-tracking-paused') === '1'; } catch(_e) { return false; }
+}
+
+function _startBreadcrumbWatch() {
+  if (_surveyWatchId != null) return; // already watching
+  if (!navigator.geolocation || !navigator.geolocation.watchPosition) return;
+  var active = SurveySession.getActive();
+  if (!active || _isSurveyTrackingPaused()) return;
+  _surveyWatchId = navigator.geolocation.watchPosition(
+    function(pos) {
+      var cur = SurveySession.getActive();
+      if (!cur) { _stopBreadcrumbWatch(); return; } // session ended mid-flight
+      var added = SurveyCoverage.addBreadcrumbPoint(cur.neighborhoodName, pos.coords.latitude, pos.coords.longitude);
+      if (added) _redrawBreadcrumbLayer();
+    },
+    function(_err) { /* silent — GPS drop-outs are routine in the field, no need to toast every one */ },
+    { enableHighAccuracy: true, maximumAge: 10000, timeout: 20000 }
+  );
+}
+function _stopBreadcrumbWatch() {
+  if (_surveyWatchId != null && navigator.geolocation) {
+    try { navigator.geolocation.clearWatch(_surveyWatchId); } catch(_e) {}
+  }
+  _surveyWatchId = null;
+}
+function toggleSurveyTracking() {
+  var paused = _isSurveyTrackingPaused();
+  try { LS.set('survey-tracking-paused', paused ? '0' : '1'); } catch(_e) {}
+  if (paused) { _startBreadcrumbWatch(); showToast('📍 Tracking resumed'); }
+  else { _stopBreadcrumbWatch(); showToast('📍 Tracking paused'); }
+  _renderSurveyPanel();
+}
+window.toggleSurveyTracking = toggleSurveyTracking;
+
+// ── Breadcrumb rendering — a dedicated Leaflet polyline on routeMap,
+// independent of routeMapPolylines/MapLayerRenderer (see module comment
+// above for why). Redrawn on new points and whenever the Map tab opens.
+var _surveyBreadcrumbLayer = null;
+function _redrawBreadcrumbLayer() {
+  if (typeof routeMap === 'undefined' || !routeMap || typeof L === 'undefined') return;
+  if (_surveyBreadcrumbLayer) { try { routeMap.removeLayer(_surveyBreadcrumbLayer); } catch(_e) {} _surveyBreadcrumbLayer = null; }
+  var active = SurveySession.getActive();
+  if (!active) return;
+  var trail = SurveyCoverage.getBreadcrumb(active.neighborhoodName);
+  if (trail.length < 2) return;
+  var latlngs = trail.map(function(p) { return [p[0], p[1]]; });
+  _surveyBreadcrumbLayer = L.polyline(latlngs, {
+    color: '#e67e22', weight: 3, opacity: 0.75, dashArray: '1,7', lineCap: 'round'
+  }).addTo(routeMap);
+}
+window._redrawBreadcrumbLayer = _redrawBreadcrumbLayer;
+
+
+// ============================================================
+// SECTION: chronic-photo-index
+// ============================================================
+// ── CHRONIC PHOTO ACTIVITY — location-keyed index of stamped photos ──────────
+// Every time a stamped photo is actually SAVED (not just previewed — see the
+// two commit points below), it's indexed against a location key so repeat
+// visits to the same address/spot become visible as a pattern rather than
+// scattered individual stops. Reuses the existing photo-log-metadata
+// pattern: no image bytes are ever stored here, only address/GPS/timestamp.
+//
+// Location key resolution (see resolveKey):
+//   1. Normalized address, if the photo has one ('addr:1234 main st')
+//   2. Otherwise grid-snapped GPS ('geo:38.6250,-90.2400', ~11m cells)
+// Grid-snapping instead of true distance clustering (DBSCAN etc.) is a
+// deliberate simplification — hand-rolling real clustering in vanilla JS
+// for a single-file app isn't worth the complexity for "which addresses
+// keep coming up," and grid cells are good enough at parcel granularity.
+// Known tradeoff: two photos ~12m apart could straddle a cell boundary and
+// land in different buckets — the manual `merge()` action below exists
+// for exactly this (and for address-typo variants that don't normalize
+// to the same string).
+//
+// Commit points (deliberately NOT at capture time, since the user can
+// still edit the address in the preview modal after a shot is taken):
+//   - downloadStampedPhoto() — Android auto-save-per-shot, manual Download,
+//     and the download half of Save & Share
+//   - shareStampedPhoto() — the iOS success path, both single-shot and
+//     multi-shot (session) batches
+// Each shot is recorded at most once via a per-shot `chronicRecorded` flag
+// (on _photoContext for standalone shots, on each _photoSession.shots[i]
+// entry for session shots) — Save & Share calls both download and share,
+// which would otherwise double-count.
+//
+// Storage:
+//   'chronic-index'   -> JSON array of location keys (so we can enumerate
+//                         without scanning all of localStorage)
+//   'chronic-loc:<k>' -> JSON {displayLabel, address, gps, neighborhoodName,
+//                         ward, photos:[{ts, caseType, stopId}]}, capped at
+//                         500 events per location (plenty — that's ~1.5
+//                         photos/day for a year at one address)
+//   'chronic-settings'-> JSON {windowN, windowUnit, thresholds:[{min,color,label}]}
+var ChronicIndex = (function() {
+  var MAX_EVENTS_PER_LOCATION = 500;
+  var GRID_DECIMALS = 4; // ~11m cells at STL's latitude
+
+  function normalizeAddress(addr) {
+    if (!addr) return null;
+    var s = addr.toLowerCase();
+    s = s.replace(/,.*$/, '');                             // strip city/state tail
+    s = s.replace(/\b(apt|unit|suite|ste|#)\s*\S+$/i, '');  // strip trailing unit/suite
+    s = s.replace(/[^\w\s]/g, ' ');                         // punctuation -> space
+    s = s.replace(/\s+/g, ' ').trim();
+    return s || null;
+  }
+
+  function gridKeyFromGps(gps) {
+    if (!gps || typeof gps.lat !== 'number' || typeof gps.lng !== 'number') return null;
+    return 'geo:' + gps.lat.toFixed(GRID_DECIMALS) + ',' + gps.lng.toFixed(GRID_DECIMALS);
+  }
+
+  // Prefer address; fall back to grid-snapped GPS. Returns null if neither
+  // is available (shouldn't happen in practice — every stamp attempts a
+  // GPS fix — but callers should tolerate null and simply skip indexing).
+  function resolveKey(address, gps) {
+    var norm = normalizeAddress(address);
+    if (norm) return 'addr:' + norm;
+    return gridKeyFromGps(gps);
+  }
+
+  function _entryKey(key) { return 'chronic-loc:' + key; }
+  function _readEntry(key) {
+    try {
+      var obj = JSON.parse(LS.get(_entryKey(key)) || 'null');
+      return (obj && Array.isArray(obj.photos)) ? obj : null;
+    } catch(_e) { return null; }
+  }
+  function _writeEntry(key, entry) {
+    try { LS.set(_entryKey(key), JSON.stringify(entry)); } catch(_e) {}
+  }
+  function _readIndex() {
+    try {
+      var arr = JSON.parse(LS.get('chronic-index') || '[]');
+      return Array.isArray(arr) ? arr : [];
+    } catch(_e) { return []; }
+  }
+  function _writeIndex(arr) {
+    try { LS.set('chronic-index', JSON.stringify(arr)); } catch(_e) {}
+  }
+  function _addToIndex(key) {
+    var idx = _readIndex();
+    if (idx.indexOf(key) === -1) { idx.push(key); _writeIndex(idx); }
+  }
+  function _removeFromIndex(key) {
+    _writeIndex(_readIndex().filter(function(k) { return k !== key; }));
+  }
+
+  // Records one photo event. meta: {address, gps, ts, neighborhoodName,
+  // ward, caseType, stopId}. Returns the location key, or null if neither
+  // address nor GPS was available to key on.
+  function record(meta) {
+    meta = meta || {};
+    var key = resolveKey(meta.address, meta.gps);
+    if (!key) return null;
+    var entry = _readEntry(key) || {
+      displayLabel: null, address: null, gps: null,
+      neighborhoodName: null, ward: null, photos: []
+    };
+    // Keep the freshest known metadata — an address that arrives later
+    // (e.g. this location was first seen GPS-only) upgrades the entry.
+    if (meta.address) entry.address = meta.address;
+    if (meta.gps) entry.gps = meta.gps;
+    if (meta.neighborhoodName) entry.neighborhoodName = meta.neighborhoodName;
+    if (meta.ward) entry.ward = meta.ward;
+    entry.displayLabel = entry.address || (entry.gps ? ('~' + entry.gps.lat.toFixed(4) + ', ' + entry.gps.lng.toFixed(4)) : key);
+
+    entry.photos.push({
+      ts: meta.ts || new Date().toISOString(),
+      caseType: meta.caseType || null,
+      stopId: (meta.stopId != null) ? meta.stopId : null
+    });
+    if (entry.photos.length > MAX_EVENTS_PER_LOCATION) entry.photos = entry.photos.slice(-MAX_EVENTS_PER_LOCATION);
+    _writeEntry(key, entry);
+    _addToIndex(key);
+    return key;
+  }
+
+  function getEntry(key) { return _readEntry(key); }
+
+  // All locations with their key attached — the primary read for the map
+  // layer and the admin/merge list.
+  function getAll() {
+    return _readIndex().map(function(key) {
+      var entry = _readEntry(key);
+      if (!entry) return null;
+      entry.key = key;
+      return entry;
+    }).filter(Boolean);
+  }
+
+  function countInWindow(entryOrKey, windowMs) {
+    var entry = (typeof entryOrKey === 'string') ? _readEntry(entryOrKey) : entryOrKey;
+    if (!entry) return 0;
+    var cutoff = Date.now() - windowMs;
+    return entry.photos.filter(function(p) {
+      var t = new Date(p.ts).getTime();
+      return isFinite(t) && t >= cutoff;
+    }).length;
+  }
+
+  // Manual merge for address-typo variants / grid-boundary splits — folds
+  // sourceKey's photo events into targetKey (sorted back into chronological
+  // order), then deletes sourceKey. Deliberately manual rather than fuzzy-
+  // matched automatically: silently merging locations that shouldn't be
+  // merged is worse than requiring one tap to confirm.
+  function merge(targetKey, sourceKey) {
+    if (!targetKey || !sourceKey || targetKey === sourceKey) return false;
+    var target = _readEntry(targetKey);
+    var source = _readEntry(sourceKey);
+    if (!target || !source) return false;
+    target.photos = target.photos.concat(source.photos).sort(function(a, b) {
+      return new Date(a.ts).getTime() - new Date(b.ts).getTime();
+    });
+    if (target.photos.length > MAX_EVENTS_PER_LOCATION) target.photos = target.photos.slice(-MAX_EVENTS_PER_LOCATION);
+    target.address = target.address || source.address;
+    target.gps = target.gps || source.gps;
+    target.neighborhoodName = target.neighborhoodName || source.neighborhoodName;
+    target.ward = target.ward || source.ward;
+    target.displayLabel = target.address || target.displayLabel;
+    _writeEntry(targetKey, target);
+    try { LS.set(_entryKey(sourceKey), ''); } catch(_e) {}
+    _removeFromIndex(sourceKey);
+    return true;
+  }
+
+  function deleteLocation(key) {
+    if (!key) return;
+    try { LS.set(_entryKey(key), ''); } catch(_e) {}
+    _removeFromIndex(key);
+  }
+
+  // ── Settings: time window + ascending severity thresholds ───────────────
+  // Thresholds use "at least N photos" (min) rather than min/max pairs —
+  // avoids the JSON.stringify(Infinity) === null trap for an open-ended top
+  // bin, and severityFor just picks the highest threshold the count clears.
+  var DEFAULT_SETTINGS = {
+    windowN: 90, windowUnit: 'days',
+    thresholds: [
+      { min: 1, color: '#2ecc71', label: 'Low' },
+      { min: 3, color: '#f1c40f', label: 'Elevated' },
+      { min: 5, color: '#e74c3c', label: 'Chronic' }
+    ],
+    clusterRadiusMeters: 0 // 0 = off — exact address/GPS-cell key (prior behavior)
+  };
+  // Proximity-grouping radius choices for the chronic-photo HEAT-MAP LAYER
+  // specifically (see clusterLocationsByRadius below) — NOT applied to the
+  // underlying per-address ChronicIndex entries, the Locations admin list,
+  // or any export. Those stay at full per-address precision; this setting
+  // only affects how the map layer visually groups nearby photos into one
+  // marker. Values in meters; feet/miles converted once here so the
+  // clustering math only ever deals in a single unit.
+  var RADIUS_OPTIONS = [
+    { label: 'Off — exact address / GPS cell', meters: 0 },
+    { label: '50 ft', meters: 15.24 },
+    { label: '100 ft', meters: 30.48 },
+    { label: '200 ft', meters: 60.96 },
+    { label: '500 ft', meters: 152.4 },
+    { label: '1/4 mile', meters: 402.336 },
+    { label: '1/2 mile', meters: 804.672 },
+    { label: '3/4 mile', meters: 1207.008 },
+    { label: '1 mile', meters: 1609.344 },
+    { label: '5 miles', meters: 8046.72 },
+    { label: '10 miles', meters: 16093.44 }
+  ];
+  function getSettings() {
+    try {
+      var s = JSON.parse(LS.get('chronic-settings') || 'null');
+      if (s && s.windowN && s.windowUnit && Array.isArray(s.thresholds) && s.thresholds.length) {
+        // Backward-compat default for settings saved before this field
+        // existed — treat as "off" (unchanged prior behavior) rather than
+        // failing validation and silently reverting the whole settings
+        // object to defaults.
+        if (typeof s.clusterRadiusMeters !== 'number') s.clusterRadiusMeters = 0;
+        return s;
+      }
+    } catch(_e) {}
+    return DEFAULT_SETTINGS;
+  }
+  function saveSettings(s) { try { LS.set('chronic-settings', JSON.stringify(s)); } catch(_e) {} }
+  function windowMsFor(settings) {
+    var dayMs = 86400000;
+    var mult = { days: 1, weeks: 7, months: 30, years: 365 }[settings.windowUnit] || 1;
+    return (settings.windowN || 1) * mult * dayMs;
+  }
+  // Highest threshold the count clears, ascending by .min. Returns null if
+  // count is 0 or below the lowest configured threshold (i.e. no marker).
+  function severityFor(count, settings) {
+    var thresholds = (settings.thresholds || []).slice().sort(function(a, b) { return a.min - b.min; });
+    var matched = null;
+    for (var i = 0; i < thresholds.length; i++) {
+      if (count >= thresholds[i].min) matched = thresholds[i]; else break;
+    }
+    return matched;
+  }
+
+  // Groups locations within radiusMeters of each other into clusters —
+  // used only when building the heat-map layer (see module comment on
+  // RADIUS_OPTIONS). Greedy nearest-cluster assignment with a running-
+  // centroid anchor per cluster: not true DBSCAN, but good enough for
+  // "these are basically the same spot" grouping without hand-rolling a
+  // real clustering algorithm for a single-file app. A location with no
+  // GPS coordinate can't be distance-compared against anything, so it
+  // always becomes its own singleton cluster regardless of radius —
+  // still counted, just never merges with a neighbor.
+  function clusterLocationsByRadius(locations, radiusMeters) {
+    if (!radiusMeters || radiusMeters <= 0) {
+      // Off — 1:1 passthrough, identical shape to a real cluster list so
+      // callers don't need a separate code path for "no grouping."
+      return locations.map(function(loc) {
+        return { key: loc.key, locations: [loc], gps: loc.gps, displayLabel: loc.displayLabel, photos: loc.photos.slice() };
+      });
+    }
+    var clusters = [];
+    locations.forEach(function(loc) {
+      if (!loc.gps || typeof loc.gps.lat !== 'number') {
+        clusters.push({ key: loc.key, locations: [loc], gps: null, displayLabel: loc.displayLabel, photos: loc.photos.slice() });
+        return;
+      }
+      var best = null, bestDist = Infinity;
+      for (var i = 0; i < clusters.length; i++) {
+        var c = clusters[i];
+        if (!c.gps) continue;
+        var d = _haversineMeters(c.gps, loc.gps);
+        if (d != null && d <= radiusMeters && d < bestDist) { best = c; bestDist = d; }
+      }
+      if (best) {
+        best.locations.push(loc);
+        best.photos = best.photos.concat(loc.photos);
+        // Running centroid so the cluster's anchor drifts toward the true
+        // middle of its members instead of staying pinned to whichever
+        // location happened to start the cluster — reduces (doesn't
+        // eliminate) the chain-drift issue greedy clustering is prone to.
+        var latSum = 0, lngSum = 0;
+        best.locations.forEach(function(l) { latSum += l.gps.lat; lngSum += l.gps.lng; });
+        best.gps = { lat: latSum / best.locations.length, lng: lngSum / best.locations.length };
+      } else {
+        clusters.push({ key: loc.key, locations: [loc], gps: loc.gps, displayLabel: loc.displayLabel, photos: loc.photos.slice() });
+      }
+    });
+    clusters.forEach(function(c) {
+      if (c.locations.length > 1) {
+        c.displayLabel = c.locations.length + ' nearby locations (incl. ' + (c.locations[0].displayLabel || c.locations[0].key) + ')';
+      }
+    });
+    return clusters;
+  }
+
+  return {
+    resolveKey: resolveKey, record: record, getEntry: getEntry, getAll: getAll,
+    countInWindow: countInWindow, merge: merge, deleteLocation: deleteLocation,
+    getSettings: getSettings, saveSettings: saveSettings, windowMsFor: windowMsFor,
+    severityFor: severityFor, DEFAULT_SETTINGS: DEFAULT_SETTINGS,
+    clusterLocationsByRadius: clusterLocationsByRadius, RADIUS_OPTIONS: RADIUS_OPTIONS
+  };
+})();
+window.ChronicIndex = ChronicIndex;
+
+// Called from the two PhotoStamp commit points below. Idempotent per shot
+// via the chronicRecorded flag set on the caller's own object.
+function _recordChronicFromContext() {
+  if (_photoContext.chronicRecorded) return;
+  try {
+    var active = (typeof SurveySession !== 'undefined') ? SurveySession.getActive() : null;
+    ChronicIndex.record({
+      address: _photoContext.address || null,
+      gps: _photoContext.gps || null,
+      ts: (_photoContext.capturedAt || new Date()).toISOString(),
+      neighborhoodName: active ? active.neighborhoodName : null,
+      caseType: _photoContext.caseType || null,
+      stopId: _photoContext.stopId
+    });
+  } catch(_e) {}
+  _photoContext.chronicRecorded = true;
+  // Flag the matching session shot too (if this photo belongs to an active
+  // session) so the iOS multi-share path below doesn't record it again.
+  if (_photoSession.active && Array.isArray(_photoSession.shots)) {
+    for (var i = _photoSession.shots.length - 1; i >= 0; i--) {
+      if (_photoSession.shots[i].filename === _photoContext.filename) {
+        _photoSession.shots[i].chronicRecorded = true;
+        break;
+      }
+    }
+  }
+  try { if (typeof _redrawChronicLayer === 'function') _redrawChronicLayer(); } catch(_e2) {}
+}
+
+// Records every not-yet-recorded shot in the active session — used by the
+// iOS batch-share success path, where individual shots never went through
+// downloadStampedPhoto() (see shareStampedPhoto below).
+function _recordChronicFromSession() {
+  if (!_photoSession.active || !Array.isArray(_photoSession.shots)) return;
+  try {
+    var active = (typeof SurveySession !== 'undefined') ? SurveySession.getActive() : null;
+    _photoSession.shots.forEach(function(shot) {
+      if (shot.chronicRecorded) return;
+      try {
+        ChronicIndex.record({
+          address: _photoSession.address || null,
+          gps: shot.gps || null,
+          ts: (shot.capturedAt || new Date()).toISOString(),
+          neighborhoodName: active ? active.neighborhoodName : null,
+          caseType: _photoContext.caseType || null,
+          stopId: _photoSession.stopId
+        });
+      } catch(_e2) {}
+      shot.chronicRecorded = true;
+    });
+  } catch(_e) {}
+  try { if (typeof _redrawChronicLayer === 'function') _redrawChronicLayer(); } catch(_e2) {}
+}
+window._recordChronicFromContext = _recordChronicFromContext;
+window._recordChronicFromSession = _recordChronicFromSession;
+
+// ── Chronic Activity map layer — a dedicated Leaflet layer group, same
+// pattern as the breadcrumb trail above (not MapLayers/MapLayerRenderer —
+// severity coloring is computed per-location against live settings, not a
+// static GeoCache polygon or a fixed custom-address list). Redrawn on
+// settings changes, new recorded photos, and Map tab open.
+var _chronicMapLayer = null;
+function _isChronicLayerVisible() {
+  try { return LS.get('chronic-layer-visible') === '1'; } catch(_e) { return false; }
+}
+function _setChronicLayerVisible(v) {
+  try { LS.set('chronic-layer-visible', v ? '1' : '0'); } catch(_e) {}
+}
+function _redrawChronicLayer() {
+  if (typeof routeMap === 'undefined' || !routeMap || typeof L === 'undefined') return;
+  if (_chronicMapLayer) { try { routeMap.removeLayer(_chronicMapLayer); } catch(_e) {} _chronicMapLayer = null; }
+  if (!_isChronicLayerVisible()) return;
+  var settings = ChronicIndex.getSettings();
+  var winMs = ChronicIndex.windowMsFor(settings);
+  // Proximity grouping happens ONLY here, for the map layer — the
+  // underlying per-address ChronicIndex entries (and the Locations admin
+  // list / any export) stay at full precision. clusterLocationsByRadius
+  // with radius 0 (the default) is a 1:1 passthrough, so this is a no-op
+  // shape-wise when the setting is off.
+  var clusters = ChronicIndex.clusterLocationsByRadius(ChronicIndex.getAll(), settings.clusterRadiusMeters);
+  var group = L.layerGroup();
+  var any = false;
+  clusters.forEach(function(cluster) {
+    // Grid-keyed locations always have gps; address-keyed ones only have
+    // gps if a photo at that address happened to capture a fix. Clusters
+    // with no plottable coordinate (no member had GPS) are still counted
+    // in the admin list via their underlying locations, just not on the map.
+    if (!cluster.gps || typeof cluster.gps.lat !== 'number') return;
+    var count = ChronicIndex.countInWindow(cluster, winMs);
+    var sev = ChronicIndex.severityFor(count, settings);
+    if (!sev) return; // below the lowest configured threshold — no marker
+    any = true;
+    var marker = L.circleMarker([cluster.gps.lat, cluster.gps.lng], {
+      radius: 8 + Math.min(count, 10),
+      color: sev.color, weight: 2, fillColor: sev.color, fillOpacity: 0.55
+    });
+    var neighborhoodName = null;
+    for (var i = 0; i < cluster.locations.length; i++) {
+      if (cluster.locations[i].neighborhoodName) { neighborhoodName = cluster.locations[i].neighborhoodName; break; }
+    }
+    var popupHtml =
+      '<div style="font-family:Syne,sans-serif;font-weight:800;font-size:0.72rem;color:#222;margin-bottom:3px">' + escHtml(cluster.displayLabel || cluster.key) + '</div>' +
+      '<div style="font-family:\'Space Mono\',monospace;font-size:0.58rem;color:#666;margin-bottom:2px">' + count + ' photo' + (count===1?'':'s') + ' in the last ' + settings.windowN + ' ' + settings.windowUnit + ' · <span style="color:' + sev.color + ';font-weight:700">' + escHtml(sev.label) + '</span></div>' +
+      (neighborhoodName ? '<div style="font-family:\'Space Mono\',monospace;font-size:0.54rem;color:#999">' + escHtml(neighborhoodName) + '</div>' : '');
+    marker.bindPopup(popupHtml);
+    group.addLayer(marker);
+  });
+  if (any) { group.addTo(routeMap); _chronicMapLayer = group; }
+}
+window._redrawChronicLayer = _redrawChronicLayer;
+window._isChronicLayerVisible = _isChronicLayerVisible;
+window._setChronicLayerVisible = _setChronicLayerVisible;
+
+// ── Chronic Activity UI ────────────────────────────────────────────────────
+function openChronicModal() {
+  var modal = document.getElementById('chronic-modal');
+  modal.style.display = 'flex';
+  _renderChronicModal();
+  Accessibility.modalOpened(modal, { onEscape: closeChronicModal });
+}
+function closeChronicModal() {
+  var modal = document.getElementById('chronic-modal');
+  modal.style.display = 'none';
+  Accessibility.modalClosed(modal);
+}
+window.openChronicModal = openChronicModal;
+window.closeChronicModal = closeChronicModal;
+
+// Compact summary + map-visibility toggle shown inside the Map Layers modal.
+function _renderChronicEntry() {
+  var el = document.getElementById('chronic-entry-body');
+  if (!el) return;
+  var settings = ChronicIndex.getSettings();
+  var winMs = ChronicIndex.windowMsFor(settings);
+  var locations = ChronicIndex.getAll();
+  var flagged = locations.filter(function(loc) {
+    return ChronicIndex.severityFor(ChronicIndex.countInWindow(loc, winMs), settings) != null;
+  }).length;
+  var visible = _isChronicLayerVisible();
+  el.innerHTML =
+    '<div style="background:#fff5f5;border:1.5px solid #f3c6c6;border-radius:9px;padding:10px 12px">' +
+      '<div style="font-family:\'Space Mono\',monospace;font-size:0.6rem;color:#7a2020;margin-bottom:8px">' + locations.length + ' location' + (locations.length===1?'':'s') + ' tracked · ' + flagged + ' at or above threshold</div>' +
+      '<label style="display:flex;align-items:center;gap:7px;margin-bottom:8px;font-family:\'Space Mono\',monospace;font-size:0.6rem;color:#7a2020;cursor:pointer">' +
+        '<input type="checkbox" data-fn="toggleChronicLayerUI"' + (visible ? ' checked' : '') + ' style="width:15px;height:15px;cursor:pointer">' +
+        'Show on map' +
+      '</label>' +
+      '<button data-fn="openChronicModal" style="width:100%;padding:9px;background:linear-gradient(135deg,#c0392b,#e74c3c);color:white;border:none;border-radius:7px;font-family:Syne,sans-serif;font-weight:800;font-size:0.62rem;cursor:pointer">⚙ Settings &amp; Locations</button>' +
+    '</div>';
+}
+window._renderChronicEntry = _renderChronicEntry;
+
+function toggleChronicLayerUI() {
+  var next = !_isChronicLayerVisible();
+  _setChronicLayerVisible(next);
+  _renderChronicEntry();
+  try { _redrawChronicLayer(); } catch(_e) {}
+  showToast(next ? '🔥 Chronic layer shown' : '🔥 Chronic layer hidden');
+}
+window.toggleChronicLayerUI = toggleChronicLayerUI;
+
+// In-memory (not persisted) selection for the 2-at-a-time merge flow —
+// intentionally session-scoped only; there's no reason to remember a
+// half-finished merge selection across modal closes.
+var _chronicMergeSelection = [];
+
+function _renderChronicModal() {
+  var body = document.getElementById('chronic-modal-body');
+  if (!body) return;
+  var settings = ChronicIndex.getSettings();
+  var winMs = ChronicIndex.windowMsFor(settings);
+  var locations = ChronicIndex.getAll()
+    .map(function(loc) {
+      var count = ChronicIndex.countInWindow(loc, winMs);
+      return { key: loc.key, displayLabel: loc.displayLabel, count: count };
+    })
+    .sort(function(a, b) { return b.count - a.count; });
+
+  var windowHtml =
+    '<div style="background:#fafafa;border:1.5px solid #e5e7eb;border-radius:9px;padding:10px 12px;margin-bottom:12px">' +
+      '<div style="font-family:Syne,sans-serif;font-weight:800;font-size:0.66rem;color:#444;margin-bottom:8px">TIME WINDOW</div>' +
+      '<div style="display:flex;align-items:center;gap:6px;font-family:\'Space Mono\',monospace;font-size:0.62rem;color:#444;flex-wrap:wrap">' +
+        '<span>Count photos in the last</span>' +
+        '<input type="number" id="chronic-window-n" min="1" value="' + settings.windowN + '" style="width:52px;padding:6px;border:1px solid #ddd;border-radius:6px;text-align:center">' +
+        '<select id="chronic-window-unit" style="padding:6px;border:1px solid #ddd;border-radius:6px">' +
+          ['days','weeks','months','years'].map(function(u) { return '<option value="' + u + '"' + (u===settings.windowUnit?' selected':'') + '>' + u + '</option>'; }).join('') +
+        '</select>' +
+      '</div>' +
+    '</div>';
+
+  var radiusHtml =
+    '<div style="background:#fafafa;border:1.5px solid #e5e7eb;border-radius:9px;padding:10px 12px;margin-bottom:12px">' +
+      '<div style="font-family:Syne,sans-serif;font-weight:800;font-size:0.66rem;color:#444;margin-bottom:4px">PROXIMITY GROUPING <span style="font-weight:400;color:#999">— heat-map layer only</span></div>' +
+      '<div style="font-family:\'Space Mono\',monospace;font-size:0.54rem;color:#888;margin-bottom:8px;line-height:1.5">Treat photos taken within this distance of each other as the same spot when drawing map markers. Doesn\'t change the Locations list below, exports, or merging — those stay at exact address/GPS precision.</div>' +
+      '<select id="chronic-radius-select" style="width:100%;padding:8px;border:1px solid #ddd;border-radius:6px;font-family:\'Space Mono\',monospace;font-size:0.62rem;background:white">' +
+        ChronicIndex.RADIUS_OPTIONS.map(function(o) { return '<option value="' + o.meters + '"' + (o.meters === settings.clusterRadiusMeters ? ' selected' : '') + '>' + escHtml(o.label) + '</option>'; }).join('') +
+      '</select>' +
+    '</div>';
+
+  var applySettingsHtml = '<button onclick="applyChronicWindow()" style="width:100%;margin-bottom:12px;padding:9px;background:#444;color:white;border:none;border-radius:6px;font-family:Syne,sans-serif;font-weight:800;font-size:0.6rem;cursor:pointer">Apply Settings</button>';
+
+  var thresholdRows = settings.thresholds.slice().sort(function(a, b) { return a.min - b.min; }).map(function(t, i) {
+    return '<div style="display:flex;align-items:center;gap:6px;margin-bottom:6px">' +
+      '<span style="font-family:\'Space Mono\',monospace;font-size:0.56rem;color:#888;flex-shrink:0">≥</span>' +
+      '<input type="number" min="1" value="' + t.min + '" onchange="updateChronicThresholdField(' + i + ',\'min\',this.value)" style="width:44px;padding:6px;border:1px solid #ddd;border-radius:6px;text-align:center;font-size:0.6rem">' +
+      '<input type="color" value="' + t.color + '" onchange="updateChronicThresholdField(' + i + ',\'color\',this.value)" style="width:32px;height:30px;border:1px solid #ddd;border-radius:6px;cursor:pointer;padding:1px">' +
+      '<input type="text" value="' + escHtml(t.label) + '" onchange="updateChronicThresholdField(' + i + ',\'label\',this.value)" style="flex:1;min-width:0;padding:6px;border:1px solid #ddd;border-radius:6px;font-size:0.6rem" placeholder="Label">' +
+      '<button data-fn="removeChronicThreshold" data-arg="' + i + '" style="flex-shrink:0;background:none;border:none;color:#bbb;font-size:0.9rem;cursor:pointer;padding:0 4px">✕</button>' +
+    '</div>';
+  }).join('');
+
+  var thresholdsHtml =
+    '<div style="background:#fafafa;border:1.5px solid #e5e7eb;border-radius:9px;padding:10px 12px;margin-bottom:12px">' +
+      '<div style="font-family:Syne,sans-serif;font-weight:800;font-size:0.66rem;color:#444;margin-bottom:8px">SEVERITY THRESHOLDS <span style="font-weight:400;color:#999">— at least N photos in-window</span></div>' +
+      thresholdRows +
+      '<button data-fn="addChronicThreshold" style="width:100%;padding:7px;background:none;border:1px dashed #ccc;color:#666;border-radius:6px;font-family:\'Space Mono\',monospace;font-size:0.56rem;cursor:pointer;margin-top:2px">+ Add Threshold</button>' +
+    '</div>';
+
+  var locRows = locations.length
+    ? locations.map(function(loc) {
+        var sev = ChronicIndex.severityFor(loc.count, settings);
+        var checked = _chronicMergeSelection.indexOf(loc.key) !== -1;
+        return '<div style="display:flex;align-items:center;gap:8px;padding:7px 2px;border-bottom:1px solid #eee">' +
+          '<input type="checkbox"' + (checked ? ' checked' : '') + ' data-fn="toggleChronicMergeSelectUI" data-arg="' + escHtml(loc.key) + '" style="flex-shrink:0;width:15px;height:15px;cursor:pointer">' +
+          '<span style="flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-family:\'Space Mono\',monospace;font-size:0.6rem;color:#333">' + escHtml(loc.displayLabel || loc.key) + '</span>' +
+          '<span style="flex-shrink:0;font-family:\'Space Mono\',monospace;font-size:0.56rem;color:' + (sev ? sev.color : '#bbb') + ';font-weight:700">' + loc.count + (sev ? ' · ' + escHtml(sev.label) : '') + '</span>' +
+          '<button data-fn="deleteChronicLocationUI" data-arg="' + escHtml(loc.key) + '" style="flex-shrink:0;background:none;border:none;color:#bbb;font-size:0.85rem;cursor:pointer;padding:0 3px">✕</button>' +
+        '</div>';
+      }).join('')
+    : '<div style="font-family:\'Space Mono\',monospace;font-size:0.58rem;color:#999;padding:6px 2px">No photos tracked yet — stamp a photo with an address or GPS to start building this list.</div>';
+
+  var locsHtml =
+    '<div style="background:#fafafa;border:1.5px solid #e5e7eb;border-radius:9px;padding:10px 12px">' +
+      '<div style="font-family:Syne,sans-serif;font-weight:800;font-size:0.66rem;color:#444;margin-bottom:2px">📍 LOCATIONS <span style="font-weight:400;color:#999">(' + locations.length + ')</span></div>' +
+      '<div style="font-family:\'Space Mono\',monospace;font-size:0.52rem;color:#999;margin-bottom:6px">Check exactly 2 to merge (address typos, grid-boundary splits) — the lower count folds into the higher.</div>' +
+      '<div style="max-height:220px;overflow-y:auto;margin-bottom:8px">' + locRows + '</div>' +
+      '<button data-fn="mergeSelectedChronicLocations" style="width:100%;padding:8px;background:' + (_chronicMergeSelection.length === 2 ? '#444' : '#ddd') + ';color:white;border:none;border-radius:6px;font-family:Syne,sans-serif;font-weight:800;font-size:0.58rem;cursor:' + (_chronicMergeSelection.length === 2 ? 'pointer' : 'default') + '">⇄ Merge Selected (' + _chronicMergeSelection.length + '/2)</button>' +
+    '</div>';
+
+  body.innerHTML = windowHtml + radiusHtml + applySettingsHtml + thresholdsHtml + locsHtml;
+}
+window._renderChronicModal = _renderChronicModal;
+
+function applyChronicWindow() {
+  var nEl = document.getElementById('chronic-window-n');
+  var uEl = document.getElementById('chronic-window-unit');
+  var rEl = document.getElementById('chronic-radius-select');
+  if (!nEl || !uEl) return;
+  var n = parseInt(nEl.value, 10);
+  if (!n || n < 1) { showToast('Enter a valid number'); return; }
+  var settings = ChronicIndex.getSettings();
+  settings.windowN = n;
+  settings.windowUnit = uEl.value;
+  if (rEl) {
+    var radiusMeters = parseFloat(rEl.value);
+    settings.clusterRadiusMeters = isFinite(radiusMeters) ? radiusMeters : 0;
+  }
+  ChronicIndex.saveSettings(settings);
+  showToast('🔥 Settings updated');
+  _renderChronicModal();
+  try { _renderChronicEntry(); } catch(_e) {}
+  try { _redrawChronicLayer(); } catch(_e) {}
+}
+window.applyChronicWindow = applyChronicWindow;
+
+// field-level edits use inline onchange (not data-fn, which is click-only)
+// so typing in the label field doesn't fire on every keystroke — only on
+// blur/change, same as the rest of the app's text-input patterns.
+function updateChronicThresholdField(index, field, value) {
+  var settings = ChronicIndex.getSettings();
+  var thresholds = settings.thresholds.slice().sort(function(a, b) { return a.min - b.min; });
+  var t = thresholds[index];
+  if (!t) return;
+  if (field === 'min') {
+    var v = parseInt(value, 10);
+    if (!v || v < 1) return;
+    t.min = v;
+  } else if (field === 'color') {
+    if (value) t.color = value;
+  } else if (field === 'label') {
+    t.label = value;
+  }
+  settings.thresholds = thresholds;
+  ChronicIndex.saveSettings(settings);
+  // A min-value edit changes sort order — full re-render needed. Color/label
+  // edits don't reorder anything, so skip the re-render to avoid stealing
+  // focus out from under an in-progress edit in the next field.
+  if (field === 'min') _renderChronicModal();
+  try { _renderChronicEntry(); } catch(_e) {}
+  try { _redrawChronicLayer(); } catch(_e) {}
+}
+window.updateChronicThresholdField = updateChronicThresholdField;
+
+function addChronicThreshold() {
+  var settings = ChronicIndex.getSettings();
+  var thresholds = settings.thresholds.slice().sort(function(a, b) { return a.min - b.min; });
+  var lastMin = thresholds.length ? thresholds[thresholds.length - 1].min : 0;
+  var palette = ['#2ecc71', '#f1c40f', '#e67e22', '#e74c3c', '#9b59b6', '#34495e'];
+  thresholds.push({ min: lastMin + 2, color: palette[thresholds.length % palette.length], label: 'Level ' + (thresholds.length + 1) });
+  settings.thresholds = thresholds;
+  ChronicIndex.saveSettings(settings);
+  _renderChronicModal();
+  try { _redrawChronicLayer(); } catch(_e) {}
+}
+window.addChronicThreshold = addChronicThreshold;
+
+function removeChronicThreshold(index) {
+  index = parseInt(index, 10);
+  var settings = ChronicIndex.getSettings();
+  var thresholds = settings.thresholds.slice().sort(function(a, b) { return a.min - b.min; });
+  if (thresholds.length <= 1) { showToast('Keep at least one threshold'); return; }
+  thresholds.splice(index, 1);
+  settings.thresholds = thresholds;
+  ChronicIndex.saveSettings(settings);
+  _renderChronicModal();
+  try { _renderChronicEntry(); } catch(_e) {}
+  try { _redrawChronicLayer(); } catch(_e) {}
+}
+window.removeChronicThreshold = removeChronicThreshold;
+
+function deleteChronicLocationUI(key) {
+  if (!confirm('Remove this location from chronic tracking? This only affects the tracking index — your actual photos are untouched.')) return;
+  ChronicIndex.deleteLocation(key);
+  _chronicMergeSelection = _chronicMergeSelection.filter(function(k) { return k !== key; });
+  _renderChronicModal();
+  try { _renderChronicEntry(); } catch(_e) {}
+  try { _redrawChronicLayer(); } catch(_e) {}
+}
+window.deleteChronicLocationUI = deleteChronicLocationUI;
+
+function toggleChronicMergeSelectUI(key) {
+  var idx = _chronicMergeSelection.indexOf(key);
+  if (idx !== -1) {
+    _chronicMergeSelection.splice(idx, 1);
+  } else {
+    // Cap at 2 — picking a third silently bumps the oldest pick rather
+    // than blocking the tap, so the flow never feels "stuck."
+    if (_chronicMergeSelection.length >= 2) _chronicMergeSelection.shift();
+    _chronicMergeSelection.push(key);
+  }
+  _renderChronicModal();
+}
+window.toggleChronicMergeSelectUI = toggleChronicMergeSelectUI;
+
+function mergeSelectedChronicLocations() {
+  if (_chronicMergeSelection.length !== 2) return;
+  var settings = ChronicIndex.getSettings();
+  var winMs = ChronicIndex.windowMsFor(settings);
+  var a = ChronicIndex.getEntry(_chronicMergeSelection[0]);
+  var b = ChronicIndex.getEntry(_chronicMergeSelection[1]);
+  if (!a || !b) { _chronicMergeSelection = []; _renderChronicModal(); return; }
+  var countA = ChronicIndex.countInWindow(a, winMs), countB = ChronicIndex.countInWindow(b, winMs);
+  var aIsTarget = countA >= countB;
+  var targetKey = aIsTarget ? _chronicMergeSelection[0] : _chronicMergeSelection[1];
+  var sourceKey = aIsTarget ? _chronicMergeSelection[1] : _chronicMergeSelection[0];
+  var targetLabel = aIsTarget ? a.displayLabel : b.displayLabel;
+  if (!confirm('Merge into "' + targetLabel + '"? This combines both photo histories and cannot be undone.')) return;
+  ChronicIndex.merge(targetKey, sourceKey);
+  _chronicMergeSelection = [];
+  showToast('🔥 Locations merged');
+  _renderChronicModal();
+  try { _renderChronicEntry(); } catch(_e) {}
+  try { _redrawChronicLayer(); } catch(_e) {}
+}
+window.mergeSelectedChronicLocations = mergeSelectedChronicLocations;
+
+
 // ── GeoCache: cached neighborhood + ward polygons for offline lookup ─────────
 // On first lookup attempt, fetch the GeoJSON polygon collections from a known
 // CDN and stash them in IndexedDB for offline reuse. After that, point-in-
@@ -18094,27 +19552,52 @@ const GeoCache = (function() {
   ];
 
   var _dbPromise = null;
+  // 2026-07-18 fix: some environments (Safari private browsing is the
+  // known repeat offender, but any locked/corrupted DB can do this too)
+  // leave an indexedDB.open() request pending forever — neither
+  // onsuccess nor onerror ever fires. Without a timeout, every caller
+  // that awaits _open() (via _txGet/_txPut) hangs indefinitely, and the
+  // inline-GeoJSON fallback in getNeighborhoods()/getWards()/
+  // getPoliceDistricts() — which is sequenced AFTER that await inside
+  // the same try block — never gets a chance to run. Reported symptom:
+  // the Survey Mode neighborhood picker silently never populated (no
+  // error, no toast — just stuck on the placeholder), because it was
+  // waiting on a promise that was never going to settle.
+  //
+  // Fix: race every _open() call against a timeout. _dbPromise itself
+  // stays the real, un-timed-out promise so a successful late resolution
+  // still gets cached and reused normally — only the value handed back
+  // to THIS caller is timeout-guarded, so a hang degrades to "use the
+  // inline data this time" rather than "wait forever," and later calls
+  // still benefit if the real connection eventually comes through.
+  var _OPEN_TIMEOUT_MS = 4000;
   function _open() {
-    if (_dbPromise) return _dbPromise;
-    _dbPromise = new Promise(function(resolve, reject) {
-      try {
-        var req = indexedDB.open(DB_NAME, DB_VERSION);
-        req.onupgradeneeded = function() {
-          var db = req.result;
-          // Create both stores if missing — MapLayers shares this DB and
-          // either module may be the first to trigger an upgrade.
-          if (!db.objectStoreNames.contains(STORE)) {
-            db.createObjectStore(STORE, { keyPath: 'kind' });
-          }
-          if (!db.objectStoreNames.contains('mapLayers')) {
-            db.createObjectStore('mapLayers', { keyPath: 'id' });
-          }
-        };
-        req.onsuccess = function() { resolve(req.result); };
-        req.onerror = function() { reject(req.error); };
-      } catch(e) { reject(e); }
-    });
-    return _dbPromise;
+    if (!_dbPromise) {
+      _dbPromise = new Promise(function(resolve, reject) {
+        try {
+          var req = indexedDB.open(DB_NAME, DB_VERSION);
+          req.onupgradeneeded = function() {
+            var db = req.result;
+            // Create both stores if missing — MapLayers shares this DB and
+            // either module may be the first to trigger an upgrade.
+            if (!db.objectStoreNames.contains(STORE)) {
+              db.createObjectStore(STORE, { keyPath: 'kind' });
+            }
+            if (!db.objectStoreNames.contains('mapLayers')) {
+              db.createObjectStore('mapLayers', { keyPath: 'id' });
+            }
+          };
+          req.onsuccess = function() { resolve(req.result); };
+          req.onerror = function() { reject(req.error); };
+        } catch(e) { reject(e); }
+      });
+    }
+    return Promise.race([
+      _dbPromise,
+      new Promise(function(_resolve, reject) {
+        setTimeout(function() { reject(new Error('IndexedDB open timed out')); }, _OPEN_TIMEOUT_MS);
+      })
+    ]);
   }
 
   function _txGet(kind) {
@@ -19146,6 +20629,7 @@ async function openMapLayersPanel() {
     if (_agi && !_agi.src) _agi.src = ARCGIS_ICON_URI;
   } catch(_e) {}
   await renderMapLayersList();
+  try { _renderChronicEntry(); } catch(_e) {}
   Accessibility.modalOpened(modal, { onEscape: closeMapLayersPanel });
 }
 function closeMapLayersPanel() {
@@ -20212,6 +21696,7 @@ function _canShareFiles() {
 // Direct download — goes to Downloads folder on Android; triggers Save dialog on iOS
 function downloadStampedPhoto() {
   if (!_photoContext.stampedBlob) { showToast('No photo'); return; }
+  try { _recordChronicFromContext(); } catch(_e) {}
   var filename = _photoContext.filename || 'stamped.jpg';
   try {
     var url = URL.createObjectURL(_photoContext.stampedBlob);
@@ -20255,6 +21740,15 @@ async function shareStampedPhoto() {
           title: 'Stamped photos',
           text: files.length === 1 ? 'Stamped photo' : files.length + ' stamped photos'
         });
+        // Chronic tracking: this IS the save/commit point for iOS, where
+        // downloadStampedPhoto() is never called per-shot. Session batches
+        // record every not-yet-flagged shot; a lone single shot goes
+        // through the same _recordChronicFromContext used by Android.
+        if (_photoSession.active && _photoSession.shots.length > 0) {
+          try { _recordChronicFromSession(); } catch(_e) {}
+        } else {
+          try { _recordChronicFromContext(); } catch(_e) {}
+        }
         // Successful share — on iOS, treat as "saved" → end session cleanly
         if (_photoSession.active && _isIOS()) {
           showToast('✓ Saved ' + files.length + ' photo' + (files.length===1?'':'s'));
@@ -25646,6 +27140,427 @@ const PeriodReports = (function() {
 })();
 window.PeriodReports = PeriodReports;
 
+// ============================================================
+// SECTION: coverage-report
+// ============================================================
+// ── COVERAGE REPORT — neighborhood-scoped, not calendar-period-scoped ────────
+// Same reporting paradigm as PeriodReports (buildReport → formatAsText/CSV/
+// HTML, same CSV-escaping and HTML-document conventions) applied to a
+// different axis: "everything known about this neighborhood," not "what
+// happened this week." Deliberately a separate module rather than a new
+// PeriodReports period kind — periods are calendar-bounded and this isn't;
+// forcing it into that shape would mean either fake date bounds or a
+// special-cased "kind" that breaks periodBoundsFor's assumptions.
+//
+// Pulls together everything the Survey/Canvas feature has been tracking:
+//   - SurveySession log (how many separate visits, over what date range)
+//   - SurveyCoverage breadcrumb + checklist (how much ground got covered)
+//   - ChronicIndex locations tagged to this neighborhood (repeat-issue spots)
+//   - Photo log (existing per-stop metadata-only log — previously computed
+//     but never surfaced in any export; this is that export)
+//   - All-time stop totals for the neighborhood (not date-bounded, since
+//     a field assignment can span weeks/months — PeriodReports already
+//     covers the calendar-period view if that's what's wanted instead)
+const CoverageReport = (function() {
+  // All neighborhood names with real Survey Session history — the only
+  // neighborhoods that could possibly have checklist/breadcrumb/chronic
+  // data, since those are only ever written while scoped to an active
+  // session for that name. Used to populate the neighborhood picker.
+  function knownNeighborhoods() {
+    var names = {};
+    try {
+      SurveySession.getAllLog().forEach(function(s) {
+        if (s.neighborhoodName) names[s.neighborhoodName] = true;
+      });
+    } catch(_e) {}
+    try {
+      var active = SurveySession.getActive();
+      if (active && active.neighborhoodName) names[active.neighborhoodName] = true;
+    } catch(_e) {}
+    return Object.keys(names).sort();
+  }
+
+  // Stops (live + archived, deduped by id) tagged to this neighborhood —
+  // all-time, not date-bounded. Same dual-source pattern as
+  // PeriodReports._collectStops, keyed on neighborhoodName instead of a
+  // time window.
+  function _collectStops(neighborhoodName) {
+    var byId = {};
+    function consider(s) {
+      if (s && s.id != null && s.neighborhoodName === neighborhoodName) byId[s.id] = s;
+    }
+    try { (stops || []).forEach(consider); } catch(_e) {}
+    try { if (typeof StopArchive !== 'undefined') StopArchive.getAll().forEach(consider); } catch(_e) {}
+    return Object.keys(byId).map(function(k) { return byId[k]; });
+  }
+
+  function buildReport(neighborhoodName) {
+    var sessions = SurveySession.getLogFor(neighborhoodName);
+    var active = null;
+    try {
+      var a = SurveySession.getActive();
+      if (a && a.neighborhoodName === neighborhoodName) active = a;
+    } catch(_e) {}
+
+    var breadcrumb = (typeof SurveyCoverage !== 'undefined') ? SurveyCoverage.getBreadcrumb(neighborhoodName) : [];
+    var checklist = (typeof SurveyCoverage !== 'undefined') ? SurveyCoverage.getChecklist(neighborhoodName) : [];
+    var checklistChecked = checklist.filter(function(it) { return it.checked; }).length;
+
+    var chronicSettings = (typeof ChronicIndex !== 'undefined') ? ChronicIndex.getSettings() : null;
+    var chronicWinMs = chronicSettings ? ChronicIndex.windowMsFor(chronicSettings) : 0;
+    var chronicLocations = [];
+    if (typeof ChronicIndex !== 'undefined') {
+      chronicLocations = ChronicIndex.getAll()
+        .filter(function(loc) { return loc.neighborhoodName === neighborhoodName; })
+        .map(function(loc) {
+          var count = ChronicIndex.countInWindow(loc, chronicWinMs);
+          var sev = ChronicIndex.severityFor(count, chronicSettings);
+          return {
+            displayLabel: loc.displayLabel, address: loc.address, gps: loc.gps,
+            totalPhotos: loc.photos.length, countInWindow: count,
+            severityLabel: sev ? sev.label : null, severityColor: sev ? sev.color : null
+          };
+        })
+        .sort(function(a, b) { return b.countInWindow - a.countInWindow; });
+    }
+
+    var neighborhoodStops = _collectStops(neighborhoodName);
+    var completedStops = neighborhoodStops.filter(function(s) { return s.done; });
+    var stopsWithPhotos = neighborhoodStops
+      .filter(function(s) { return s.photoCount > 0; })
+      .map(function(s) {
+        var log = (typeof _getPhotoLog === 'function') ? _getPhotoLog(s.id) : [];
+        return { address: s.address, type: s.type, photoCount: s.photoCount || log.length, photos: log };
+      });
+    var totalLoggedPhotos = stopsWithPhotos.reduce(function(sum, s) { return sum + s.photos.length; }, 0);
+
+    var breadcrumbFirstMs = breadcrumb.length ? breadcrumb[0][2] : null;
+    var breadcrumbLastMs = breadcrumb.length ? breadcrumb[breadcrumb.length - 1][2] : null;
+
+    return {
+      neighborhoodName: neighborhoodName,
+      generatedAt: new Date().toISOString(),
+      active: active,
+      sessions: sessions,
+      coverage: {
+        breadcrumbPointCount: breadcrumb.length,
+        breadcrumbFirstMs: breadcrumbFirstMs,
+        breadcrumbLastMs: breadcrumbLastMs,
+        checklistTotal: checklist.length,
+        checklistChecked: checklistChecked,
+        checklist: checklist
+      },
+      chronic: {
+        settings: chronicSettings,
+        locations: chronicLocations
+      },
+      stops: {
+        total: neighborhoodStops.length,
+        completed: completedStops.length,
+        completionRate: neighborhoodStops.length ? Math.round((completedStops.length / neighborhoodStops.length) * 100) : 0
+      },
+      photoLog: {
+        stopsWithPhotos: stopsWithPhotos,
+        totalLoggedPhotos: totalLoggedPhotos
+      }
+    };
+  }
+
+  // ── Formatters — same conventions as PeriodReports (CSV escaping, plain
+  // text for pasting, self-contained HTML document for printing/PDF) ──────
+
+  function formatAsCSV(report) {
+    function esc(v) {
+      if (v == null) return '';
+      var s = String(v);
+      if (s.indexOf(',') >= 0 || s.indexOf('"') >= 0 || s.indexOf('\n') >= 0) {
+        return '"' + s.replace(/"/g, '""') + '"';
+      }
+      return s;
+    }
+    var rows = [];
+    rows.push(['# CityRoute Coverage & Activity Report — ' + report.neighborhoodName].join(','));
+    rows.push(['# Generated ' + new Date(report.generatedAt).toLocaleString()].join(','));
+    rows.push([]);
+
+    rows.push(['SESSIONS'].join(','));
+    rows.push(['StartedAt', 'EndedAt'].join(','));
+    report.sessions.forEach(function(s) {
+      rows.push([esc(s.startedAt), esc(s.endedAt)].join(','));
+    });
+    if (report.active) rows.push([esc(report.active.startedAt), 'in progress'].join(','));
+    rows.push([]);
+
+    rows.push(['COVERAGE CHECKLIST'].join(','));
+    rows.push(['Item', 'Type', 'Covered'].join(','));
+    report.coverage.checklist.forEach(function(it) {
+      rows.push([esc(it.name), esc(it.isAlley ? 'alley' : 'street'), esc(it.checked ? 'yes' : 'no')].join(','));
+    });
+    rows.push([]);
+
+    rows.push(['CHRONIC LOCATIONS'].join(','));
+    rows.push(['Location', 'PhotosInWindow', 'TotalPhotosEver', 'Severity'].join(','));
+    report.chronic.locations.forEach(function(loc) {
+      rows.push([esc(loc.displayLabel), esc(loc.countInWindow), esc(loc.totalPhotos), esc(loc.severityLabel || '')].join(','));
+    });
+    rows.push([]);
+
+    rows.push(['PHOTO LOG'].join(','));
+    rows.push(['Address', 'Type', 'Filename', 'Timestamp'].join(','));
+    report.photoLog.stopsWithPhotos.forEach(function(s) {
+      s.photos.forEach(function(p) {
+        rows.push([esc(s.address), esc(s.type), esc(p.filename), esc(p.timestamp)].join(','));
+      });
+    });
+    return rows.join('\n');
+  }
+
+  function formatAsText(report) {
+    var c = report.coverage, ch = report.chronic, st = report.stops, pl = report.photoLog;
+    var lines = [];
+    lines.push('CityRoute Coverage & Activity — ' + report.neighborhoodName);
+    lines.push('—');
+    lines.push('Generated ' + new Date(report.generatedAt).toLocaleString());
+    lines.push('');
+
+    var sessionCount = report.sessions.length + (report.active ? 1 : 0);
+    lines.push(sessionCount + ' survey session' + (sessionCount === 1 ? '' : 's') + (report.active ? ' (1 in progress)' : ''));
+    lines.push(st.total + ' stops · ' + st.completed + ' completed (' + st.completionRate + '%)');
+    lines.push('');
+
+    lines.push('COVERAGE');
+    lines.push(c.breadcrumbPointCount + ' breadcrumb points tracked' + (c.breadcrumbFirstMs ? (' (' + new Date(c.breadcrumbFirstMs).toLocaleDateString() + ' – ' + new Date(c.breadcrumbLastMs).toLocaleDateString() + ')') : ''));
+    lines.push('Checklist: ' + c.checklistChecked + '/' + c.checklistTotal + ' covered');
+    var uncovered = c.checklist.filter(function(it) { return !it.checked; });
+    if (uncovered.length) {
+      lines.push('Not yet covered: ' + uncovered.map(function(it) { return it.name; }).join(', '));
+    }
+    lines.push('');
+
+    if (ch.locations.length) {
+      lines.push('CHRONIC LOCATIONS (' + ch.locations.length + ')');
+      ch.locations.slice(0, 10).forEach(function(loc) {
+        lines.push('  ' + loc.displayLabel + ' — ' + loc.countInWindow + ' photo' + (loc.countInWindow === 1 ? '' : 's') + (loc.severityLabel ? ' · ' + loc.severityLabel : ''));
+      });
+      lines.push('');
+    }
+
+    if (pl.stopsWithPhotos.length) {
+      lines.push('PHOTO LOG — ' + pl.totalLoggedPhotos + ' photos across ' + pl.stopsWithPhotos.length + ' stop' + (pl.stopsWithPhotos.length === 1 ? '' : 's'));
+    }
+
+    return lines.join('\n');
+  }
+
+  function formatAsHTML(report) {
+    var safe = function(x) {
+      if (x == null) return '';
+      return String(x).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+    };
+    var c = report.coverage, ch = report.chronic, st = report.stops, pl = report.photoLog;
+
+    var sessionRows = report.sessions.slice().reverse().map(function(s) {
+      return '<tr><td style="padding:4px 8px">' + safe(new Date(s.startedAt).toLocaleString()) + '</td>' +
+        '<td style="padding:4px 8px">' + safe(new Date(s.endedAt).toLocaleString()) + '</td></tr>';
+    }).join('');
+    if (report.active) {
+      sessionRows = '<tr style="background:#fff8c5"><td style="padding:4px 8px">' + safe(new Date(report.active.startedAt).toLocaleString()) + '</td>' +
+        '<td style="padding:4px 8px"><b>in progress</b></td></tr>' + sessionRows;
+    }
+
+    var checklistRows = c.checklist.map(function(it) {
+      return '<tr><td style="padding:4px 8px">' + (it.checked ? '✓' : '○') + '</td>' +
+        '<td style="padding:4px 8px">' + safe(it.name) + (it.isAlley ? ' <span style="color:#999">(alley)</span>' : '') + '</td></tr>';
+    }).join('');
+
+    var chronicRows = ch.locations.map(function(loc) {
+      return '<tr><td style="padding:4px 8px">' + safe(loc.displayLabel) + '</td>' +
+        '<td style="padding:4px 8px;text-align:right"><b>' + loc.countInWindow + '</b></td>' +
+        '<td style="padding:4px 8px;color:' + safe(loc.severityColor || '#888') + ';font-weight:700">' + safe(loc.severityLabel || '') + '</td></tr>';
+    }).join('');
+
+    var photoRows = [];
+    pl.stopsWithPhotos.forEach(function(s) {
+      s.photos.forEach(function(p) {
+        photoRows.push('<tr><td style="padding:4px 8px">' + safe(s.address) + '</td>' +
+          '<td style="padding:4px 8px">' + safe(p.filename) + '</td>' +
+          '<td style="padding:4px 8px;color:#666;font-size:11px">' + safe(new Date(p.timestamp).toLocaleString()) + '</td></tr>');
+      });
+    });
+
+    var head = '<!doctype html><html><head><meta charset="utf-8">' +
+      '<title>CityRoute Coverage — ' + safe(report.neighborhoodName) + '</title>' +
+      '<meta name="viewport" content="width=device-width, initial-scale=1">' +
+      '<style>' +
+        'body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;color:#222;margin:0;padding:24px;background:#fafaf6;line-height:1.5}' +
+        '.report{max-width:780px;margin:0 auto;background:white;padding:32px 36px;border-radius:14px;box-shadow:0 2px 12px rgba(0,0,0,0.06)}' +
+        'h1{font-size:24px;margin:0 0 4px;color:#1a3320;letter-spacing:-0.5px}' +
+        'h2{font-size:16px;margin:24px 0 10px;color:#444;letter-spacing:0.5px;text-transform:uppercase}' +
+        '.meta{color:#888;font-size:12px;margin-bottom:18px}' +
+        '.kpi-row{display:flex;gap:14px;flex-wrap:wrap;margin:12px 0 18px}' +
+        '.kpi{flex:1;min-width:120px;background:#f1f8e9;border-radius:10px;padding:12px 14px;border:1px solid #e0eed5}' +
+        '.kpi-num{font-size:26px;font-weight:800;color:#1a5c34;line-height:1.1}' +
+        '.kpi-label{font-size:11px;color:#666;text-transform:uppercase;letter-spacing:0.5px;margin-top:2px}' +
+        'table{border-collapse:collapse;width:100%;font-size:13px}' +
+        '@media print{body{background:white;padding:0}.report{box-shadow:none;border-radius:0;padding:18mm 16mm;max-width:none}h1{font-size:20px}.kpi{break-inside:avoid}}' +
+      '</style></head><body><div class="report">';
+
+    var html = head +
+      '<h1>Coverage &amp; Activity — ' + safe(report.neighborhoodName) + (report.active ? ' <span style="background:#fff8c5;color:#7a5000;padding:3px 9px;border-radius:10px;font-size:11px;font-weight:700;letter-spacing:0.5px;margin-left:10px">IN PROGRESS</span>' : '') + '</h1>' +
+      '<div class="meta">Generated ' + new Date(report.generatedAt).toLocaleString() + '</div>' +
+      '<div class="kpi-row">' +
+        '<div class="kpi"><div class="kpi-num">' + (report.sessions.length + (report.active ? 1 : 0)) + '</div><div class="kpi-label">Sessions</div></div>' +
+        '<div class="kpi"><div class="kpi-num">' + st.total + '</div><div class="kpi-label">Stops</div></div>' +
+        '<div class="kpi"><div class="kpi-num">' + st.completionRate + '%</div><div class="kpi-label">Close rate</div></div>' +
+        '<div class="kpi"><div class="kpi-num">' + c.checklistChecked + '/' + c.checklistTotal + '</div><div class="kpi-label">Checklist covered</div></div>' +
+      '</div>';
+
+    html += '<h2>Sessions</h2><table>' + (sessionRows || '<tr><td style="padding:4px 8px;color:#999">No sessions logged.</td></tr>') + '</table>';
+    html += '<h2>Coverage checklist</h2><table>' + (checklistRows || '<tr><td style="padding:4px 8px;color:#999">No checklist items.</td></tr>') + '</table>';
+    if (c.breadcrumbPointCount) {
+      html += '<div style="font-size:13px;color:#666;margin-top:6px">' + c.breadcrumbPointCount + ' breadcrumb points tracked' +
+        (c.breadcrumbFirstMs ? (' from ' + new Date(c.breadcrumbFirstMs).toLocaleDateString() + ' to ' + new Date(c.breadcrumbLastMs).toLocaleDateString()) : '') + '</div>';
+    }
+    if (ch.locations.length) {
+      html += '<h2>Chronic locations (' + ch.locations.length + ')</h2><table>' + chronicRows + '</table>';
+    }
+    if (photoRows.length) {
+      html += '<h2>Photo log (' + pl.totalLoggedPhotos + ')</h2><table>' + photoRows.join('') + '</table>';
+    }
+
+    html += '</div></body></html>';
+    return html;
+  }
+
+  return {
+    knownNeighborhoods: knownNeighborhoods,
+    buildReport: buildReport,
+    formatAsCSV: formatAsCSV,
+    formatAsText: formatAsText,
+    formatAsHTML: formatAsHTML
+  };
+})();
+window.CoverageReport = CoverageReport;
+
+// ── Coverage Report UI — same share/download conventions as the Period
+// Report handlers (copyPeriodReport/downloadPeriodCSV/downloadPeriodHTML),
+// scoped to a neighborhood picker instead of a period navigator. ──────────
+var _lastCoverageReport = null;
+
+function openCoverageReportModal() {
+  var modal = document.getElementById('coverage-report-modal');
+  modal.style.display = 'flex';
+  _renderCoverageReportModal();
+  Accessibility.modalOpened(modal, { onEscape: closeCoverageReportModal });
+}
+function closeCoverageReportModal() {
+  var modal = document.getElementById('coverage-report-modal');
+  modal.style.display = 'none';
+  Accessibility.modalClosed(modal);
+}
+window.openCoverageReportModal  = openCoverageReportModal;
+window.closeCoverageReportModal = closeCoverageReportModal;
+
+function _renderCoverageReportModal() {
+  var body = document.getElementById('coverage-report-body');
+  if (!body) return;
+  var names = CoverageReport.knownNeighborhoods();
+  if (!names.length) {
+    body.innerHTML = '<div style="font-family:\'Space Mono\',monospace;font-size:0.6rem;color:#999;padding:8px 2px">No neighborhood has any survey history yet — start a survey first.</div>';
+    return;
+  }
+  // Default selection: the currently active survey's neighborhood if one
+  // exists, else whatever was last picked, else the first alphabetically.
+  var active = null;
+  try { active = SurveySession.getActive(); } catch(_e) {}
+  var defaultName = (active && active.neighborhoodName) ||
+    (_lastCoverageReport && _lastCoverageReport.neighborhoodName) || names[0];
+  if (names.indexOf(defaultName) === -1) defaultName = names[0];
+
+  var pickerHtml =
+    '<select id="coverage-report-nbhd-select" onchange="generateCoverageReportUI(this.value)" style="width:100%;padding:9px;border:1px solid #ddd;border-radius:7px;font-family:\'Space Mono\',monospace;font-size:0.64rem;margin-bottom:12px;background:white">' +
+    names.map(function(n) { return '<option value="' + escHtml(n) + '"' + (n === defaultName ? ' selected' : '') + '>' + escHtml(n) + '</option>'; }).join('') +
+    '</select>' +
+    '<div id="coverage-report-preview"></div>';
+  body.innerHTML = pickerHtml;
+  generateCoverageReportUI(defaultName);
+}
+window._renderCoverageReportModal = _renderCoverageReportModal;
+
+function generateCoverageReportUI(neighborhoodName) {
+  var preview = document.getElementById('coverage-report-preview');
+  if (!preview) return;
+  var report = CoverageReport.buildReport(neighborhoodName);
+  _lastCoverageReport = report;
+
+  var sessionCount = report.sessions.length + (report.active ? 1 : 0);
+  var c = report.coverage, ch = report.chronic, st = report.stops, pl = report.photoLog;
+  preview.innerHTML =
+    '<div style="background:#fafafa;border:1.5px solid #e5e7eb;border-radius:9px;padding:12px;margin-bottom:12px;font-family:\'Space Mono\',monospace;font-size:0.62rem;color:#444;line-height:1.9">' +
+      '<div>' + sessionCount + ' survey session' + (sessionCount === 1 ? '' : 's') + (report.active ? ' <span style="color:#7a5000">(1 in progress)</span>' : '') + '</div>' +
+      '<div>' + st.total + ' stops · ' + st.completed + ' completed (' + st.completionRate + '%)</div>' +
+      '<div>' + c.checklistChecked + '/' + c.checklistTotal + ' checklist items covered</div>' +
+      '<div>' + c.breadcrumbPointCount + ' breadcrumb points tracked</div>' +
+      '<div>' + ch.locations.length + ' chronic location' + (ch.locations.length === 1 ? '' : 's') + '</div>' +
+      '<div>' + pl.totalLoggedPhotos + ' logged photo' + (pl.totalLoggedPhotos === 1 ? '' : 's') + ' across ' + pl.stopsWithPhotos.length + ' stop' + (pl.stopsWithPhotos.length === 1 ? '' : 's') + '</div>' +
+    '</div>' +
+    '<div style="display:flex;flex-direction:column;gap:7px">' +
+      '<button data-fn="copyCoverageReport" style="width:100%;padding:10px;background:#444;color:white;border:none;border-radius:7px;font-family:Syne,sans-serif;font-weight:800;font-size:0.62rem;cursor:pointer">📋 Copy Text Summary</button>' +
+      '<button data-fn="downloadCoverageReportCSV" style="width:100%;padding:10px;background:none;border:1.5px solid #444;color:#444;border-radius:7px;font-family:Syne,sans-serif;font-weight:800;font-size:0.62rem;cursor:pointer">⬇ Download CSV</button>' +
+      '<button data-fn="downloadCoverageReportHTML" style="width:100%;padding:10px;background:none;border:1.5px solid #444;color:#444;border-radius:7px;font-family:Syne,sans-serif;font-weight:800;font-size:0.62rem;cursor:pointer">⬇ Download HTML (prints to PDF)</button>' +
+    '</div>';
+}
+window.generateCoverageReportUI = generateCoverageReportUI;
+
+function copyCoverageReport() {
+  if (!_lastCoverageReport) return;
+  var text = CoverageReport.formatAsText(_lastCoverageReport);
+  if (navigator.clipboard && navigator.clipboard.writeText) {
+    navigator.clipboard.writeText(text).then(function() {
+      showToast('📋 Copied to clipboard ✓');
+    }).catch(function() { _showDataModal(text); });
+  } else {
+    _showDataModal(text);
+  }
+}
+window.copyCoverageReport = copyCoverageReport;
+
+function downloadCoverageReportCSV() {
+  if (!_lastCoverageReport) return;
+  _coverageReportDownload(CoverageReport.formatAsCSV(_lastCoverageReport), 'csv', 'text/csv');
+}
+function downloadCoverageReportHTML() {
+  if (!_lastCoverageReport) return;
+  _coverageReportDownload(CoverageReport.formatAsHTML(_lastCoverageReport), 'html', 'text/html');
+}
+window.downloadCoverageReportCSV  = downloadCoverageReportCSV;
+window.downloadCoverageReportHTML = downloadCoverageReportHTML;
+
+// Same fallback chain as _periodDownload: blob download -> clipboard -> modal.
+function _coverageReportDownload(content, ext, mime) {
+  var name = (_lastCoverageReport && _lastCoverageReport.neighborhoodName) || 'coverage';
+  var slug = name.replace(/[^a-zA-Z0-9]+/g, '_').replace(/^_+|_+$/g, '');
+  var filename = 'CityRoute_Coverage_' + slug + '.' + ext;
+  try {
+    var blob = new Blob([content], { type: mime });
+    var url = URL.createObjectURL(blob);
+    var a = document.createElement('a');
+    a.href = url; a.download = filename; a.style.display = 'none';
+    document.body.appendChild(a);
+    a.click();
+    setTimeout(function() { URL.revokeObjectURL(url); document.body.removeChild(a); }, 2000);
+    showToast('Downloaded ' + filename + ' ✓');
+    return;
+  } catch(e) {}
+  if (navigator.clipboard && navigator.clipboard.writeText) {
+    navigator.clipboard.writeText(content).then(function() {
+      showToast(ext.toUpperCase() + ' copied to clipboard');
+    }).catch(function() { _showDataModal(content); });
+  } else {
+    _showDataModal(content);
+  }
+}
+
 // ── Render data tab ───────────────────────────────────────────────────────────
 function renderDataTab() {
   var m = computeMetrics(_dataRange);
@@ -26826,6 +28741,14 @@ function wizSaveRole() {
       Toggle layers on or off. Custom layers from a list of addresses can be added below.
     </div>
 
+    <!-- Chronic Photo Activity — entry point only; full settings/locations
+         live in their own modal (chronic-modal) to keep this panel from
+         getting overloaded. -->
+    <div style="margin-bottom:14px;padding-bottom:12px;border-bottom:2px solid #eee">
+      <div style="font-family:'Syne',sans-serif;font-weight:800;font-size:0.72rem;color:#c0392b;margin-bottom:8px;letter-spacing:0.5px">🔥 CHRONIC PHOTO ACTIVITY</div>
+      <div id="chronic-entry-body"><!-- filled by _renderChronicEntry() --></div>
+    </div>
+
     <div id="map-layers-list" style="display:flex;flex-direction:column;gap:0">
       <!-- filled by renderMapLayersList() -->
     </div>
@@ -26865,6 +28788,56 @@ function wizSaveRole() {
         </button>
       </div>
     </div>
+  </div>
+</div>
+
+<!-- ===== SURVEY MODE MODAL ===== -->
+<!-- 2026-07-18: moved out of the Map Layers modal into its own dedicated
+     modal, opened from the Route tab button that used to be "Navigate
+     Route" (btn-survey-mode). Content id (survey-panel-body) is
+     unchanged from its old home — only the surrounding modal moved, so
+     _renderSurveyPanel() didn't need any changes. -->
+<div id="survey-mode-modal" class="modal-overlay" style="display:none;z-index:9740" role="dialog" aria-modal="true" aria-labelledby="survey-mode-modal-title" data-backdrop-close data-fn="closeSurveyModeModal">
+  <div class="modal-sheet" style="padding-bottom:24px;background:white;max-height:90dvh;overflow-y:auto">
+    <div class="modal-handle"></div>
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px">
+      <div id="survey-mode-modal-title" style="font-family:'Syne',sans-serif;font-weight:800;font-size:0.95rem;color:#1a4a8c">🧭 Survey Mode</div>
+      <button data-fn="closeSurveyModeModal" style="background:none;border:none;font-size:1.4rem;color:#aaa;cursor:pointer;padding:0 4px;line-height:1">✕</button>
+    </div>
+    <div style="font-family:'Space Mono',monospace;font-size:0.58rem;color:#666;margin-bottom:12px;line-height:1.5">
+      Scope your work to one neighborhood, track your GPS breadcrumb trail, and check off streets and alleys as you cover them.
+    </div>
+    <div id="survey-panel-body"><!-- filled by _renderSurveyPanel() --></div>
+  </div>
+</div>
+
+<!-- ===== CHRONIC PHOTO ACTIVITY MODAL ===== -->
+<div id="chronic-modal" class="modal-overlay" style="display:none;z-index:9750" role="dialog" aria-modal="true" aria-labelledby="chronic-modal-title" data-backdrop-close data-fn="closeChronicModal">
+  <div class="modal-sheet" style="padding-bottom:24px;background:white;max-height:90dvh;overflow-y:auto">
+    <div class="modal-handle"></div>
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px">
+      <div id="chronic-modal-title" style="font-family:'Syne',sans-serif;font-weight:800;font-size:0.95rem;color:#c0392b">🔥 Chronic Photo Activity</div>
+      <button data-fn="closeChronicModal" style="background:none;border:none;font-size:1.4rem;color:#aaa;cursor:pointer;padding:0 4px;line-height:1">✕</button>
+    </div>
+    <div style="font-family:'Space Mono',monospace;font-size:0.58rem;color:#666;margin-bottom:12px;line-height:1.5">
+      Every saved PhotoStamp photo is tagged to its address (or GPS spot if no address). Locations that keep coming up show as colored markers on the map — set how many photos, over what window, counts as a pattern.
+    </div>
+    <div id="chronic-modal-body"><!-- filled by _renderChronicModal() --></div>
+  </div>
+</div>
+
+<!-- ===== COVERAGE & ACTIVITY REPORT MODAL ===== -->
+<div id="coverage-report-modal" class="modal-overlay" style="display:none;z-index:9760" role="dialog" aria-modal="true" aria-labelledby="coverage-report-modal-title" data-backdrop-close data-fn="closeCoverageReportModal">
+  <div class="modal-sheet" style="padding-bottom:24px;background:white;max-height:90dvh;overflow-y:auto">
+    <div class="modal-handle"></div>
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px">
+      <div id="coverage-report-modal-title" style="font-family:'Syne',sans-serif;font-weight:800;font-size:0.95rem;color:#444">📄 Coverage &amp; Activity Report</div>
+      <button data-fn="closeCoverageReportModal" style="background:none;border:none;font-size:1.4rem;color:#aaa;cursor:pointer;padding:0 4px;line-height:1">✕</button>
+    </div>
+    <div style="font-family:'Space Mono',monospace;font-size:0.58rem;color:#666;margin-bottom:12px;line-height:1.5">
+      Sessions, coverage checklist, chronic locations, and the photo log — everything tracked for one neighborhood, pulled into one exportable report.
+    </div>
+    <div id="coverage-report-body"><!-- filled by _renderCoverageReportModal() --></div>
   </div>
 </div>
 
