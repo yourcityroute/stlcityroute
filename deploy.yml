@@ -1,0 +1,142 @@
+name: Deploy STLCityRoute
+
+on:
+  push:
+    branches: [ main ]
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Generate version
+        id: ver
+        run: echo "V=$(date +'%Y%m%d')-$(git rev-parse --short HEAD)" >> $GITHUB_OUTPUT
+
+      - name: Stamp version into sw.js
+        run: sed -i "s/%%VERSION%%/${{ steps.ver.outputs.V }}/g" sw.js
+
+      - name: Stamp version into index.html
+        run: sed -i "s/%%VERSION%%/${{ steps.ver.outputs.V }}/g" index.html
+
+      # ────────────────────────────────────────────────────────────────────
+      # CSP script hashes — replaces script-src 'unsafe-inline' with
+      # per-block sha256 hashes so injected inline script cannot execute.
+      #
+      # MUST run AFTER version stamping: stamping changes script text,
+      # which changes the hashes. Order matters.
+      #
+      # SELF-GATING: hash-source CSP blocks inline event handler
+      # attributes (onclick= etc.), which hashes cannot cover. Until the
+      # codebase has zero of those, this step deploys the file UNCHANGED
+      # (keeping 'unsafe-inline') and prints the remaining count. Once the
+      # handler migration lands, the flip happens automatically — no YAML
+      # change, no coordination between repos.
+      #
+      # The step FAILS the build only on integrity problems (wrong number
+      # of script blocks, CSP directive not found when flipping) — never
+      # on the not-ready-yet case.
+      - name: CSP script hashes
+        run: |
+          node - <<'EOF'
+          const fs = require('fs');
+          const crypto = require('crypto');
+
+          const FILE = 'index.html';
+          let html = fs.readFileSync(FILE, 'utf8');
+
+          // ── Extract the inline script blocks ──────────────────────────
+          // Negative lookahead skips src= scripts (and the historical CSP
+          // meta gotcha of a literal <script src="evil"> inside an
+          // attribute value). Non-greedy pair matching; integrity is
+          // asserted below.
+          const re = /<script(?![^>]*src)[^>]*>([\s\S]*?)<\/script>/g;
+          const blocks = [];
+          let m;
+          while ((m = re.exec(html)) !== null) blocks.push(m[1]);
+
+          if (blocks.length !== 3) {
+            console.error('FATAL: expected exactly 3 inline <script> blocks, found ' + blocks.length);
+            console.error('Refusing to deploy — extraction integrity cannot be trusted.');
+            process.exit(1);
+          }
+
+          // ── Readiness gate: inline event handlers ─────────────────────
+          // Hash-source CSP blocks on*="" attributes and javascript: URLs;
+          // hashes cannot whitelist them. If any remain, deploy unchanged.
+          const handlers = (html.match(/ on[a-z]+="/g) || []).length;
+          const jsUrls   = (html.match(/href="javascript:/g) || []).length;
+          if (handlers > 0 || jsUrls > 0) {
+            console.log('CSP hash flip NOT YET ACTIVE — file still contains:');
+            console.log('  inline event handler attributes: ' + handlers);
+            console.log('  javascript: URLs: ' + jsUrls);
+            console.log('Deploying with unsafe-inline (unchanged) until these reach zero.');
+            process.exit(0);
+          }
+
+          // ── Compute hashes and rewrite the CSP ────────────────────────
+          const hashes = blocks.map(b =>
+            "'sha256-" + crypto.createHash('sha256').update(b, 'utf8').digest('base64') + "'"
+          );
+
+          const target = "script-src 'self' 'unsafe-inline'";
+          const occurrences = html.split(target).length - 1;
+          if (occurrences === 0) {
+            console.error('FATAL: expected CSP fragment not found: ' + target);
+            console.error('Either the CSP meta changed shape (update this step), or this file');
+            console.error('was already flipped (the repo copy should always keep unsafe-inline).');
+            process.exit(1);
+          }
+          if (occurrences > 1) {
+            console.error('FATAL: CSP fragment appears ' + occurrences + ' times — replace would be');
+            console.error('ambiguous (a comment or string literal may contain the same text).');
+            process.exit(1);
+          }
+          html = html.replace(target, "script-src 'self' " + hashes.join(' '));
+          fs.writeFileSync(FILE, html);
+
+          // ── Verify: re-extract from the written file, re-hash, compare ─
+          const html2 = fs.readFileSync(FILE, 'utf8');
+          const blocks2 = [];
+          const re2 = /<script(?![^>]*src)[^>]*>([\s\S]*?)<\/script>/g;
+          while ((m = re2.exec(html2)) !== null) blocks2.push(m[1]);
+          const hashes2 = blocks2.map(b =>
+            "'sha256-" + crypto.createHash('sha256').update(b, 'utf8').digest('base64') + "'"
+          );
+          const ok = blocks2.length === 3
+            && hashes2.every(h => html2.includes(h))
+            && !html2.includes("script-src 'self' 'unsafe-inline'");
+          if (!ok) {
+            console.error('FATAL: post-write verification failed — hashes in the file do not match its script blocks.');
+            process.exit(1);
+          }
+          console.log('CSP flipped to hash-source. script-src hashes:');
+          hashes.forEach(h => console.log('  ' + h));
+          EOF
+
+      - name: Setup Pages
+        uses: actions/configure-pages@v4
+
+      - name: Upload artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: .
+
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
