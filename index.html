@@ -42,7 +42,7 @@
      silent at the network layer — the user just sees the feature broken
      with no obvious cause. test-csp.js exists to catch CSP drift at edit
      time so this doesn't bite. -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' https://cdnjs.cloudflare.com; style-src 'self' 'unsafe-inline' https://cdnjs.cloudflare.com https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data: blob: https://*.tile.openstreetmap.org https://*.basemaps.cartocdn.com https://api.qrserver.com; connect-src 'self' https://api.anthropic.com https://generativelanguage.googleapis.com https://nominatim.openstreetmap.org https://router.project-osrm.org https://maps8.stlouis-mo.gov https://maps6.stlouis-mo.gov https://raw.githubusercontent.com https://ipapi.co; manifest-src 'self' blob:; worker-src 'self' blob:; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' https://cdnjs.cloudflare.com; style-src 'self' 'unsafe-inline' https://cdnjs.cloudflare.com https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data: blob: https://*.tile.openstreetmap.org https://*.basemaps.cartocdn.com https://api.qrserver.com; connect-src 'self' https://api.anthropic.com https://generativelanguage.googleapis.com https://nominatim.openstreetmap.org https://router.project-osrm.org https://maps8.stlouis-mo.gov https://maps6.stlouis-mo.gov https://raw.githubusercontent.com https://ipapi.co https://script.google.com https://script.googleusercontent.com; manifest-src 'self' blob:; worker-src 'self' blob:; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'">
 <link rel="apple-touch-icon" sizes="180x180" href="data:image/png;base64,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">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -824,6 +824,7 @@ header{
 .content::-webkit-scrollbar-thumb{background:rgba(126,200,80,0.3);border-radius:3px}
 
 @keyframes pulse{0%,100%{opacity:1;transform:scale(1)}50%{opacity:0.4;transform:scale(1.5)}}
+@keyframes photostampPulse{0%,100%{opacity:1;transform:scale(1)}50%{opacity:0.72;transform:scale(1.14)}}
 @keyframes slideUp{from{transform:translateY(20px);opacity:0}to{transform:translateY(0);opacity:1}}
 .gps-pulsing{animation:pulse 1.2s infinite}
 
@@ -1063,41 +1064,11 @@ header{
           <span id="install-guide-arrow">▼</span>
         </button>
         <div id="settings-install-guide" style="display:none">
-          <div style="background:#e8f5e9;border-left:3px solid #27ae60;border-radius:0 8px 8px 0;padding:11px 13px;margin-bottom:8px">
-            <div style="font-family:'Syne',sans-serif;font-weight:800;font-size:0.65rem;color:#1a5c34;margin-bottom:6px">✅ BEST — Free HTTPS in 2 minutes (works on any device)</div>
-            <div style="font-size:0.58rem;font-family:'Space Mono',monospace;color:#2d5a3d;line-height:1.9">
-              1. The app is already hosted at:<br>
-              &nbsp;&nbsp;&nbsp;<strong>sprightly-brigadeiros-d02253.netlify.app</strong><br>
-              2. Open that URL in Chrome (Android) or Safari (iOS)<br>
-              3. Chrome: tap ⋮ menu → "Add to Home Screen"<br>
-              &nbsp;&nbsp;&nbsp;Safari: tap Share ⬆ → "Add to Home Screen"<br>
-              4. Open app from home screen icon → GPS works ✓<br><br>
-              To update the hosted app after a new version:<br>
-              &nbsp;&nbsp;&nbsp;Go to app.netlify.com/drop and drag the new HTML file
-            </div>
-          </div>
-          <div style="background:#f0f4ff;border-left:3px solid #2980b9;border-radius:0 8px 8px 0;padding:11px 13px;margin-bottom:8px" id="guide-android">
-            <div style="font-family:'Syne',sans-serif;font-weight:800;font-size:0.65rem;color:#1a3c6e;margin-bottom:6px">🤖 ANDROID — Add to home screen from Chrome</div>
-            <div style="font-size:0.58rem;font-family:'Space Mono',monospace;color:#2c5282;line-height:1.9">
-              After opening the Netlify URL in Chrome:<br>
-              • Tap the three dots ⋮ in the top-right corner<br>
-              • Tap "Add to Home screen"<br>
-              • Tap "Add" in the popup<br>
-              • You'll see the app icon on your home screen<br>
-              • GPS works every time you open it from that icon
-            </div>
-          </div>
-          <div style="background:#fff8ec;border-left:3px solid #e8a020;border-radius:0 8px 8px 0;padding:11px 13px;margin-bottom:8px" id="guide-ios">
-            <div style="font-family:'Syne',sans-serif;font-weight:800;font-size:0.65rem;color:#7a5000;margin-bottom:6px">🍎 iPHONE/iPAD — Must use Safari (not Chrome)</div>
-            <div style="font-size:0.58rem;font-family:'Space Mono',monospace;color:#7a5000;line-height:1.9">
-              After opening the Netlify URL in Safari:<br>
-              • Tap the Share button ⬆ at the bottom of the screen<br>
-              • Scroll down and tap "Add to Home Screen"<br>
-              • Tap "Add" in the top-right corner<br>
-              • GPS works every time you open it from that icon<br>
-              <span style="color:#e8a020;font-weight:700">Note: Chrome on iPhone cannot install home screen apps — use Safari</span>
-            </div>
-          </div>
+          <!-- Filled by _gpsSetupGuideHtml() via toggleInstallGuide() — same
+               function also fills the post-wizard GPS popup, so the two
+               can't drift out of sync the way the old static Netlify-URL
+               copy did. -->
+          <div id="settings-install-guide-content"></div>
           <button onclick="closeSettings();testGPSNow()" style="width:100%;padding:9px;border:1.5px solid var(--leaf);border-radius:9px;background:var(--sky);color:var(--moss);font-family:'Syne',sans-serif;font-weight:800;font-size:0.68rem;cursor:pointer">📡 TEST GPS NOW</button>
         </div>
         <div id="settings-install-manual" style="display:none"></div>
@@ -2496,15 +2467,15 @@ header{
     <!-- ── HERO (always-visible, not collapsible) ── -->
     <div style="text-align:center;padding:16px 0 20px">
       <div style="font-size:2.2rem;margin-bottom:6px">🗺️</div>
-      <div style="font-family:'Syne',sans-serif;font-weight:800;font-size:1.1rem;color:white;letter-spacing:-0.5px">YourCityRoute</div>
+      <div style="font-family:'Syne',sans-serif;font-weight:800;font-size:1.1rem;color:white;letter-spacing:-0.5px">STLCityRoute</div>
       <div style="font-size:0.52rem;color:rgba(200,230,201,0.4);font-family:'Space Mono',monospace;letter-spacing:1.5px;margin-top:2px">FIELD WORKER GUIDE</div>
     </div>
 
     <!-- ── ORIENTATION (always-visible card, not collapsible — first-time users land here) ── -->
     <div style="background:#ffffff;border-radius:12px;padding:14px;margin-bottom:10px">
-      <div style="font-family:'Syne',sans-serif;font-weight:800;font-size:0.8rem;color:#0d2b6b;margin-bottom:8px">🧭 What is YourCityRoute?</div>
+      <div style="font-family:'Syne',sans-serif;font-weight:800;font-size:0.8rem;color:#0d2b6b;margin-bottom:8px">🧭 What is STLCityRoute?</div>
       <div style="font-size:0.62rem;color:#333;font-family:'Space Mono',monospace;line-height:1.85">
-        YourCityRoute is a mobile route planner built for field workers who visit multiple addresses in a single shift — city inspectors, code enforcement officers, pest control techs, utility workers, property managers, and anyone else working a stop list.<br><br>
+        STLCityRoute is a mobile route planner built for field workers who visit multiple addresses in a single shift — city inspectors, code enforcement officers, pest control techs, utility workers, property managers, and anyone else working a stop list.<br><br>
         <b>No login. No server. All data stays on your device.</b> Works offline once loaded. Install it to your home screen for the best experience.<br><br>
         <i>Tap any section below to expand it.</i>
       </div>
@@ -2587,7 +2558,7 @@ header{
         · <b>CSV Spreadsheet</b> — One row per stop. Columns: #, Inspector, Address, Type, Status, AddedAt, CompletedAt, DurationMins, Lat, Lng, Notes. Opens in Excel or Google Sheets.<br>
         · <b>Text Summary</b> — Three-section plain-text report (Field Worker, Manager, Geographic). Good for email.<br>
         · <b>Push to Sheets</b> — Sends data directly to a Google Sheet you control. Requires one-time Apps Script setup (see below).<br><br>
-        <b>Auto-send:</b> Enable in the DATA tab to have a daily summary emailed automatically at a time you set.
+        <b>📅 Period Reports</b> — A separate, more detailed report below the main metrics. Pick <b>Day / Week / Month / Year</b>, then use ‹ › to navigate to any period — the current one shows an "● IN PROGRESS" badge and updates live, past ones show "✓ COMPLETED" as a fixed snapshot. Each report includes KPIs plus ward, neighborhood, street, and stop-type breakdowns. Share it as 📋 <b>Copy</b> (plain text to clipboard), 📥 <b>CSV</b> (downloadable spreadsheet), or 🌐 <b>HTML report</b> (a fully-styled standalone page that prints cleanly to PDF from any browser). The ⚙ icon lets you set which day your week starts on.
       </div>
     </details>
 
@@ -2700,8 +2671,9 @@ header{
       <div class="help-panel-body">
         Tap the 🗂️ icon on the map tab to open the Map Layers panel — toggle visual overlays on top of the route map.<br><br>
         <b>Built-in layers:</b><br>
-        · <b>Neighborhoods</b> — all 79 St. Louis neighborhood boundaries with names<br>
+        · <b>Neighborhoods</b> — all 79 St. Louis neighborhood boundaries with names (labels shorten to just the number when zoomed out, so the boundaries stay readable without disappearing)<br>
         · <b>Wards</b> — current city ward boundaries (post-2024 redistricting)<br>
+        · <b>Police Districts</b> — the 6 SLMPD patrol districts, burnt-orange dashed outline<br>
         · <b>City limits</b> — outline of the City of St. Louis<br><br>
         <b>External map resources</b> in the same panel link out to the City's ArcGIS parcel viewer, the official address search, the LRA-owned property map, the Cultural Resources areas-of-review map, the citywide zoning map, the City open data portal, and the Missouri MSDIS portal. These open in your browser.<br><br>
         <b>Custom layers:</b> Settings → Map Layer Manager lets you add your own GeoJSON layers (assignments, district boundaries, target lists, etc.). Custom layers persist across sessions and toggle on/off independently.
@@ -2745,15 +2717,16 @@ header{
     <details class="help-panel">
       <summary>📷 Photo Stamping &amp; Cache</summary>
       <div class="help-panel-body">
-        <b>What is photostamping?</b> The 📷 button in the top header opens your camera and overlays the address, date, time, and inspector name onto a translucent bar across the bottom (or top) of every photo you take. The stamped JPEG saves to your phone's gallery (iOS) or Downloads folder (Android) automatically.<br><br>
-        <b>Per-stop photo sessions:</b> When you launch the camera from a specific stop's row, the photo is linked to that stop. Each stamped shot increments a 📷 counter on the stop card so you can see at a glance how many photos you've taken at that address.<br><br>
-        <b>Filenames are searchable:</b> Stamped photos are named like <code style="font-size:0.95em">2801daltonavenue042326101832847.jpg</code> — that's address + date (mmddyy) + time (hhmmss) + milliseconds. You can search this exact name in your Photos / Files app to find any photo later.<br><br>
+        <b>What is photostamping?</b> The 📷 button in the top header (and the 📷 button in any stop's Utility menu) opens <b>Prepare Photo</b> — a full-screen setup step, not the camera directly. It shows a live map of parcels and street names near your GPS position, with your nearest 10 addresses listed below as tappable candidates (each with its own 🔍 Property Search button). Tap a candidate to fill the address, use 📍 GPS to reverse-lookup instead, or type it manually. Add optional notes and a tracking number, then tap <b>📷 Open Camera</b> or <b>🖼 Pick Existing</b> (choose one or more photos from your gallery — all get stamped with the same address). ⚙ Stamp jumps to Stamp Settings; ✕ Exit backs out without taking a photo.<br><br>
+        <b>Per-stop photo sessions:</b> Opening Prepare Photo from a specific stop's Utility menu links the photo to that stop. Each stamped shot increments a 📷 counter on the stop card so you can see at a glance how many photos you've taken at that address.<br><br>
+        <b>Filenames are searchable:</b> Stamped photos are named like <code style="font-size:0.95em">2801daltonavenue_042326_101832847.jpg</code> — address, then date (mmddyy), then time (hhmmss) + milliseconds, underscore-separated. You can search this exact name in your Photos / Files app to find any photo later.<br><br>
         <b>What gets burned in</b> — Settings → 📷 Stamp Settings has individual toggles for: address, date, time, inspector name, title/department, GPS coordinates, compass bearing, case number, photo sequence number, neighborhood name, neighborhood number, ward number, and notes. Turn any subset on. Compact form: "Tower Grove South #15 · Ward 8".<br><br>
         <b>Stamp size and position</b> — Choose Small / Medium / Large size and Top / Bottom position in Stamp Settings. Defaults are Medium and Bottom.<br><br>
         <b>Photostamp drift detection</b> — If your phone's clock differs from the network time by more than 30 seconds, the app warns you before stamping. This protects against an inspector accidentally stamping yesterday's date or being off by an hour after a daylight-savings change.<br><br>
         <b>The 48-hour cache:</b> A copy of every stamped photo is also kept inside the app for 48 hours. This is what makes the <b>📧 Email Summary + photos attached</b> button work for stops you photographed earlier in the day or yesterday. After 48 hours the cached copy is auto-deleted to keep the app small — your phone gallery copies are not affected and remain forever.<br><br>
         <b>Cache size:</b> Capped at 200MB normally, or 50MB on phones with limited free space. When the cache fills up, oldest photos go first; the newest photo for each stop is always preserved.<br><br>
         <b>Manage the cache:</b> Settings → 📷 Photo Cache (48h) shows current size and a "🗑 Clear Cache Now" button. Clearing the cache only affects in-app copies — gallery photos are untouched.<br><br>
+        <b>Automatic backup:</b> Stamp Settings has a "✅ Recommended: Auto-backup via Google Photos" card — point Google Photos at your Download folder once (Android) and every future stamped photo backs up automatically, no sign-in inside the app.<br><br>
         <b>Quick mode:</b> Tap the ⚡ toggle in the photo preview to auto-dismiss the preview and reopen the camera after each shot. Good for batch capture (multiple shots at one stop).
       </div>
     </details>
@@ -2791,18 +2764,18 @@ header{
         <b>Adding stops:</b><br>
         · Type an address in the input field and tap ADD (or press Enter)<br>
         · 🎤 Voice — speak addresses one at a time; pause between each<br>
-        · 📷 Photo scan — photograph a printed route sheet; AI reads the addresses (requires Anthropic API key in Settings)<br>
+        · 📷 Photo scan — photograph a printed route sheet; AI reads the addresses (requires an AI key — Gemini or Anthropic — in Settings)<br>
         · 📋 Paste — copy a list of addresses from any source and paste it<br>
         · 📊 Spreadsheet — upload a CSV or Excel file with addresses in the first column<br><br>
         <b>Stop types:</b> Tap the color badge on any stop to cycle through Inspection · Service Request · Work Order · General. You can also create your own custom types with custom colors and icons via Settings → Custom Stop Types.<br><br>
         <b>Stop buttons (left to right):</b><br>
         · 📝 Notes — add or view field notes for this stop<br>
-        · 🔍 Property search — opens City property lookup for this address<br>
+        · 🔍 Property search — copies the address and opens the City's official address-search page<br>
         · CSB — copies address and opens the Citizens Service Bureau request form<br>
         · 📍 ARRIVE — tap when you pull up to the stop; starts a dwell timer<br>
         · ✓ CLOSE — mark the stop complete; prompts for completion notes and offers email options (see <b>Email Stop Summaries</b> below)<br>
         · 🧭 (round, right) — navigate to this address via Google Maps<br><br>
-        <b>Photo capture per stop:</b> Tap and hold the photostamp button (📷 in the top header) while a stop is active to start a photo session linked to that stop. Each stamped photo is saved to your phone gallery AND cached in the app for 48 hours so you can email them with the stop summary later. See the <b>Photo Stamping &amp; Cache</b> and <b>Email Stop Summaries</b> sections below for details.<br><br>
+        <b>Photo capture per stop:</b> Open a stop's Utility menu (⋯) and tap 📷 to start a photo session linked to that stop — this takes you through Prepare Photo first (see <b>Photo Stamping &amp; Cache</b> below), then the camera. The header's 📷 button works the same way but isn't linked to any stop. Each stamped photo is saved to your phone gallery AND cached in the app for 48 hours so you can email them with the stop summary later.<br><br>
         <b>Completed stops</b> collapse to a separate "Completed" section at the bottom. Use ↩ to restore or 🗑 to delete permanently.<br><br>
         <b>Duplicate detection:</b> Adding an address already on the list shows a prompt — tap to confirm or cancel.
       </div>
@@ -2846,11 +2819,11 @@ header{
     <div style="background:#ffffff;border-radius:12px;padding:16px;margin-bottom:10px;text-align:center">
       <div style="font-family:'Syne',sans-serif;font-weight:800;font-size:0.8rem;color:#0d2b6b;margin-bottom:6px">📬 Contact &amp; Support</div>
       <div style="font-size:0.6rem;color:#555;font-family:'Space Mono',monospace;margin-bottom:12px;line-height:1.7">Questions, feedback, bug reports, or partnership inquiries — reach us directly.</div>
-      <a href="mailto:support@yourcityroute.com?subject=YourCityRoute%20Support" style="display:inline-block;padding:11px 22px;background:linear-gradient(135deg,#0d2b6b,#2563eb);color:white;font-family:'Syne',sans-serif;font-weight:800;font-size:0.72rem;border-radius:10px;text-decoration:none;letter-spacing:0.5px">✉️ Email Support</a>
+      <a href="mailto:support@yourcityroute.com?subject=STLCityRoute%20Support" style="display:inline-block;padding:11px 22px;background:linear-gradient(135deg,#0d2b6b,#2563eb);color:white;font-family:'Syne',sans-serif;font-weight:800;font-size:0.72rem;border-radius:10px;text-decoration:none;letter-spacing:0.5px">✉️ Email Support</a>
       <div style="margin-top:8px;font-size:0.5rem;color:#aaa;font-family:'Space Mono',monospace">support@yourcityroute.com</div>
     </div>
 
-    <div style="text-align:center;padding:16px 0 4px;font-size:0.52rem;color:rgba(200,230,201,0.3);font-family:'Space Mono',monospace">YourCityRoute · v${APP_VERSION}</div>
+    <div style="text-align:center;padding:16px 0 4px;font-size:0.52rem;color:rgba(200,230,201,0.3);font-family:'Space Mono',monospace">STLCityRoute · v${APP_VERSION}</div>
   </div>
   <a class="tab-footer-link" href="https://www.stlouis-mo.gov/government/departments/personnel/jobs/openings/index.cfm" target="_blank" rel="noopener">St. Louis City Employment Opportunities ↗</a>
 </div>
@@ -2913,24 +2886,13 @@ header{
     </div>
 
     <div style="display:flex;flex-direction:column;gap:8px;margin-bottom:16px">
-      <div style="background:#f0fff4;border:1px solid #c8e6c9;border-radius:10px;padding:12px">
-        <div style="font-family:'Syne',sans-serif;font-weight:800;font-size:0.72rem;color:#1a5c34;margin-bottom:4px">✅ BEST: Save to Home Screen</div>
-        <div style="font-size:0.6rem;color:#2d5a3d;font-family:'Space Mono',monospace;line-height:1.7">
-          iOS Safari: tap Share → "Add to Home Screen"<br>
-          Android Chrome: tap ⋮ → "Add to Home Screen"<br>
-          <span style="color:#27ae60;font-weight:700">GPS works when launched from home screen icon.</span>
-        </div>
-      </div>
-
-      <div style="background:#f0f4ff;border:1px solid #b3d0f5;border-radius:10px;padding:12px">
-        <div style="font-family:'Syne',sans-serif;font-weight:800;font-size:0.72rem;color:#1a3c6e;margin-bottom:4px">🌐 GOOD: Host on GitHub Pages (free)</div>
-        <div style="font-size:0.6rem;color:#2c5282;font-family:'Space Mono',monospace;line-height:1.7">
-          1. Create free GitHub account<br>
-          2. Upload this HTML file to a repo<br>
-          3. Enable GitHub Pages → instant HTTPS URL<br>
-          4. Bookmark that URL — GPS always works
-        </div>
-      </div>
+      <!-- Filled by showGPSHelp() via _gpsSetupGuideHtml() — same source as
+           Settings → App Install & GPS and the post-wizard popup. This
+           modal used to hand-maintain its own copy of setup instructions
+           (and had drifted to recommend hosting your own GitHub Pages copy,
+           even after the app was already live at stlcityroute.com) — now
+           there's exactly one place this text lives. -->
+      <div id="gps-help-modal-guide"></div>
 
       <div style="background:#fffbf0;border:1px solid #fde3a7;border-radius:10px;padding:12px">
         <div style="font-family:'Syne',sans-serif;font-weight:800;font-size:0.72rem;color:#7a5000;margin-bottom:4px">📍 FALLBACK: IP Location (already tried)</div>
@@ -3130,6 +3092,23 @@ header{
       <button data-fn="photoSetupContinue" data-arg="library" style="flex:1.3 1 120px;padding:11px;background:linear-gradient(135deg,#4a2d5a,#6b3a7a);border:none;border-radius:10px;color:white;font-family:Syne,sans-serif;font-weight:800;font-size:0.72rem;cursor:pointer" title="Pick one or more photos from your gallery; all will be stamped with the address above">🖼 Pick Existing (1+) →</button>
       <button data-fn="photoSetupContinue" data-arg="camera" style="flex:1.4 1 120px;padding:11px;background:linear-gradient(135deg,#8c4a00,#b56a10);border:none;border-radius:10px;color:white;font-family:Syne,sans-serif;font-weight:800;font-size:0.75rem;cursor:pointer">📷 Open Camera →</button>
     </div>
+  </div>
+</div>
+
+<!-- PHOTO PROCESSING OVERLAY — bridges the gap between the OS camera/library
+     handing control back to the page and the stamped preview modal opening.
+     Without this, the async GPS-lookup + canvas-stamp work in
+     _stampSingleFile left the raw app page visible underneath for a beat,
+     which read as a jarring flash. Shows the just-captured raw photo full-
+     screen with a pulsing photostamp icon so it's obvious the app is still
+     working, not broken. Highest z-index in the file — must sit above the
+     Prepare Photo modal (9998) and the Photo Preview modal (10000), since
+     it needs to cover whichever is closing/opening around it. -->
+<div id="photo-processing-overlay" style="display:none;position:fixed;inset:0;z-index:10001;background:#0a0a0a;flex-direction:column;align-items:center;justify-content:center" role="status" aria-live="polite" aria-label="Stamping photo">
+  <img id="photo-processing-img" style="max-width:100%;max-height:100%;object-fit:contain;position:absolute;inset:0;width:100%;height:100%" alt="">
+  <div style="position:relative;display:flex;flex-direction:column;align-items:center;gap:12px;background:rgba(10,10,10,0.55);border-radius:16px;padding:22px 28px">
+    <div style="font-size:2.6rem;line-height:1;animation:photostampPulse 1.1s ease-in-out infinite">📷</div>
+    <div id="photo-processing-label" style="font-family:'Syne',sans-serif;font-weight:800;font-size:0.72rem;color:white;letter-spacing:0.5px">Stamping photo…</div>
   </div>
 </div>
 
@@ -4571,10 +4550,18 @@ const ProfileBackup = (function() {
     });
 
     // ─── Restore LS values ──────────────────────────────────────────────
+    // LS.set never throws — count false returns. This matters MORE here
+    // than anywhere else: the wipe above already ran, so a silently failed
+    // write is unrecoverable data loss with no signal to the user.
+    var _restoreFailed = 0;
     Object.keys(blob.ls).forEach(function(k) {
       if (EXCLUDE_EXACT[k]) return; // defense-in-depth; old exports might contain these
-      try { LS.set(k, blob.ls[k]); } catch(_) {}
+      if (!LS.set(k, blob.ls[k])) _restoreFailed++;
     });
+    if (_restoreFailed) {
+      console.warn('[restore]', _restoreFailed, 'key(s) failed to write (storage full?)');
+      if (typeof showToast === 'function') showToast('⚠ Storage full — ' + _restoreFailed + ' item(s) could not be restored');
+    }
 
     // ─── Restore custom map layers ──────────────────────────────────────
     // Wipe-and-restore: easier than reconciling overlapping IDs.
@@ -4866,7 +4853,9 @@ const ProfileBackup = (function() {
             existingIds[st.id] = true;
             stats.stopsAppended++;
           }
-          LS.set('inspector-data', JSON.stringify(cur));
+          // LS.set never throws — a false return means the appended stops
+          // above were counted in stats but never actually persisted.
+          if (!LS.set('inspector-data', JSON.stringify(cur))) console.warn('[merge] inspector-data write failed (storage full?)');
         }
       }
     } catch(e) { console.warn('[merge] inspector-data error:', e); }
@@ -4894,7 +4883,7 @@ const ProfileBackup = (function() {
               stats.archivedStopsAppended++;
             }
           });
-          LS.set('stops-archive', JSON.stringify(curArch));
+          if (!LS.set('stops-archive', JSON.stringify(curArch))) console.warn('[merge] stops-archive write failed (storage full?)');
         }
       }
     } catch(e) { console.warn('[merge] stops-archive error:', e); }
@@ -4917,7 +4906,7 @@ const ProfileBackup = (function() {
             seenTxn[tx.id] = true;
             stats.transactionsAppended++;
           }
-          LS.set('transactions-ledger', JSON.stringify(curLedger));
+          if (!LS.set('transactions-ledger', JSON.stringify(curLedger))) console.warn('[merge] transactions-ledger write failed (storage full?)');
         }
       }
     } catch(e) { console.warn('[merge] transactions-ledger error:', e); }
@@ -4949,7 +4938,7 @@ const ProfileBackup = (function() {
             curTypes.push(typ);
             stats.customTypesAppended++;
           }
-          LS.set('custom-stop-types', JSON.stringify(curTypes));
+          if (!LS.set('custom-stop-types', JSON.stringify(curTypes))) console.warn('[merge] custom-stop-types write failed (storage full?)');
         }
       }
     } catch(e) { console.warn('[merge] custom-stop-types error:', e); }
@@ -4993,7 +4982,7 @@ const ProfileBackup = (function() {
           stats.keysSkipped.push(k);
           return;
         }
-        try { LS.set(k, ls[k]); } catch(_) {}
+        if (!LS.set(k, ls[k])) console.warn('[merge] write failed for key', k, '(storage full?)');
         return;
       }
       // Keys not in any policy: leave alone (don't blindly overwrite)
@@ -5187,7 +5176,11 @@ const StopArchive = (function() {
   }
 
   function _saveArchive(a) {
-    try { LS.set(ARCHIVE_KEY, JSON.stringify(a)); } catch(_) {}
+    // LS.set never throws — check the boolean return (LS error contract).
+    if (!LS.set(ARCHIVE_KEY, JSON.stringify(a))) {
+      console.warn('[StopArchive] archive save failed (storage full?)');
+      if (typeof showToast === 'function') showToast('⚠ Storage full — archived stops may not be saved');
+    }
   }
 
   // Migration entrypoint: scan the active stops list, move any completed
@@ -5832,10 +5825,12 @@ function saveStopsDebounced() {
   _saveStopsTimer = setTimeout(saveStops, 300);
 }
 function saveStops(){
-  try {
-    LS.set('inspector-data', JSON.stringify({ stops, routeOrder }));
-  } catch(e) {
-    console.warn('saveStops failed:', e);
+  // LS.set NEVER throws — it swallows errors internally and returns false
+  // on failure (LS error contract, System Doc). A try/catch around it is
+  // dead code; the boolean return is the ONLY way to detect a failed write.
+  var ok = LS.set('inspector-data', JSON.stringify({ stops, routeOrder }));
+  if (!ok) {
+    console.warn('saveStops failed: LS.set returned false (storage full?)');
     // Notify user — silent failure means data loss on app close
     if (typeof showToast === 'function') {
       showToast('⚠ Storage full — stop data may not be saved. Clear completed stops to free space.');
@@ -5861,7 +5856,7 @@ function loadCustomStopTypes() {
     return Array.isArray(a) ? a : [];
   } catch(_e) { return []; }
 }
-function saveCustomStopTypes(list) { try { LS.set('custom-stop-types', JSON.stringify(list)); } catch(_e) {} }
+function saveCustomStopTypes(list) { if (!LS.set('custom-stop-types', JSON.stringify(list))) console.warn('[stopTypes] save failed (storage full?)'); }
 function getAllStopTypes() { return BUILTIN_STOP_TYPES.concat(loadCustomStopTypes()); }
 function getStopType(id) {
   if (!id) return BUILTIN_STOP_TYPES[0];
@@ -6173,23 +6168,38 @@ function switchTab(name) {
 function updateSettingsInstallStatus() {
   const el = document.getElementById('settings-app-status');
   if (!el) return;
-  const isHTTPS   = location.protocol === 'https:';
+  // window.isSecureContext is the actual API the browser itself uses to
+  // gate Geolocation/other secure-only APIs — covers https:, localhost,
+  // and any other secure-context rule the platform defines, so this is
+  // more accurate than manually checking location.protocol === 'https:'.
+  const isSecure  = window.isSecureContext === true;
   const isFile    = location.protocol === 'file:';
   const isInstalled = window.matchMedia('(display-mode: standalone)').matches
                    || navigator.standalone
                    || LS.get('pwa-installed') === '1';
   const swOk = window._swState && window._swState.registered;
   let lines = [];
-  if (isInstalled) {
+  if (isInstalled && isSecure) {
     lines.push('✅ Installed as PWA — GPS active');
     lines.push('✅ Service Worker: ' + (swOk ? 'active · offline ready' : 'registering…'));
-  } else if (isHTTPS) {
+  } else if (isInstalled && !isSecure) {
+    // Installed doesn't guarantee GPS works — e.g. a bookmark shortcut
+    // added from an insecure origin can still report as "installed."
+    // Don't tell the user GPS is active when the browser will actually
+    // refuse it — that's exactly the confusing state that led to the
+    // "only secure origins" support case this status banner should catch.
+    lines.push('⚠ Installed, but NOT secure (HTTPS) — GPS will fail');
+    lines.push('📋 Open the SETUP GUIDE below and reinstall from ' + HOSTED_URL);
+  } else if (isSecure) {
     lines.push('🌐 HTTPS — GPS available');
     lines.push('📲 Not installed — tap ADD TO HOME SCREEN for full PWA features');
     lines.push(swOk ? '✅ Service Worker active' : '⏳ Service Worker loading…');
   } else if (isFile) {
     lines.push('⚠ Running from file:// — GPS unavailable');
-    lines.push('📋 Open from GitHub Pages URL for GPS + install');
+    lines.push('📋 Open from ' + HOSTED_URL + ' for GPS + install');
+  } else {
+    lines.push('⚠ Not secure (HTTP) — GPS unavailable');
+    lines.push('📋 Open ' + HOSTED_URL + ' — include the https:// — for GPS + install');
   }
   el.innerHTML = lines.join('<br>');
 }
@@ -6210,11 +6220,60 @@ function triggerInstallPrompt() {
   }
 }
 
+// Single source of truth for the GPS setup instructions — used by both the
+// Settings → App Install & GPS collapsible guide and the post-wizard GPS
+// popup, so the two can never drift out of sync (the old version had two
+// hand-copied versions of this text, one of which went stale). References
+// the real hosted URL, not a placeholder — update HOSTED_URL if the domain
+// ever changes.
+var HOSTED_URL = 'https://stlcityroute.com';
+function _gpsSetupGuideHtml() {
+  return ''
+    + '<div style="background:#e8f5e9;border-left:3px solid #27ae60;border-radius:0 8px 8px 0;padding:11px 13px;margin-bottom:8px">'
+    + '<div style="font-family:\'Syne\',sans-serif;font-weight:800;font-size:0.65rem;color:#1a5c34;margin-bottom:6px">✅ Open the real app URL over HTTPS</div>'
+    + '<div style="font-size:0.58rem;font-family:\'Space Mono\',monospace;color:#2d5a3d;line-height:1.9">'
+    + '1. Open <strong>' + HOSTED_URL + '</strong> in Chrome (Android) or Safari (iOS) — type the address including <strong>https://</strong><br>'
+    + '2. Confirm you see the padlock 🔒 in the address bar before continuing<br>'
+    + '3. Chrome: tap ⋮ menu → "Add to Home Screen"<br>'
+    + '&nbsp;&nbsp;&nbsp;Safari: tap Share ⬆ → "Add to Home Screen"<br>'
+    + '4. Open the app from its home screen icon → GPS works ✓'
+    + '</div></div>'
+    + '<div style="background:#fdecea;border-left:3px solid #c0392b;border-radius:0 8px 8px 0;padding:11px 13px;margin-bottom:8px">'
+    + '<div style="font-family:\'Syne\',sans-serif;font-weight:800;font-size:0.65rem;color:#7a1a10;margin-bottom:6px">⚠ Seeing "Only secure origins are allowed"?</div>'
+    + '<div style="font-size:0.58rem;font-family:\'Space Mono\',monospace;color:#7a1a10;line-height:1.9">'
+    + 'This means the page loaded over <strong>http://</strong> instead of <strong>https://</strong> — the browser itself is blocking GPS, the app isn\'t broken. Remove the home screen icon, reopen <strong>' + HOSTED_URL + '</strong> directly (with the https://), confirm the padlock, then re-add to home screen. An outdated browser can also cause this — keep Chrome/Safari updated.'
+    + '</div></div>'
+    + '<div style="background:#f0f4ff;border-left:3px solid #2980b9;border-radius:0 8px 8px 0;padding:11px 13px;margin-bottom:8px" id="guide-android">'
+    + '<div style="font-family:\'Syne\',sans-serif;font-weight:800;font-size:0.65rem;color:#1a3c6e;margin-bottom:6px">🤖 ANDROID — Add to home screen from Chrome</div>'
+    + '<div style="font-size:0.58rem;font-family:\'Space Mono\',monospace;color:#2c5282;line-height:1.9">'
+    + 'After opening ' + HOSTED_URL + ' in Chrome:<br>'
+    + '• Tap the three dots ⋮ in the top-right corner<br>'
+    + '• Tap "Add to Home screen"<br>'
+    + '• Tap "Add" in the popup<br>'
+    + '• You\'ll see the app icon on your home screen<br>'
+    + '• GPS works every time you open it from that icon'
+    + '</div></div>'
+    + '<div style="background:#fff8ec;border-left:3px solid #e8a020;border-radius:0 8px 8px 0;padding:11px 13px;margin-bottom:8px" id="guide-ios">'
+    + '<div style="font-family:\'Syne\',sans-serif;font-weight:800;font-size:0.65rem;color:#7a5000;margin-bottom:6px">🍎 iPHONE/iPAD — Must use Safari (not Chrome)</div>'
+    + '<div style="font-size:0.58rem;font-family:\'Space Mono\',monospace;color:#7a5000;line-height:1.9">'
+    + 'After opening ' + HOSTED_URL + ' in Safari:<br>'
+    + '• Tap the Share button ⬆ at the bottom of the screen<br>'
+    + '• Scroll down and tap "Add to Home Screen"<br>'
+    + '• Tap "Add" in the top-right corner<br>'
+    + '• GPS works every time you open it from that icon<br>'
+    + '<span style="color:#e8a020;font-weight:700">Note: Chrome on iPhone cannot install home screen apps — use Safari</span>'
+    + '</div></div>';
+}
+
 // Toggle GPS setup guide in settings
 function toggleInstallGuide() {
   const guide = document.getElementById('settings-install-guide');
   const arrow = document.getElementById('install-guide-arrow');
   if (!guide) return;
+  // Lazily fill on first open — avoids duplicating the guide markup at
+  // load time when most users never expand this panel.
+  const content = document.getElementById('settings-install-guide-content');
+  if (content && !content.innerHTML) content.innerHTML = _gpsSetupGuideHtml();
   const open = guide.style.display !== 'none';
   guide.style.display = open ? 'none' : 'block';
   if (arrow) arrow.textContent = open ? '▼' : '▲';
@@ -6320,9 +6379,9 @@ try {
       // Persist immediately. We don't use saveStops() because that's not
       // defined yet at this point in the script — direct LS write is fine
       // and it's the same atomic 'inspector-data' shape.
-      try {
-        LS.set('inspector-data', JSON.stringify({ stops: stops, routeOrder: routeOrder }));
-      } catch(_) {}
+      if (!LS.set('inspector-data', JSON.stringify({ stops: stops, routeOrder: routeOrder }))) {
+        console.warn('[StopArchive] post-migration save failed (storage full?)');
+      }
       console.info('[StopArchive] archived', _archResult.moved, 'completed stop' + (_archResult.moved === 1 ? '' : 's'));
     }
   }
@@ -6405,7 +6464,8 @@ setTimeout(function() {
                 completed++;
                 if (completed === totalArchiveCandidates) {
                   // Final write — one save for the whole archive batch.
-                  try { LS.set('stops-archive', JSON.stringify(archive)); } catch(_) {}
+                  // LS.set never throws — check the boolean return.
+                  if (!LS.set('stops-archive', JSON.stringify(archive))) console.warn('[Backfill] archive save failed (storage full?)');
                   console.info('[Backfill] archive ward backfill: processed ' + totalArchiveCandidates + ' stop(s)');
                 }
               })();
@@ -8120,7 +8180,9 @@ function toggleClock() {
     _clockInTime = Date.now();
     _totalBreakMs = 0;
     _breakStartTime = null;
-    LS.set('clock-in-time', JSON.stringify({t:_clockInTime, breaks:0}));
+    if (!LS.set('clock-in-time', JSON.stringify({t:_clockInTime, breaks:0}))) {
+      console.warn('[clock] clock-in save failed (storage full?)');
+    }
     _applyClockButtonState('in');
     if (elapsed) elapsed.style.display = 'block';
     // Defensive: clear any pre-existing timer before starting a new one.
@@ -8153,10 +8215,11 @@ function toggleBreak() {
     // End break — resume timer, accumulate break duration
     _totalBreakMs += Date.now() - _breakStartTime;
     _breakStartTime = null;
-    // Persist updated break time in case user quits the tab without clocking out
-    try {
-      LS.set('clock-in-time', JSON.stringify({t:_clockInTime, breaks:_totalBreakMs}));
-    } catch(_e) {}
+    // Persist updated break time in case user quits the tab without clocking out.
+    // LS.set never throws — check the boolean return (LS error contract).
+    if (!LS.set('clock-in-time', JSON.stringify({t:_clockInTime, breaks:_totalBreakMs}))) {
+      console.warn('[clock] break-time save failed (storage full?)');
+    }
     _applyClockButtonState('in');
     _updateClockDisplay();
     _logClockEvent('break-end');
@@ -9499,6 +9562,17 @@ const StopCard = (function() {
 
 function renderStops() {
   const list = document.getElementById('stops-list');
+  // Preserve scroll across the innerHTML rebuild. The tab scroller is
+  // #main-content (not the list itself); replacing the list contents can
+  // momentarily shorten the document, which makes the browser clamp
+  // scrollTop and snap the view to the top — worst on long routes where
+  // completing a stop near the bottom threw you back to the start. Capture
+  // and restore synchronously in the same task: no paint happens in
+  // between, so there's no visible jump either way. If the new content is
+  // genuinely shorter, the browser clamps the restored value, which is the
+  // right behavior.
+  const _scroller = document.getElementById('main-content');
+  const _scrollY = _scroller ? _scroller.scrollTop : 0;
 
   // Compute pending/done once — used multiple times below
   const pending = stops.filter(s => !s.done);
@@ -9526,6 +9600,8 @@ function renderStops() {
     html += done.map((s, i) => StopCard.forStops(s, pending.length + i, clusterIds)).join('');
   }
   list.innerHTML = html;
+  // Restore scroll captured at the top of this function (see comment there).
+  if (_scroller) _scroller.scrollTop = _scrollY;
 
   // Delegated click listener is attached once at init — see _attachStopsListListener()
 }
@@ -12169,6 +12245,10 @@ function renderRouteStopHtml(s, i, pendingLen, clusterIds, menuPrefix) {
 
 function renderRoute() {
   const list = document.getElementById('route-list');
+  // Preserve scroll across the innerHTML rebuild — same rationale and
+  // pattern as renderStops (see comment there).
+  const _scroller = document.getElementById('main-content');
+  const _scrollY = _scroller ? _scroller.scrollTop : 0;
   const pending = getPendingStops();
   const done = stops.filter(s => s.done);
   const total = stops.length, doneCount = done.length;
@@ -12205,6 +12285,8 @@ function renderRoute() {
     html += done.map((s,i) => renderRouteStopHtml(s, pending.length + i, pending.length, clusterIds)).join('');
   }
   list.innerHTML = html;
+  // Restore scroll captured at the top of this function (see comment there).
+  if (_scroller) _scroller.scrollTop = _scrollY;
 
   // Delegated listener attached once — see _attachRouteListListener()
 }
@@ -12381,6 +12463,8 @@ async function tryIPGeolocation() {
 
 function showGPSHelp() {
   var modal = document.getElementById('gps-help-modal');
+  var guideEl = document.getElementById('gps-help-modal-guide');
+  if (guideEl && !guideEl.innerHTML) guideEl.innerHTML = _gpsSetupGuideHtml();
   modal.style.display = 'flex';
   Accessibility.modalOpened(modal, { onEscape: closeGPSHelp });
 }
@@ -13008,9 +13092,12 @@ function _beacon(event, meta) {
       const key = 'analytics-event-log';
       const log = JSON.parse(LS.get(key)||'[]');
       log.push({ event, meta: meta||null, ts });
-      // Guard against localStorage quota: if setItem fails, trim and retry once
-      try { LS.set(key, JSON.stringify(log.slice(-1000))); }
-      catch(quota) { LS.set(key, JSON.stringify(log.slice(-200))); }
+      // Guard against localStorage quota: if the write fails, trim harder and
+      // retry once. LS.set never throws — the old catch(quota) retry was dead
+      // code; the boolean return is the only working failure signal.
+      if (!LS.set(key, JSON.stringify(log.slice(-1000)))) {
+        LS.set(key, JSON.stringify(log.slice(-200)));
+      }
     } catch(e) {}
     // Remote beacon — only if URL configured
     const beaconUrl = LS.get('analytics-beacon-url') || '';
@@ -14940,7 +15027,8 @@ function loadTransactions() {
   } catch(_e) { return []; }
 }
 function saveTransactions(list) {
-  try { LS.set('transactions-ledger', JSON.stringify(list)); } catch(e) {
+  // LS.set never throws — check the boolean return (LS error contract).
+  if (!LS.set('transactions-ledger', JSON.stringify(list))) {
     showToast('⚠ Storage full — transaction not saved');
   }
 }
@@ -16180,7 +16268,19 @@ function _selectPhotoSetupAddr(addr) {
 
 
 // Continue from setup → open camera
+// Re-entrancy gate for photoSetupContinue. A fast double-tap on "Open
+// Camera" / "Pick Existing" previously ran the whole body twice — starting
+// two photo sessions and firing input.click() twice (which on some Android
+// builds opens the camera, returns, then immediately reopens it). A
+// timestamp window rather than a boolean flag: the OS camera/file picker
+// gives no reliable "cancelled" event, so a flag that only clears on
+// success would brick the button after a cancel. 900ms swallows any
+// realistic double-tap while self-healing for the next deliberate tap.
+var _photoSetupContinueAt = 0;
 function photoSetupContinue(source) {
+  var now = Date.now();
+  if (now - _photoSetupContinueAt < 900) return;
+  _photoSetupContinueAt = now;
   var addrField = document.getElementById('photo-setup-addr');
   var notesField = document.getElementById('photo-setup-notes');
   var caseTypeField = document.getElementById('photo-setup-case-type');
@@ -16225,6 +16325,31 @@ function takeAnotherPhoto() {
 // starts) so memory usage stays bounded even with dozens of photos. Only the
 // LAST stamped photo's preview is shown — intermediates appear in the session
 // strip as they complete, with a progress toast announcing each.
+// Photo processing overlay — covers the gap between the camera/library
+// handing control back and the stamped preview opening. See markup comment
+// for why this exists. _lastProcessingUrl tracks the object URL so it can
+// be revoked before the next one is created (avoids leaking blob URLs across
+// a multi-photo batch).
+var _lastProcessingUrl = null;
+function _showPhotoProcessingOverlay(file, label) {
+  var overlay = document.getElementById('photo-processing-overlay');
+  var img = document.getElementById('photo-processing-img');
+  var labelEl = document.getElementById('photo-processing-label');
+  if (!overlay || !img) return;
+  if (_lastProcessingUrl) { try { URL.revokeObjectURL(_lastProcessingUrl); } catch(_e) {} }
+  try {
+    _lastProcessingUrl = URL.createObjectURL(file);
+    img.src = _lastProcessingUrl;
+  } catch(_e) { img.src = ''; }
+  if (labelEl) labelEl.textContent = label || 'Stamping photo…';
+  overlay.style.display = 'flex';
+}
+function _hidePhotoProcessingOverlay() {
+  var overlay = document.getElementById('photo-processing-overlay');
+  if (overlay) overlay.style.display = 'none';
+  if (_lastProcessingUrl) { try { URL.revokeObjectURL(_lastProcessingUrl); } catch(_e) {} _lastProcessingUrl = null; }
+}
+
 async function onPhotoCaptured(evt) {
   var files = evt && evt.target && evt.target.files;
   if (!files || !files.length) return;
@@ -16237,6 +16362,9 @@ async function onPhotoCaptured(evt) {
   }
   try {
     for (var i = 0; i < fileArr.length; i++) {
+      // Show the just-captured raw photo immediately, before any async
+      // stamping work starts — this is what covers the app-page flash.
+      _showPhotoProcessingOverlay(fileArr[i], isBatch ? ('Stamping ' + (i + 1) + ' of ' + fileArr.length + '…') : 'Stamping photo…');
       // Only show preview / configure UI for the LAST file in a batch;
       // intermediate shots update the session strip but stay off-screen.
       var isLast = (i === fileArr.length - 1);
@@ -16251,6 +16379,11 @@ async function onPhotoCaptured(evt) {
   } catch (err) {
     console.error('Photo stamp error', err);
     showToast('⚠ Photo stamp failed — ' + (err.message || 'unknown error'));
+  } finally {
+    // Always hide, even on error — the loop above doesn't hide it between
+    // batch shots (that's intentional, see below), so this is the one
+    // guaranteed cleanup point.
+    _hidePhotoProcessingOverlay();
   }
 }
 
@@ -16332,6 +16465,9 @@ async function _stampSingleFile(file, opts) {
     if (editNotes) editNotes.value = _photoContext.notes || '';
     _configurePreviewForSession();
     var previewModal = document.getElementById('photo-preview-modal');
+    // Hand off from the processing overlay to the real preview modal in the
+    // same tick — avoids any gap where neither is visible.
+    _hidePhotoProcessingOverlay();
     previewModal.style.display = 'flex';
     Accessibility.modalOpened(previewModal, { onEscape: closePhotoPreview });
     // Quick mode → auto-dismiss preview after 1.5s and reopen camera.
@@ -20373,7 +20509,7 @@ function _buildStopSummaryText(s) {
     lines.push('');
   }
 
-  lines.push('— Sent from YourCityRoute');
+  lines.push('— Sent from STLCityRoute');
   return { subject: subject, body: lines.join(NL) };
 }
 
@@ -22227,7 +22363,7 @@ function emailDebrief() {
   var dateStr = now.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' });
   var inspName = LS.get('inspector-name') || LS.get('creds-id-name') || '';
   var subject = 'End-of-Day Debrief — ' + dateStr + (inspName ? ' — ' + inspName : '');
-  var body = subject + '\n\n' + _lastDebriefText + '\n\n— Generated by YourCityRoute';
+  var body = subject + '\n\n' + _lastDebriefText + '\n\n— Generated by STLCityRoute';
   var href = 'mailto:?subject=' + encodeURIComponent(subject) + '&body=' + encodeURIComponent(body);
   // Use anchor click rather than location.href so PWA users on iOS don't
   // lose their session.
@@ -22317,19 +22453,16 @@ const AskDataStore = (function() {
   }
 
   function _write(state) {
-    try {
-      LS.set(LS_KEY, JSON.stringify(state));
-      return true;
-    } catch(e) {
-      // Quota exceeded — try emergency prune and retry once.
-      var pruned = _emergencyPrune(state);
-      if (pruned) {
-        try { LS.set(LS_KEY, JSON.stringify(state)); return true; }
-        catch(_) {}
-      }
-      console.warn('[AskDataStore] write failed:', e && e.message);
-      return false;
-    }
+    // LS.set never throws — it returns false on failure (LS error contract).
+    // The previous try/catch version was dead code: no exception ever
+    // propagated, so the emergency-prune path could never run. Boolean
+    // return checks are the only working quota detection.
+    if (LS.set(LS_KEY, JSON.stringify(state))) return true;
+    // Quota exceeded — try emergency prune and retry once.
+    var pruned = _emergencyPrune(state);
+    if (pruned && LS.set(LS_KEY, JSON.stringify(state))) return true;
+    console.warn('[AskDataStore] write failed (storage full?)');
+    return false;
   }
 
   // Drop oldest archived conversations until under both caps. If still
@@ -23150,9 +23283,9 @@ function setInspectorId(v) { if (v) LS.set('inspector-id', v); else LS.remove('i
 // SHARE APP LINK / CLIPBOARD
 // ============================================================
 function shareAppUrl() {
-  const url = 'https://yourcityroute.com';
+  const url = 'https://stlcityroute.com';
   if (navigator.share) {
-    navigator.share({ title: 'YourCityRoute', url }).catch(() => _clipboardFallback(url));
+    navigator.share({ title: 'STLCityRoute', url }).catch(() => _clipboardFallback(url));
   } else {
     _clipboardFallback(url);
   }
@@ -24322,11 +24455,13 @@ function handleCredsUpload(event) {
         c2.height = Math.round(canvas.height*scale);
         c2.getContext('2d').drawImage(canvas, 0, 0, c2.width, c2.height);
         const data = c2.toDataURL('image/jpeg', 0.88);
-        try { LS.set('creds-id-front', data); } catch(e) { showToast('⚠ Storage full — ID photo could not be saved. Clear ref docs to free space.'); return; }
+        // LS.set never throws — check the boolean return (LS error contract).
+        if (!LS.set('creds-id-front', data)) { showToast('⚠ Storage full — ID photo could not be saved. Clear ref docs to free space.'); return; }
         applyCredsFrontPhoto(data);
       } else {
         const data = canvas.toDataURL('image/jpeg', 0.88);
-        try { LS.set('creds-id-front', data); } catch(e) { showToast('⚠ Storage full — ID photo could not be saved. Clear ref docs to free space.'); return; }
+        // LS.set never throws — check the boolean return (LS error contract).
+        if (!LS.set('creds-id-front', data)) { showToast('⚠ Storage full — ID photo could not be saved. Clear ref docs to free space.'); return; }
         applyCredsFrontPhoto(data);
       }
     };
@@ -24375,7 +24510,8 @@ function rotateCredPhoto(degrees) {
     ctx.rotate(rad);
     ctx.drawImage(img, -img.naturalWidth/2, -img.naturalHeight/2);
     const data = canvas.toDataURL('image/jpeg', 0.88);
-    try { LS.set('creds-id-front', data); } catch(e) { showToast('⚠ Storage full — rotation could not be saved.'); return; }
+    // LS.set never throws — check the boolean return (LS error contract).
+    if (!LS.set('creds-id-front', data)) { showToast('⚠ Storage full — rotation could not be saved.'); return; }
     applyCredsFrontPhoto(data);
     showToast('Photo rotated ✓');
   };
@@ -24858,7 +24994,8 @@ function logDaySession() {
   log.sort(function(a,b){return a.date.localeCompare(b.date);});
   if (log.length > 365) log = log.slice(log.length - 365);
 
-  try { LS.set(DATA_LOG_KEY, JSON.stringify(log)); } catch(e) {
+  // LS.set never throws — check the boolean return (LS error contract).
+  if (!LS.set(DATA_LOG_KEY, JSON.stringify(log))) {
     showToast('⚠ History storage full — clear old data in the Data tab');
   }
 }
@@ -26143,9 +26280,13 @@ function pushToGoogleSheets() {
     showToast('✅ Pushed to Google Sheets ✓');
     closeDataExportModal();
   }).catch(() => {
-    // Save payload for retry when connection returns
-    LS.set('sheets-pending-push', JSON.stringify(payload));
-    showToast('📵 Offline — push queued, will retry when connected');
+    // Save payload for retry when connection returns. LS.set returns false
+    // on failure — don't tell the user the push is queued if it wasn't saved.
+    if (LS.set('sheets-pending-push', JSON.stringify(payload))) {
+      showToast('📵 Offline — push queued, will retry when connected');
+    } else {
+      showToast('⚠ Offline and storage full — push could not be queued');
+    }
   });
 }
 
@@ -26247,7 +26388,7 @@ function _buildDataSummaryText() {
   txt += '\n';
 
   txt += sep;
-  txt += 'Generated: ' + now.toLocaleString('en-US') + '  ·  STLCityRoute / YourCityRoute.com\n';
+  txt += 'Generated: ' + now.toLocaleString('en-US') + '  ·  STLCityRoute (stlcityroute.com)\n';
   return txt;
 }
 
@@ -26426,7 +26567,7 @@ function shareDataSummary(opts) {
     else if (_dataRange === 'month') titleSuffix = ' (last 30 days)';
     else if (_dataRange === 'all') titleSuffix = ' (all time)';
 
-    var lines = ['=== YourCityRoute Field Summary' + titleSuffix + ' ==='];
+    var lines = ['=== STLCityRoute Field Summary' + titleSuffix + ' ==='];
     lines.push(now.toLocaleDateString('en-US',{weekday:'long',month:'long',day:'numeric',year:'numeric'}));
     if (inspName) lines.push(inspName + (credsTitle ? ', ' + credsTitle : ''));
     lines.push('');
@@ -26440,9 +26581,9 @@ function shareDataSummary(opts) {
       lines.push((typeLabels[k]||k) + ': ' + v.done + '/' + v.total + ' completed');
     });
     lines.push('');
-    lines.push('Generated by YourCityRoute');
+    lines.push('Generated by STLCityRoute');
     var text = lines.join('\n');
-    var shareTitle = 'YourCityRoute Summary' + titleSuffix;
+    var shareTitle = 'STLCityRoute Summary' + titleSuffix;
     // Try native share → clipboard → modal
     if (navigator.share) {
       navigator.share({title: shareTitle, text: text}).catch(function(e) {
@@ -26511,6 +26652,27 @@ function closeSetupWizard() {
   var modal = document.getElementById('setup-wizard');
   modal.style.display = 'none';
   Accessibility.modalClosed(modal);
+  // Show GPS setup instructions once, right after the wizard closes —
+  // whether the user finished it or skipped it. GPS matters for the core
+  // route-optimize/map features regardless of how much profile info they
+  // filled in.
+  openGpsSetupPopup();
+}
+
+function openGpsSetupPopup() {
+  var popup = document.getElementById('gps-setup-popup');
+  var content = document.getElementById('gps-setup-popup-content');
+  if (!popup || !content) return;
+  if (!content.innerHTML) content.innerHTML = _gpsSetupGuideHtml();
+  popup.style.display = 'flex';
+  Accessibility.modalOpened(popup, { onEscape: closeGpsSetupPopup });
+}
+
+function closeGpsSetupPopup() {
+  var popup = document.getElementById('gps-setup-popup');
+  if (!popup) return;
+  popup.style.display = 'none';
+  Accessibility.modalClosed(popup);
 }
 
 async function wizardNext() {
@@ -27002,13 +27164,33 @@ function wizSaveRole() {
   <div style="background:linear-gradient(135deg,var(--moss),var(--leaf));border-radius:24px 24px 0 0;padding:0 0 40px;width:100%;max-width:480px;box-shadow:0 -8px 60px rgba(0,0,0,0.5)">
     <!-- Header -->
     <div style="display:flex;justify-content:space-between;align-items:center;padding:20px 20px 0">
-      <div style="font-family:'Space Mono',monospace;font-size:0.58rem;color:rgba(200,230,201,0.45);letter-spacing:1px">YOUR CITY ROUTE</div>
+      <div style="font-family:'Space Mono',monospace;font-size:0.58rem;color:rgba(200,230,201,0.45);letter-spacing:1px">STLCITYROUTE</div>
       <div id="wiz-progress" style="display:flex;gap:6px;align-items:center"></div>
     </div>
     <!-- Body -->
     <div id="wiz-body" style="padding:16px 20px 0;min-height:280px"></div>
     <!-- Footer -->
     <div id="wiz-footer" style="padding:0 20px;display:flex;gap:8px;align-items:center;margin-top:16px"></div>
+  </div>
+</div>
+
+<!-- GPS SETUP POPUP — shown once, right after the setup wizard finishes
+     (Finish or Skip, either way — GPS matters for basic route planning too,
+     not just the profile fields the wizard collects). Reuses
+     _gpsSetupGuideHtml() so this content can never drift from the Settings
+     → App Install & GPS guide; there's exactly one place that text lives. -->
+<div id="gps-setup-popup" role="dialog" aria-modal="true" aria-label="GPS setup instructions" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.85);z-index:9999;overflow-y:auto;-webkit-overflow-scrolling:touch;justify-content:center;align-items:flex-end">
+  <div style="background:white;border-radius:24px 24px 0 0;padding:20px 20px 28px;width:100%;max-width:480px;max-height:90dvh;overflow-y:auto;box-shadow:0 -8px 60px rgba(0,0,0,0.5)">
+    <div style="text-align:center;margin-bottom:14px">
+      <div style="font-size:1.8rem;margin-bottom:4px">📡</div>
+      <div style="font-family:'Syne',sans-serif;font-weight:800;font-size:0.9rem;color:#1a3320">One last thing — set up GPS</div>
+      <div style="font-size:0.6rem;color:#777;font-family:'Space Mono',monospace;margin-top:4px;line-height:1.6">Route optimization and the map need your location. Takes under 2 minutes.</div>
+    </div>
+    <div id="gps-setup-popup-content"></div>
+    <div style="display:flex;gap:8px;margin-top:6px">
+      <button onclick="closeGpsSetupPopup();testGPSNow()" style="flex:1;padding:11px;border:1.5px solid var(--leaf);border-radius:10px;background:var(--sky);color:var(--moss);font-family:'Syne',sans-serif;font-weight:800;font-size:0.68rem;cursor:pointer">📡 TEST GPS NOW</button>
+      <button onclick="closeGpsSetupPopup()" style="flex:1;padding:11px;border:none;border-radius:10px;background:var(--forest);color:white;font-family:'Syne',sans-serif;font-weight:800;font-size:0.72rem;cursor:pointer">Got it</button>
+    </div>
   </div>
 </div>
 </body>
