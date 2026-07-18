@@ -889,35 +889,6 @@ header{
   font-size: 0.74rem;
 }
 
-/* ── Prepare Photo situational-awareness map: street name labels ──────
-   Dedicated class (not reusing boundary-label-ward) so this map's colors/
-   sizing can be tuned independently of the Map tab's ward/neighborhood/
-   police-district layers. Syne (the app's bold display font used
-   everywhere else — buttons, headers) instead of the tiny Space Mono used
-   here previously; darker, more saturated color; larger size; a stronger
-   white halo so it stays legible over both light tile background and the
-   gold parcel outlines it often sits on top of.
-*/
-.leaflet-tooltip.photo-setup-street-label {
-  background: transparent;
-  border: none;
-  box-shadow: none;
-  padding: 1px 4px;
-  font-family: Syne, sans-serif;
-  font-weight: 800;
-  font-size: 0.68rem;
-  letter-spacing: 0.3px;
-  white-space: nowrap;
-  pointer-events: none;
-  color: #2c3e50;
-  text-shadow:
-    0 0 2px rgba(255,255,255,0.98),
-    0 0 4px rgba(255,255,255,0.98),
-    0 0 7px rgba(255,255,255,0.85);
-}
-.leaflet-tooltip.photo-setup-street-label::before {
-  display: none !important;
-}
 </style>
 </head>
 <body>
@@ -2717,7 +2688,7 @@ header{
     <details class="help-panel">
       <summary>📷 Photo Stamping &amp; Cache</summary>
       <div class="help-panel-body">
-        <b>What is photostamping?</b> The 📷 button in the top header (and the 📷 button in any stop's Utility menu) opens <b>Prepare Photo</b> — a full-screen setup step, not the camera directly. It shows a live map of parcels and street names near your GPS position, with your nearest 10 addresses listed below as tappable candidates (each with its own 🔍 Property Search button). Tap a candidate to fill the address, use 📍 GPS to reverse-lookup instead, or type it manually. Add optional notes and a tracking number, then tap <b>📷 Open Camera</b> or <b>🖼 Pick Existing</b> (choose one or more photos from your gallery — all get stamped with the same address). ⚙ Stamp jumps to Stamp Settings; ✕ Exit backs out without taking a photo.<br><br>
+        <b>What is photostamping?</b> The 📷 button in the top header (and the 📷 button in any stop's Utility menu) opens <b>Prepare Photo</b> — a full-screen setup step, not the camera directly. It shows a live map of nearby parcels (street names come from the base map itself), with your nearest 10 addresses listed below as tappable candidates (each with its own 🔍 Property Search button). Tap a candidate to fill the address, or type it manually — 📍 GPS only re-centers the map on your current position, it doesn't fill the address field. Add optional notes and a tracking number, then tap <b>📷 Open Camera</b> or <b>🖼 Pick Existing</b> (choose one or more photos from your gallery — all get stamped with the same address). ⚙ Stamp jumps to Stamp Settings; ✕ Exit backs out without taking a photo.<br><br>
         <b>Per-stop photo sessions:</b> Opening Prepare Photo from a specific stop's Utility menu links the photo to that stop. Each stamped shot increments a 📷 counter on the stop card so you can see at a glance how many photos you've taken at that address.<br><br>
         <b>Filenames are searchable:</b> Stamped photos are named like <code style="font-size:0.95em">2801daltonavenue_042326_101832847.jpg</code> — address, then date (mmddyy), then time (hhmmss) + milliseconds, underscore-separated. You can search this exact name in your Photos / Files app to find any photo later.<br><br>
         <b>What gets burned in</b> — Settings → 📷 Stamp Settings has individual toggles for: address, date, time, inspector name, title/department, GPS coordinates, compass bearing, case number, photo sequence number, neighborhood name, neighborhood number, ward number, and notes. Turn any subset on. Compact form: "Tower Grove South #15 · Ward 8".<br><br>
@@ -3060,7 +3031,7 @@ header{
     <label style="display:block;font-family:'Space Mono',monospace;font-size:0.56rem;color:#666;margin-bottom:4px">Address</label>
     <div style="display:flex;gap:6px;margin-bottom:8px">
       <input type="text" id="photo-setup-addr" placeholder="Street address (optional)" style="flex:1;padding:9px 10px;border:1.5px solid #ead3b0;border-radius:8px;font-family:'Space Mono',monospace;font-size:0.68rem;color:#222;background:#fff">
-      <button data-fn="photoReverseLookup" title="Use GPS to find address" style="background:#fff4e0;border:1.5px solid #ead3b0;border-radius:8px;padding:6px 10px;font-family:Syne,sans-serif;font-weight:700;font-size:0.6rem;color:#8c4a00;cursor:pointer;white-space:nowrap">📍 GPS</button>
+      <button data-fn="photoSetupGpsRefresh" title="Refresh map at your current location" style="background:#fff4e0;border:1.5px solid #ead3b0;border-radius:8px;padding:6px 10px;font-family:Syne,sans-serif;font-weight:700;font-size:0.6rem;color:#8c4a00;cursor:pointer;white-space:nowrap">📍 GPS</button>
     </div>
 
     <!-- Tappable nearby-parcel address candidates — filled by
@@ -15757,56 +15728,47 @@ function closePhotoSetup() {
   Accessibility.modalClosed(modal);
 }
 
-// Reverse-geocode current GPS into an address (uses Nominatim if available)
-async function photoReverseLookup() {
-  var addrField = document.getElementById('photo-setup-addr');
-  if (!addrField) return;
-  showToast('📍 Looking up address…');
+// "📍 GPS" button on the Prepare Photo map: re-fixes GPS and snaps the map
+// back to the inspector's current position at whatever zoom they already
+// had. Deliberately does NOT touch the Address field — filling it is only
+// ever done by tapping a candidate from the list below or typing it
+// manually (this used to also reverse-geocode and auto-fill the field via
+// Nominatim; that's gone, since a reverse-geocoded street guess could be
+// wrong in a way a tapped/typed address can't be).
+async function photoSetupGpsRefresh() {
+  var statusEl = document.getElementById('photo-setup-map-status');
+  if (statusEl) statusEl.textContent = '📡 Getting your location…';
   try {
     var gps = await _tryGetLocationForStamp();
-    if (!gps) { showToast('⚠ GPS unavailable'); return; }
-    // Try Nominatim reverse lookup
-    var built = await _tryLogAsync('photostamp-reverse-geocode', async function() {
-      var url = 'https://nominatim.openstreetmap.org/reverse?format=json&lat=' + gps.lat + '&lon=' + gps.lng + '&zoom=18&addressdetails=1';
-      // RAW FETCH: this is the reverse-geocode for the photostamp address
-      // auto-fill. TODO migrate to fetchWithTimeout — there's no external
-      // signal here, no fire-and-forget reason. Tracked in the "raw fetch
-      // audit" lane; not converted in this drop because the photostamp flow
-      // is already covered by an outer try/catch and is low-priority.
-      var resp = await fetch(url, { headers: { 'Accept':'application/json' } });
-      if (resp.ok) {
-        var data = await resp.json();
-        if (data && data.address) {
-          var a = data.address;
-          var street = (a.house_number ? a.house_number + ' ' : '') + (a.road || a.pedestrian || a.footway || '');
-          return street.trim() || (data.display_name || '').split(',')[0] || '';
-        }
-      }
-      return '';
-    });
-    if (built) {
-      addrField.value = built;
-      showToast('📍 Address filled');
+    if (!gps) {
+      if (statusEl) statusEl.textContent = '⚠ GPS unavailable';
+      showToast('⚠ GPS unavailable');
       return;
     }
-    // Fallback: just fill GPS coords
-    addrField.value = 'GPS: ' + gps.lat.toFixed(5) + ', ' + gps.lng.toFixed(5);
-    showToast('📍 GPS filled (no address found)');
+    _photoContext.gps = gps;
+    // Radius derived from whatever's currently visible on screen (same
+    // logic a pan/zoom redraw uses) so the refresh matches the zoom level
+    // it's about to recenter at, rather than always re-querying the
+    // original tight modal-open radius.
+    var radius = _photoSetupMap ? _photoSetupViewRadiusM() : ParcelLookup.RADIUS_M;
+    await _refreshPhotoSetupParcels(gps, { resetZoom: false, radius: radius });
   } catch(err) {
-    showToast('⚠ Lookup failed');
+    if (statusEl) statusEl.textContent = '';
+    showToast('⚠ GPS unavailable');
   }
 }
 
-// ── ParcelLookup: nearby parcel addresses + street names ────────────────
+// ── ParcelLookup: nearby parcel addresses ────────────────────────────────
 // Queries the City of St. Louis's own public assessor ArcGIS service — same
 // trusted domain (maps8.stlouis-mo.gov) the app already hits for Wards and
 // Police Districts. No key, no server, no rate-limit auth. Powers the
-// Prepare Photo situational-awareness map: "what parcels/streets am I near
-// right now?" Best-effort only — every caller treats failures as "no
-// candidates," never as a blocking error.
+// Prepare Photo situational-awareness map: "what parcels am I near right
+// now?" Best-effort only — every caller treats failures as "no candidates,"
+// never as a blocking error. (Street names used to be queried/drawn here
+// too; removed since the base map's own tile labels already show streets —
+// see the GPS-refresh drop.)
 var ParcelLookup = (function() {
   var PARCELS_URL = 'https://maps8.stlouis-mo.gov/arcgis/rest/services/ASSESSOR/Assessor_Public_Parcels/MapServer/11/query';
-  var STREETS_URL = 'https://maps8.stlouis-mo.gov/arcgis/rest/services/ASSESSOR/Assessor_Public_Parcels/MapServer/5/query';
   var RADIUS_M = 55; // ~180ft — a handful of parcels either side on a typical STL block
 
   // Rough centroid of a polygon's outer ring — good enough for a label
@@ -15845,26 +15807,6 @@ var ParcelLookup = (function() {
     }).filter(function(x) { return x.address && x.lat && x.lng; });
   }
 
-  async function queryStreets(lat, lng, radiusM) {
-    var url = STREETS_URL + '?geometry=' + encodeURIComponent(lng + ',' + lat) +
-      '&geometryType=esriGeometryPoint&inSR=4326&distance=' + (radiusM || RADIUS_M) +
-      '&units=esriSRUnit_Meter&spatialRel=esriSpatialRelIntersects' +
-      '&outFields=StreetName,StreetNamePreDirection,StreetNamePostType' +
-      '&returnGeometry=true&outSR=4326&f=geojson';
-    var resp = await fetch(url);
-    if (!resp.ok) throw new Error('street query failed: ' + resp.status);
-    var gj = await resp.json();
-    var feats = (gj && gj.features) || [];
-    var out = [];
-    feats.forEach(function(f) {
-      var p = f.properties || {};
-      var name = [p.StreetNamePreDirection, p.StreetName, p.StreetNamePostType].filter(Boolean).join(' ').trim();
-      if (!name || !f.geometry) return;
-      out.push({ name: name, geometry: f.geometry });
-    });
-    return out;
-  }
-
   function haversineM(lat1, lng1, lat2, lng2) {
     var R = 6371000, toRad = Math.PI / 180;
     var dLat = (lat2 - lat1) * toRad, dLng = (lng2 - lng1) * toRad;
@@ -15872,51 +15814,9 @@ var ParcelLookup = (function() {
     return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
   }
 
-  return { queryParcels: queryParcels, queryStreets: queryStreets, haversineM: haversineM, RADIUS_M: RADIUS_M };
+  return { queryParcels: queryParcels, haversineM: haversineM, RADIUS_M: RADIUS_M };
 })();
 window.ParcelLookup = ParcelLookup;
-
-// GeoJSON LineString/MultiLineString → Leaflet-shaped [lat,lng] pairs.
-// GeoJSON stores [lng,lat]; Leaflet wants [lat,lng] — has to be swapped.
-function _geoJsonLineToLatLngs(geom) {
-  if (!geom) return [];
-  if (geom.type === 'LineString') {
-    return geom.coordinates.map(function(c) { return [c[1], c[0]]; });
-  }
-  if (geom.type === 'MultiLineString') {
-    return geom.coordinates.map(function(seg) { return seg.map(function(c) { return [c[1], c[0]]; }); });
-  }
-  return [];
-}
-
-// Midpoint + on-screen rotation angle for a street name label, so the text
-// runs parallel to the road instead of always sitting flat/horizontal.
-// Works in actual screen pixels (via the map's own projection), not raw
-// lat/lng deltas — lat/lng degrees aren't equal-length on screen, so a
-// naive atan2 on coordinates would give a subtly wrong angle. Normalized
-// to [-90, 90] so the text is never upside-down. `latlngs` is whatever
-// _geoJsonLineToLatLngs returned — either a flat [lat,lng] point list
-// (LineString) or an array of such lists (MultiLineString, in which case
-// the longest segment is used).
-function _streetLabelMidpointAndAngle(map, latlngs) {
-  if (!map || !latlngs || !latlngs.length) return null;
-  var line = latlngs;
-  if (Array.isArray(line[0][0])) {
-    line = line.reduce(function(best, seg) { return seg.length > best.length ? seg : best; }, line[0]);
-  }
-  if (line.length < 2) return null;
-  var midIdx = Math.floor(line.length / 2);
-  var a = line[Math.max(0, midIdx - 1)];
-  var b = line[Math.min(line.length - 1, midIdx)];
-  try {
-    var aPt = map.latLngToContainerPoint([a[0], a[1]]);
-    var bPt = map.latLngToContainerPoint([b[0], b[1]]);
-    var deg = Math.atan2(bPt.y - aPt.y, bPt.x - aPt.x) * 180 / Math.PI;
-    if (deg > 90) deg -= 180;
-    if (deg < -90) deg += 180;
-    return { latlng: [(a[0]+b[0])/2, (a[1]+b[1])/2], angleDeg: deg };
-  } catch(_e) { return null; }
-}
 
 // ── Prepare Photo situational-awareness map ──────────────────────────────
 // Independent Leaflet instance (separate from the Map tab's routeMap) shown
@@ -15924,7 +15824,7 @@ function _streetLabelMidpointAndAngle(map, latlngs) {
 // then just recentered/invalidated on later opens.
 var _photoSetupMap = null;
 var _photoSetupPinMarker = null;   // the inspector's GPS position — persists across zoom/pan redraws
-var _photoSetupMapLayers = [];     // parcel polygons + labels + street lines ONLY — cleared/rebuilt on every redraw
+var _photoSetupMapLayers = [];     // parcel polygons + labels ONLY — cleared/rebuilt on every redraw
 var _photoSetupParcelMarkers = {}; // address -> Leaflet marker, so the candidate list can highlight one on tap
 var _photoSetupHighlightedAddr = null;
 var _photoSetupViewChangeTimer = null;
@@ -15939,13 +15839,14 @@ function _initPhotoSetupMap() {
   var el = document.getElementById('photo-setup-map');
   if (!el || typeof L === 'undefined') return;
   try {
-    // zoomSnap/zoomDelta 0.5 + minZoom 18.5: the baseline GPS-driven view
+    // zoomSnap/zoomDelta 0.5 + minZoom 18.0: the baseline GPS-driven view
     // always opens at zoom 19, so this caps how far out you can go to
-    // exactly one press of the +/- control (19 → 18.5) — this map is meant
-    // for "what am I near right now," not general-purpose exploring, and
-    // going further out was mostly just adding clutter (see
-    // _parcelZoomTier for the font-shrink side of the same idea).
-    _photoSetupMap = L.map('photo-setup-map', { zoomControl: true, tap: false, attributionControl: false, zoomSnap: 0.5, zoomDelta: 0.5, minZoom: 18.5 })
+    // exactly two presses of the +/- control (19 → 18.0) — this map is
+    // meant for "what am I near right now," not general-purpose exploring,
+    // and going further out was mostly just adding clutter (see
+    // _parcelZoomTier for the font-shrink/number-only side of the same
+    // idea).
+    _photoSetupMap = L.map('photo-setup-map', { zoomControl: true, tap: false, attributionControl: false, zoomSnap: 0.5, zoomDelta: 0.5, minZoom: 18.0 })
       .setView(STL_CENTER, 16);
     L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', {
       subdomains: 'abcd', maxZoom: 20, minZoom: 12
@@ -15999,104 +15900,91 @@ var _photoSetupBaselineZoom = 19;
 
 // Matches the map's zoomSnap/zoomDelta (see _initPhotoSetupMap) — one
 // "press" of the +/- control moves the zoom by this much. minZoom is set
-// to baseline − 1 press, so the map physically cannot be zoomed out
+// to baseline − 2 presses, so the map physically cannot be zoomed out
 // further than this regardless of what thresholds are used below.
 var _PHOTO_SETUP_PRESS_ZOOM = 0.5;
 
 // How much detail to render at a given zoom, relative to where the screen
 // started (in units of "presses" of the +/- control):
 //   < half a press out : full size, tappable (Property Search popup works)
-//   half a press to one full press out (the map's actual zoom-out limit):
-//     shrunk text, still tappable
-//   beyond one press (not reachable today given minZoom, but the rule
-//     stays here in case that limit ever loosens): smaller still, and the
-//     tap-to-search popup stops being wired up entirely so a zoomed-out
-//     view is free to pan around without a label grabbing the tap.
+//   half a press to one full press out: shrunk text, still tappable
+//   one to two full presses out (the map's actual zoom-out limit): smaller
+//     still, tap-to-search popup no longer wired up, AND labels drop their
+//     street name — number only — since a full "1200 MARKET ST" at this
+//     density is more clutter than the base map's own street labels
+//     already provide.
+//   beyond two presses (not reachable today given minZoom, but the rule
+//     stays here in case that limit ever loosens): same number-only
+//     treatment, smaller still.
 function _parcelZoomTier(zoom) {
   var diff = _photoSetupBaselineZoom - zoom;
   var presses = diff / _PHOTO_SETUP_PRESS_ZOOM;
-  if (presses < 0.5) return { fontRem: 0.64, interactive: true };
-  if (presses <= 1)  return { fontRem: 0.50, interactive: true };
-  if (presses <= 2)  return { fontRem: 0.44, interactive: false };
-  return { fontRem: 0.40, interactive: false };
+  if (presses < 0.5) return { fontRem: 0.64, interactive: true,  numberOnly: false };
+  if (presses <= 1)  return { fontRem: 0.50, interactive: true,  numberOnly: false };
+  if (presses <= 2)  return { fontRem: 0.44, interactive: false, numberOnly: true };
+  return { fontRem: 0.40, interactive: false, numberOnly: true };
 }
 
-function _parcelLabelHtml(addr, highlighted, fontRem) {
+// Strips a full site address ("1200 MARKET ST", "1200-04 MARKET ST") down
+// to just the leading house-number token, for the number-only zoom tier.
+// Falls back to the original string if it doesn't start with a digit —
+// better to show something than nothing for whatever oddball format slips
+// through.
+function _addrNumberOnly(addr) {
+  if (!addr) return addr;
+  var m = String(addr).match(/^\s*(\d[\d\-\/]*)/);
+  return m ? m[1] : addr;
+}
+
+function _parcelLabelHtml(addr, highlighted, fontRem, numberOnly) {
   // The selected/highlighted parcel keeps a distinct bordered box — it's
   // meant to stand out, and there's only ever one on screen at once, so it
   // doesn't contribute to the "too busy" problem the way a box on every
   // single label did. Font size here is fixed regardless of zoom tier;
   // this is a deliberate one-off emphasis, not part of the base density.
+  // It also always shows the full address (never number-only) — it's the
+  // one label the inspector is actively looking at, so it should stay
+  // unambiguous even while every other label around it has shrunk to a
+  // bare number.
   if (highlighted) {
     return '<div style="background:#ffd54a;border:2.5px solid #1a1a1a;border-radius:5px;padding:3px 7px;font-family:Syne,sans-serif;font-size:0.68rem;color:#1a0f00;white-space:nowrap;font-weight:800;box-shadow:0 2px 10px rgba(0,0,0,0.45);cursor:pointer">' + escHtml(addr) + '</div>';
   }
   // Every other label: plain text, no background/border/bubble — a strong
-  // white halo (same technique as the street-name labels) keeps it legible
-  // over both basemap and the gold parcel fill without a box. Font size
-  // comes from the current zoom tier.
-  return '<div style="font-family:Syne,sans-serif;font-size:' + fontRem + 'rem;color:#1a1a1a;white-space:nowrap;font-weight:800;text-shadow:0 0 2px rgba(255,255,255,0.95),0 0 3px rgba(255,255,255,0.95),0 0 5px rgba(255,255,255,0.85)">' + escHtml(addr) + '</div>';
+  // white halo keeps it legible over both basemap and the gold parcel fill
+  // without a box. Font size comes from the current zoom tier; text is
+  // either the full address or just the house number, per that same tier.
+  var text = numberOnly ? _addrNumberOnly(addr) : addr;
+  return '<div style="font-family:Syne,sans-serif;font-size:' + fontRem + 'rem;color:#1a1a1a;white-space:nowrap;font-weight:800;text-shadow:0 0 2px rgba(255,255,255,0.95),0 0 3px rgba(255,255,255,0.95),0 0 5px rgba(255,255,255,0.85)">' + escHtml(text) + '</div>';
 }
 
 // Fetches + draws parcels/streets for the given center + radius. Does NOT
 // touch the pin marker and does NOT touch the candidate list — this is the
 // piece shared by both the initial GPS-driven load and later zoom/pan
 // redraws, which have different needs around those two things.
-async function _drawPhotoSetupParcelsAndStreets(centerLat, centerLng, radiusM) {
+async function _drawPhotoSetupParcels(centerLat, centerLng, radiusM) {
   if (!_photoSetupMap) return { parcels: [] };
   _clearPhotoSetupMapLayers();
   _photoSetupLastDrawnRadiusM = radiusM;
 
-  var parcels = [], streets = [];
+  var parcels = [];
   try {
-    var results = await Promise.allSettled([
-      ParcelLookup.queryParcels(centerLat, centerLng, radiusM),
-      ParcelLookup.queryStreets(centerLat, centerLng, radiusM)
-    ]);
-    if (results[0].status === 'fulfilled') parcels = results[0].value;
-    if (results[1].status === 'fulfilled') streets = results[1].value;
+    parcels = await ParcelLookup.queryParcels(centerLat, centerLng, radiusM);
   } catch(_e) {}
 
-  // Zoom tier drives font size (both streets and parcels) and whether
-  // Property Search is even wired up (parcels only) — computed once up
-  // front so streets and parcels stay in sync.
+  // Zoom tier drives parcel-label font size, number-only vs. full-address
+  // text, and whether Property Search is even wired up. Streets are no
+  // longer drawn here at all — the base map's own tile labels already show
+  // street names, so a second, separately-styled set of street lines/labels
+  // was just visual noise on top of them.
   var zoom = _photoSetupMap.getZoom();
   var tier = _parcelZoomTier(zoom);
 
-  // Streets drawn first (under parcels) as thin lines, with a name label
-  // ROTATED to run parallel to the street itself — a divIcon marker at the
-  // segment's midpoint rather than a Leaflet tooltip, since tooltips don't
-  // support rotation without fighting Leaflet's own positioning transform.
-  streets.forEach(function(s) {
-    try {
-      var latlngs = _geoJsonLineToLatLngs(s.geometry);
-      if (!latlngs.length) return;
-      var line = L.polyline(latlngs, { color:'#4a5a6a', weight:3.5, opacity:0.85 }).addTo(_photoSetupMap);
-      _photoSetupMapLayers.push(line);
-
-      var mid = _streetLabelMidpointAndAngle(_photoSetupMap, latlngs);
-      if (mid) {
-        var boxW = Math.max(60, (s.name || '').length * (tier.fontRem * 10.5) + 10);
-        var boxH = Math.max(14, Math.round(tier.fontRem * 24));
-        var labelHtml =
-          '<div style="width:' + boxW + 'px;height:' + boxH + 'px;display:flex;align-items:center;justify-content:center;pointer-events:none">' +
-          '<div style="transform:rotate(' + mid.angleDeg + 'deg);font-family:Syne,sans-serif;font-weight:800;font-size:' + tier.fontRem + 'rem;color:#2c3e50;white-space:nowrap;text-shadow:0 0 2px rgba(255,255,255,0.98),0 0 4px rgba(255,255,255,0.98),0 0 7px rgba(255,255,255,0.85)">' +
-          escHtml(s.name) + '</div></div>';
-        var streetLabel = L.marker(mid.latlng, {
-          icon: L.divIcon({ className: '', html: labelHtml, iconSize: [boxW, boxH], iconAnchor: [boxW/2, boxH/2] }),
-          interactive: false,
-          zIndexOffset: -100
-        }).addTo(_photoSetupMap);
-        _photoSetupMapLayers.push(streetLabel);
-      }
-    } catch(_e) {}
-  });
-
-  // Parcel outlines + address-number labels. Detail level (font size,
-  // whether the tap-to-search popup is even wired up) depends on how far
-  // zoomed out the map currently is relative to where it opened — see
-  // _parcelZoomTier. At a glance-out zoom level this deliberately does
-  // LESS, not more: no popup binding at all, so a zoomed-out view is free
-  // to pan/zoom without a label grabbing the tap.
+  // Parcel outlines + address labels. Detail level (font size, full
+  // address vs. number-only, whether the tap-to-search popup is even wired
+  // up) depends on how far zoomed out the map currently is relative to
+  // where it opened — see _parcelZoomTier. At a glance-out zoom level this
+  // deliberately does LESS, not more: no popup binding at all, so a
+  // zoomed-out view is free to pan/zoom without a label grabbing the tap.
   parcels.forEach(function(p) {
     try {
       if (p.geometry) {
@@ -16105,9 +15993,14 @@ async function _drawPhotoSetupParcelsAndStreets(centerLat, centerLng, radiusM) {
       }
       var highlighted = (p.address === _photoSetupHighlightedAddr);
       var effFontRem = highlighted ? 0.68 : tier.fontRem; // highlighted always renders at a fixed size — see _parcelLabelHtml
-      var dims = _parcelIconSize(p.address, highlighted, effFontRem);
+      // Sizing is based on whatever text will actually render (full
+      // address, or just the house number once zoomed out past the
+      // number-only threshold) so the hit box never ends up oversized/stale
+      // relative to the shrunk label.
+      var displayAddr = (!highlighted && tier.numberOnly) ? _addrNumberOnly(p.address) : p.address;
+      var dims = _parcelIconSize(displayAddr, highlighted, effFontRem);
       var marker = L.marker([p.lat, p.lng], {
-        icon: L.divIcon({ className: '', html: _parcelLabelHtml(p.address, highlighted, tier.fontRem), iconSize: dims.iconSize, iconAnchor: dims.iconAnchor }),
+        icon: L.divIcon({ className: '', html: _parcelLabelHtml(p.address, highlighted, tier.fontRem, tier.numberOnly), iconSize: dims.iconSize, iconAnchor: dims.iconAnchor }),
         interactive: tier.interactive,
         zIndexOffset: highlighted ? 500 : 0
       }).addTo(_photoSetupMap);
@@ -16131,10 +16024,10 @@ async function _drawPhotoSetupParcelsAndStreets(centerLat, centerLng, radiusM) {
   return { parcels: parcels };
 }
 
-// Debounced handler for map pan/zoom — redraws parcels/streets around the
-// CURRENT map center (wherever the user has panned/zoomed to), at a radius
-// derived from what's now visible. Only fires once the map + candidate
-// list have already been through their initial GPS-driven load.
+// Debounced handler for map pan/zoom — redraws parcels around the CURRENT
+// map center (wherever the user has panned/zoomed to), at a radius derived
+// from what's now visible. Only fires once the map + candidate list have
+// already been through their initial GPS-driven load.
 function _onPhotoSetupMapViewChange() {
   if (!_photoSetupMap || _photoSetupLastDrawnRadiusM == null) return;
   var radius = _photoSetupViewRadiusM();
@@ -16144,30 +16037,52 @@ function _onPhotoSetupMapViewChange() {
   var center = _photoSetupMap.getCenter();
   var statusEl = document.getElementById('photo-setup-map-status');
   if (statusEl) statusEl.textContent = '📡 Loading nearby parcels…';
-  _drawPhotoSetupParcelsAndStreets(center.lat, center.lng, radius).then(function(res) {
+  _drawPhotoSetupParcels(center.lat, center.lng, radius).then(function(res) {
     if (statusEl) statusEl.textContent = res.parcels.length ? ('📍 ' + res.parcels.length + ' nearby parcel' + (res.parcels.length===1?'':'s')) : '⚠ No parcel data found nearby';
   });
 }
 
-// Pull nearby parcels + streets around the given GPS fix, draw them on the
-// setup map (pin + parcel outlines/address labels + street-name lines), and
-// populate the tappable address-candidate list above. Best-effort: any
-// network failure just leaves the base map showing with no candidates —
-// the free-text Address field and the single-best-guess "📍 GPS" button
-// both still work independently of this.
-async function _refreshPhotoSetupParcels(gps) {
+// Pull nearby parcels around the given GPS fix, draw them on the setup map
+// (pin + parcel outlines/address labels), and populate the tappable
+// address-candidate list above. Best-effort: any network failure just
+// leaves the base map showing with no candidates — the free-text Address
+// field still works independently of this.
+//
+// opts.resetZoom (default true): the initial GPS-driven load on modal-open
+// snaps to zoom 19 and that becomes the new baseline _parcelZoomTier
+// measures zoom-out against. The "📍 GPS" button's refresh
+// (photoSetupGpsRefresh) instead passes resetZoom:false — it recenters on
+// a fresh fix WITHOUT changing whatever zoom level the inspector already
+// had, so panning back to "where am I" doesn't also yank them back to
+// max-zoom.
+// opts.radius (default ParcelLookup.RADIUS_M): query radius around the fix.
+async function _refreshPhotoSetupParcels(gps, opts) {
+  opts = opts || {};
+  var resetZoom = opts.resetZoom !== false;
+  var radius = opts.radius || ParcelLookup.RADIUS_M;
   var statusEl = document.getElementById('photo-setup-map-status');
   var listEl = document.getElementById('photo-setup-addr-candidates');
   if (!gps) { if (statusEl) statusEl.textContent = '⚠ GPS unavailable — enter address manually'; return; }
   _initPhotoSetupMap();
   if (!_photoSetupMap) { if (statusEl) statusEl.textContent = ''; return; }
   _photoSetupHighlightedAddr = null;
-  _photoSetupMap.setView([gps.lat, gps.lng], 19);
-  // Read back the actual zoom setView landed on (should always be 19, but
-  // reading it rather than hardcoding is one less thing that can drift out
-  // of sync if tile maxZoom or similar ever changes) — this is the
-  // reference point _parcelZoomTier measures "zoomed out N steps" against.
-  _photoSetupBaselineZoom = _photoSetupMap.getZoom();
+
+  if (resetZoom) {
+    _photoSetupMap.setView([gps.lat, gps.lng], 19);
+    // Read back the actual zoom setView landed on (should always be 19,
+    // but reading it rather than hardcoding is one less thing that can
+    // drift out of sync if tile maxZoom or similar ever changes) — this is
+    // the reference point _parcelZoomTier measures "zoomed out N steps"
+    // against.
+    _photoSetupBaselineZoom = _photoSetupMap.getZoom();
+  } else {
+    // GPS-refresh from the map's own button: snap the VIEW back to the
+    // inspector's current position at whatever zoom they already had —
+    // baseline stays untouched, so the zoom tier (font size / number-only
+    // labels / popup interactivity) doesn't jump around from a recenter
+    // alone.
+    _photoSetupMap.setView([gps.lat, gps.lng], _photoSetupMap.getZoom());
+  }
 
   // Pin at the inspector's current position — separate from
   // _photoSetupMapLayers so zoom/pan redraws never touch it.
@@ -16182,7 +16097,7 @@ async function _refreshPhotoSetupParcels(gps) {
   if (statusEl) statusEl.textContent = '📡 Loading nearby parcels…';
   if (listEl) { listEl.style.display = 'none'; listEl.innerHTML = ''; }
 
-  var draw = await _drawPhotoSetupParcelsAndStreets(gps.lat, gps.lng, ParcelLookup.RADIUS_M);
+  var draw = await _drawPhotoSetupParcels(gps.lat, gps.lng, radius);
   var parcels = draw.parcels;
 
   if (statusEl) statusEl.textContent = parcels.length ? ('📍 ' + parcels.length + ' nearby parcel' + (parcels.length===1?'':'s')) : '⚠ No parcel data found nearby';
@@ -16242,8 +16157,9 @@ function _highlightPhotoSetupParcel(addr) {
     var prev = _photoSetupParcelMarkers[_photoSetupHighlightedAddr];
     if (prev) {
       try {
-        var prevDims = _parcelIconSize(_photoSetupHighlightedAddr, false, tier.fontRem);
-        prev.setIcon(L.divIcon({ className: '', html: _parcelLabelHtml(_photoSetupHighlightedAddr, false, tier.fontRem), iconSize: prevDims.iconSize, iconAnchor: prevDims.iconAnchor }));
+        var prevDisplay = tier.numberOnly ? _addrNumberOnly(_photoSetupHighlightedAddr) : _photoSetupHighlightedAddr;
+        var prevDims = _parcelIconSize(prevDisplay, false, tier.fontRem);
+        prev.setIcon(L.divIcon({ className: '', html: _parcelLabelHtml(_photoSetupHighlightedAddr, false, tier.fontRem, tier.numberOnly), iconSize: prevDims.iconSize, iconAnchor: prevDims.iconAnchor }));
         prev.setZIndexOffset(0);
       } catch(_e) {}
     }
@@ -16252,8 +16168,8 @@ function _highlightPhotoSetupParcel(addr) {
   var marker = _photoSetupParcelMarkers[addr];
   if (marker) {
     try {
-      var dims = _parcelIconSize(addr, true, 0.68); // highlighted always renders at a fixed size — see _parcelLabelHtml
-      marker.setIcon(L.divIcon({ className: '', html: _parcelLabelHtml(addr, true, tier.fontRem), iconSize: dims.iconSize, iconAnchor: dims.iconAnchor }));
+      var dims = _parcelIconSize(addr, true, 0.68); // highlighted always renders at a fixed size, full address — see _parcelLabelHtml
+      marker.setIcon(L.divIcon({ className: '', html: _parcelLabelHtml(addr, true, tier.fontRem, tier.numberOnly), iconSize: dims.iconSize, iconAnchor: dims.iconAnchor }));
       marker.setZIndexOffset(500);
     } catch(_e) {}
   }
