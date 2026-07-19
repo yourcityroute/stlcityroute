@@ -15993,6 +15993,16 @@ var _photoSetupHighlightedAddr = null;
 var _photoSetupViewChangeTimer = null;
 var _photoSetupListenersAttached = false;
 var _photoSetupLastDrawnRadiusM = null; // avoids redundant re-queries on trivial view changes
+// 2026-07-19: tracks which zoom TIER (full/houseNumber/none) was showing
+// as of the last actual redraw — see _onPhotoSetupMapViewChange. Needed
+// because the radius-based "only redraw on a meaningful (~15%) view
+// change" debounce below was blind to tier transitions: with the current
+// fractional thresholds (any zoom-out at all crosses into houseNumber),
+// a tiny zoom nudge can flip the tier without moving the query radius by
+// anywhere near 15%, which used to leave stale labels on screen showing
+// the wrong tier until a much bigger zoom change eventually happened to
+// also clear the radius bar.
+var _photoSetupLastDrawnTierMode = null;
 
 function _initPhotoSetupMap() {
   if (_photoSetupMap) {
@@ -16076,25 +16086,23 @@ var _PHOTO_SETUP_PRESS_ZOOM = 1;
 
 // How much detail to render at a given zoom, relative to where the screen
 // started (in fractional "presses" of the +/- control — NOT rounded to
-// whole clicks, since pinch/scroll-wheel zoom can land between them and
-// the boundaries themselves are fractional):
-//   up to 3/4 of a press out  : full address (house # + street), tappable
-//     — Property Search popup works
-//   beyond 3/4 up to 1.5 presses out : HOUSE NUMBER ONLY, not tappable —
-//     the content itself changes here, not just the font size. A single
-//     button click (which moves a full 1.0 press with this map's default
-//     zoomDelta) already crosses the 3/4 line, so one click is enough to
-//     drop into this tier.
-//   beyond 1.5 presses out    : no parcel labels (or parcel/street data)
-//     at all — _drawPhotoSetupParcelsAndStreets and
-//     _onPhotoSetupMapViewChange both skip the network query entirely at
-//     this tier, so zooming out further to see the whole city doesn't
-//     spam the ArcGIS endpoint for an ever-growing empty result. Two
-//     button clicks (2.0 presses) clears the 1.5 line.
+// whole clicks, since pinch/scroll-wheel zoom can land between them):
+//   at or inside standard/baseline zoom (0 presses out, or zoomed IN past
+//     it) : full address (house # + street), tappable — Property Search
+//     popup works
+//   any amount zoomed out beyond standard, up to 1 press out : HOUSE
+//     NUMBER ONLY, not tappable — the content itself changes here, not
+//     just the font size. This is deliberately sensitive — even a small
+//     zoom-out nudge (not just a full button click) drops the street name.
+//   beyond 1 press out : no parcel labels (or parcel/street data) at all
+//     — _drawPhotoSetupParcels and _onPhotoSetupMapViewChange
+//     both skip the network query entirely at this tier, so zooming out
+//     further to see the whole city doesn't spam the ArcGIS endpoint for
+//     an ever-growing empty result.
 function _parcelZoomTier(zoom) {
   var presses = (_photoSetupBaselineZoom - zoom) / _PHOTO_SETUP_PRESS_ZOOM;
-  if (presses <= 0.75) return { mode: 'full', fontRem: 0.64, interactive: true };
-  if (presses <= 1.5)  return { mode: 'houseNumber', fontRem: 0.58, interactive: false };
+  if (presses <= 0) return { mode: 'full', fontRem: 0.64, interactive: true };
+  if (presses <= 1) return { mode: 'houseNumber', fontRem: 0.58, interactive: false };
   return { mode: 'none', fontRem: 0, interactive: false };
 }
 
@@ -16131,11 +16139,13 @@ function _parcelLabelHtml(addr, highlighted, fontRem, mode) {
   return '<div style="font-family:Syne,sans-serif;font-size:' + fontRem + 'rem;color:#1a1a1a;white-space:nowrap;font-weight:800;text-shadow:0 0 2px rgba(255,255,255,0.95),0 0 3px rgba(255,255,255,0.95),0 0 5px rgba(255,255,255,0.85)">' + escHtml(text) + '</div>';
 }
 
-// Fetches + draws parcels/streets for the given center + radius. Does NOT
-// touch the pin marker and does NOT touch the candidate list — this is the
+// Fetches + draws parcels for the given center + radius. Does NOT touch
+// the pin marker and does NOT touch the candidate list — this is the
 // piece shared by both the initial GPS-driven load and later zoom/pan
 // redraws, which have different needs around those two things.
-async function _drawPhotoSetupParcelsAndStreets(centerLat, centerLng, radiusM) {
+// (2026-07-19: renamed from _drawPhotoSetupParcelsAndStreets — no longer
+// draws streets, see the removed-overlay note below.)
+async function _drawPhotoSetupParcels(centerLat, centerLng, radiusM) {
   if (!_photoSetupMap) return { parcels: [] };
   _clearPhotoSetupMapLayers();
   _photoSetupLastDrawnRadiusM = radiusM;
@@ -16147,46 +16157,23 @@ async function _drawPhotoSetupParcelsAndStreets(centerLat, centerLng, radiusM) {
   // for a result nobody can see anyway.
   var zoom = _photoSetupMap.getZoom();
   var tier = _parcelZoomTier(zoom);
+  _photoSetupLastDrawnTierMode = tier.mode; // single source of truth — every draw path updates this
   if (tier.mode === 'none') return { parcels: [] };
 
-  var parcels = [], streets = [];
+  // 2026-07-19: no longer queries or draws street lines/name labels here —
+  // the basemap tile layer (cartocdn light_all, set up in
+  // _initPhotoSetupMap) already renders real street lines and name labels
+  // on its own. This overlay was drawing a second, redundant copy on top
+  // of that — same street names doubled up, extra clutter, no added
+  // information. ParcelLookup.queryStreets/_geoJsonLineToLatLngs/
+  // _streetLabelMidpointAndAngle are left defined but unused rather than
+  // deleted outright, in case a future need for a custom (non-basemap)
+  // street layer comes up — flagged as dead code for a future cleanup
+  // pass, not wired into anything today.
+  var parcels = [];
   try {
-    var results = await Promise.allSettled([
-      ParcelLookup.queryParcels(centerLat, centerLng, radiusM),
-      ParcelLookup.queryStreets(centerLat, centerLng, radiusM)
-    ]);
-    if (results[0].status === 'fulfilled') parcels = results[0].value;
-    if (results[1].status === 'fulfilled') streets = results[1].value;
+    parcels = await ParcelLookup.queryParcels(centerLat, centerLng, radiusM);
   } catch(_e) {}
-
-  // Streets drawn first (under parcels) as thin lines, with a name label
-  // ROTATED to run parallel to the street itself — a divIcon marker at the
-  // segment's midpoint rather than a Leaflet tooltip, since tooltips don't
-  // support rotation without fighting Leaflet's own positioning transform.
-  streets.forEach(function(s) {
-    try {
-      var latlngs = _geoJsonLineToLatLngs(s.geometry);
-      if (!latlngs.length) return;
-      var line = L.polyline(latlngs, { color:'#4a5a6a', weight:3.5, opacity:0.85 }).addTo(_photoSetupMap);
-      _photoSetupMapLayers.push(line);
-
-      var mid = _streetLabelMidpointAndAngle(_photoSetupMap, latlngs);
-      if (mid) {
-        var boxW = Math.max(60, (s.name || '').length * (tier.fontRem * 10.5) + 10);
-        var boxH = Math.max(14, Math.round(tier.fontRem * 24));
-        var labelHtml =
-          '<div style="width:' + boxW + 'px;height:' + boxH + 'px;display:flex;align-items:center;justify-content:center;pointer-events:none">' +
-          '<div style="transform:rotate(' + mid.angleDeg + 'deg);font-family:Syne,sans-serif;font-weight:800;font-size:' + tier.fontRem + 'rem;color:#2c3e50;white-space:nowrap;text-shadow:0 0 2px rgba(255,255,255,0.98),0 0 4px rgba(255,255,255,0.98),0 0 7px rgba(255,255,255,0.85)">' +
-          escHtml(s.name) + '</div></div>';
-        var streetLabel = L.marker(mid.latlng, {
-          icon: L.divIcon({ className: '', html: labelHtml, iconSize: [boxW, boxH], iconAnchor: [boxW/2, boxH/2] }),
-          interactive: false,
-          zIndexOffset: -100
-        }).addTo(_photoSetupMap);
-        _photoSetupMapLayers.push(streetLabel);
-      }
-    } catch(_e) {}
-  });
 
   // Parcel outlines + address labels. Detail level (font size, label
   // content, whether the tap-to-search popup is even wired up) depends on
@@ -16232,28 +16219,41 @@ async function _drawPhotoSetupParcelsAndStreets(centerLat, centerLng, radiusM) {
 // CURRENT map center (wherever the user has panned/zoomed to), at a radius
 // derived from what's now visible. Only fires once the map + candidate
 // list have already been through their initial GPS-driven load.
+//
+// 2026-07-19 fix: redraws now happen if EITHER the zoom tier changed
+// (full/houseNumber/none) OR the visible radius changed meaningfully
+// (~15%+) — previously only the radius check existed, which meant a
+// small zoom-out nudge could cross a tier boundary (especially with how
+// sensitive the "any zoom-out at all" full→houseNumber threshold is)
+// without moving the radius by anywhere near 15%, silently leaving stale
+// labels on screen from the previous tier until a much bigger zoom change
+// happened to also satisfy the radius bar. Tier changes now always force
+// a redraw regardless of radius.
 function _onPhotoSetupMapViewChange() {
   if (!_photoSetupMap || _photoSetupLastDrawnRadiusM == null) return;
   var statusEl = document.getElementById('photo-setup-map-status');
-  // 2026-07-19: check the zoom tier BEFORE computing a radius/querying —
-  // at the "no labels" tier there's nothing to draw, so skip straight to
-  // clearing whatever's currently shown and skip the network call. This
-  // is what actually lets zooming out to city scale stay lightweight
-  // instead of re-querying an ever-growing radius on every pan.
   var tier = _parcelZoomTier(_photoSetupMap.getZoom());
+  var tierChanged = tier.mode !== _photoSetupLastDrawnTierMode;
+
   if (tier.mode === 'none') {
-    if (_photoSetupMapLayers.length) _clearPhotoSetupMapLayers();
-    _photoSetupLastDrawnRadiusM = 0; // forces a real redraw once zoomed back in
-    if (statusEl) statusEl.textContent = '🔍 Zoomed out — zoom in to see parcel details';
+    if (tierChanged) {
+      if (_photoSetupMapLayers.length) _clearPhotoSetupMapLayers();
+      _photoSetupLastDrawnTierMode = 'none';
+      _photoSetupLastDrawnRadiusM = 0; // forces a real redraw once zoomed back in, even if radius alone wouldn't clear the 15% bar
+      if (statusEl) statusEl.textContent = '🔍 Zoomed out — zoom in to see parcel details';
+    }
     return;
   }
+
   var radius = _photoSetupViewRadiusM();
-  // Skip redundant redraws for trivial nudges — only re-query when the
-  // visible radius has actually changed meaningfully (~15%+).
-  if (Math.abs(radius - _photoSetupLastDrawnRadiusM) / _photoSetupLastDrawnRadiusM < 0.15) return;
+  var radiusChangedMeaningfully = _photoSetupLastDrawnRadiusM
+    ? (Math.abs(radius - _photoSetupLastDrawnRadiusM) / _photoSetupLastDrawnRadiusM >= 0.15)
+    : true;
+  if (!tierChanged && !radiusChangedMeaningfully) return;
+
   var center = _photoSetupMap.getCenter();
   if (statusEl) statusEl.textContent = '📡 Loading nearby parcels…';
-  _drawPhotoSetupParcelsAndStreets(center.lat, center.lng, radius).then(function(res) {
+  _drawPhotoSetupParcels(center.lat, center.lng, radius).then(function(res) {
     if (statusEl) statusEl.textContent = res.parcels.length ? ('📍 ' + res.parcels.length + ' nearby parcel' + (res.parcels.length===1?'':'s')) : '⚠ No parcel data found nearby';
   });
 }
@@ -16277,6 +16277,13 @@ async function _refreshPhotoSetupParcels(gps) {
   // of sync if tile maxZoom or similar ever changes) — this is the
   // reference point _parcelZoomTier measures "zoomed out N steps" against.
   _photoSetupBaselineZoom = _photoSetupMap.getZoom();
+  // A fresh GPS fix always starts at the baseline zoom (tier 'full'), so
+  // tier tracking resets here too — otherwise a leftover 'houseNumber' or
+  // 'none' from a PREVIOUS Prepare Photo session (map instance is reused,
+  // not recreated — see _initPhotoSetupMap's early return) could cause
+  // this fresh load's first redraw to be wrongly skipped by the
+  // tierChanged check in _onPhotoSetupMapViewChange.
+  _photoSetupLastDrawnTierMode = null;
 
   // Pin at the inspector's current position — separate from
   // _photoSetupMapLayers so zoom/pan redraws never touch it.
@@ -16291,7 +16298,7 @@ async function _refreshPhotoSetupParcels(gps) {
   if (statusEl) statusEl.textContent = '📡 Loading nearby parcels…';
   if (listEl) { listEl.style.display = 'none'; listEl.innerHTML = ''; }
 
-  var draw = await _drawPhotoSetupParcelsAndStreets(gps.lat, gps.lng, ParcelLookup.RADIUS_M);
+  var draw = await _drawPhotoSetupParcels(gps.lat, gps.lng, ParcelLookup.RADIUS_M);
   var parcels = draw.parcels;
 
   if (statusEl) statusEl.textContent = parcels.length ? ('📍 ' + parcels.length + ' nearby parcel' + (parcels.length===1?'':'s')) : '⚠ No parcel data found nearby';
