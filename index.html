@@ -2078,13 +2078,14 @@ header{
       style="flex:0 0 68px;width:68px;border:none;background:transparent center/contain no-repeat;padding:0;cursor:pointer"></button>
     <!-- 2026-07-18: replaces the old "Navigate Route" (launchGoogleMaps)
          button — same slot (flex:1, 68px row height), now the entry point
-         for Survey Mode instead. launchGoogleMaps() itself is untouched
-         in case it needs a home elsewhere later; it just has no button
-         wired to it in this row anymore. Content is populated by
-         _renderSurveyRouteButton() rather than a baked background-image,
-         since the face needs to switch between an idle "Start Survey"
-         state and a live "neighborhood · elapsed" status — a static
-         image can't show that. -->
+         for Survey Mode instead. (2026-07-19: launchGoogleMaps() itself
+         has since been removed entirely — it never worked correctly and
+         had no button anywhere after this swap. Per-stop navigation via
+         navToStop() on each stop card is untouched.) Content is
+         populated by _renderSurveyRouteButton() rather than a baked
+         background-image, since the face needs to switch between an
+         idle "Start Survey" state and a live "neighborhood · elapsed"
+         status — a static image can't show that. -->
     <button data-fn="openSurveyModeModal" id="btn-survey-mode" title="Survey Mode" aria-label="Survey Mode"
       style="flex:1;min-width:0;border:none;border-radius:10px;padding:0;cursor:pointer;overflow:hidden">
       <div id="survey-route-btn-content" style="width:100%;height:100%;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:1px;padding:2px 4px"><!-- filled by _renderSurveyRouteButton() --></div>
@@ -13719,32 +13720,12 @@ function navToStop(addr) {
   }
 }
 
-function launchGoogleMaps() {
-  const pending = routeOrder.length > 0
-    ? routeOrder.map(id => stops.find(s => s.id === id)).filter(s => s && !s.done)
-    : stops.filter(s => !s.done);
-  if (!pending.length) { showToast('No stops to navigate'); return; }
-
-  // Build full multi-waypoint route URL — works on desktop AND mobile browser
-  // Google Maps web URL supports up to 10 waypoints via /dir/ syntax
-  const addrs = pending.map(s => encodeURIComponent(s.fullAddress || s.address + ', St. Louis, MO'));
-
-  // Origin: use GPS/manual if set, else omit (Maps uses current location)
-  const origin = manualOrigin ? encodeURIComponent(manualOrigin.label || `${manualOrigin.lat},${manualOrigin.lng}`) : '';
-
-  if (addrs.length === 1) {
-    // Single stop — simplest URL
-    const url = `https://www.google.com/maps/dir/?api=1${origin?'&origin='+origin:''}&destination=${addrs[0]}&travelmode=driving`;
-    window.open(url, '_blank');
-    return;
-  }
-
-  // Multiple stops — use /maps/dir/origin/wp1/wp2/.../dest URL format
-  // This format works on mobile browsers AND opens in Google Maps app
-  const allAddrs = origin ? [origin, ...addrs] : addrs;
-  const routeUrl = 'https://www.google.com/maps/dir/' + allAddrs.join('/');
-  window.open(routeUrl, '_blank');
-}
+// 2026-07-19: removed launchGoogleMaps() (the "send the entire route to
+// Google Maps" feature) per explicit instruction — it never worked
+// correctly, and had no UI entry point at all since the Route tab button
+// that used to trigger it was replaced by Survey Mode in an earlier
+// drop. navToStop() above (the per-stop "navigate to this address"
+// button on each stop card) is unrelated and untouched — that stays.
 // ============================================================
 // SECTION: photo-scan
 // PHOTO SCAN — Anthropic vision API (primary) or on-device TextDetector (fallback)
@@ -15714,75 +15695,126 @@ function _renderSessionStrip() {
     '</div>';
 }
 
+// 2026-07-19: increments on every open — lets a slow, still-in-flight GPS
+// fix from a PREVIOUS open (now possible for much longer given the more
+// generous timeout in _tryGetLocationForStamp below) recognize it's been
+// superseded and discard its result instead of clobbering whatever the
+// user has since opened Prepare Photo for. See openStampedCameraForStop.
+var _photoSetupOpenToken = 0;
+
 // Entry point — opens pre-capture setup modal
+//
+// 2026-07-19 fix: reported bugs — "sometimes crashes back to the main
+// app" and "frequently gets a GPS unavailable error on the first load,
+// then works normally on the second." The GPS piece was concretely
+// diagnosable: _tryGetLocationForStamp only gave a high-accuracy fix
+// 3.5-4 seconds before giving up. A "cold" GPS chip — exactly the state
+// on the FIRST attempt after the page/app loads — routinely takes longer
+// than that to lock on, especially indoors or near buildings. A SECOND
+// attempt right after succeeds quickly because the chip is already
+// warmed up from the first (failed) one. Fixed at the source in
+// _tryGetLocationForStamp (see its own comment) rather than here.
+//
+// The "crashes back to the main app" report couldn't be reproduced or
+// pinned to one exact line by inspection alone, but this function had
+// no top-level error handling at all — unlike nearly everything else in
+// this file — so any unexpected exception here (a null DOM element, a
+// corrupted stops array, anything) would propagate up uncaught before
+// this fix. Wrapping the whole body closes that gap regardless of
+// whether it was the actual cause: worst case it's unnecessary
+// insurance, best case it's exactly what was silently going wrong.
 function openStampedCameraForStop(stopId) {
-  _photoContext.stopId = (stopId === null || stopId === undefined) ? null : Number(stopId);
-  _photoContext.stampedBlob = null;
-  _photoContext.stampedDataUrl = null;
-  _photoContext.originalBlob = null;
-  _photoContext.notes = '';
-  _photoContext.gps = null;
-  _photoContext.capturedAt = null;
-  _photoContext.heading = null;          // compass heading at capture time
-  _photoContext.caseType = null;         // 'SR' / 'WR' / 'Case' / 'Ticket' / 'Inspection'
-  _photoContext.caseNum  = '';           // user-entered tracking number for this photo
+  var myToken = ++_photoSetupOpenToken;
+  try {
+    _photoContext.stopId = (stopId === null || stopId === undefined) ? null : Number(stopId);
+    _photoContext.stampedBlob = null;
+    _photoContext.stampedDataUrl = null;
+    _photoContext.originalBlob = null;
+    _photoContext.notes = '';
+    _photoContext.gps = null;
+    _photoContext.capturedAt = null;
+    _photoContext.heading = null;          // compass heading at capture time
+    _photoContext.caseType = null;         // 'SR' / 'WR' / 'Case' / 'Ticket' / 'Inspection'
+    _photoContext.caseNum  = '';           // user-entered tracking number for this photo
 
-  // Prefill address from stop if available
-  var addrField = document.getElementById('photo-setup-addr');
-  var notesField = document.getElementById('photo-setup-notes');
-  var caseTypeField = document.getElementById('photo-setup-case-type');
-  var caseNumField  = document.getElementById('photo-setup-case-num');
-  if (notesField) notesField.value = '';
-  // Restore the last-used case type (default SR), and clear the number.
-  // The number is intentionally not remembered — each photo gets its own.
-  if (caseTypeField) {
-    var lastType = 'SR';
-    try { lastType = LS.get('photo-case-type-last') || 'SR'; } catch(_e) {}
-    caseTypeField.value = lastType;
-  }
-  if (caseNumField) caseNumField.value = '';
-  if (addrField) {
-    if (_photoContext.stopId !== null && typeof stops !== 'undefined') {
-      var stop = stops.find(function(x){ return x.id === _photoContext.stopId; });
-      addrField.value = (stop && stop.address) ? stop.address : '';
-    } else {
-      addrField.value = '';
+    // Prefill address from stop if available
+    var addrField = document.getElementById('photo-setup-addr');
+    var notesField = document.getElementById('photo-setup-notes');
+    var caseTypeField = document.getElementById('photo-setup-case-type');
+    var caseNumField  = document.getElementById('photo-setup-case-num');
+    if (notesField) notesField.value = '';
+    // Restore the last-used case type (default SR), and clear the number.
+    // The number is intentionally not remembered — each photo gets its own.
+    if (caseTypeField) {
+      var lastType = 'SR';
+      try { lastType = LS.get('photo-case-type-last') || 'SR'; } catch(_e) {}
+      caseTypeField.value = lastType;
     }
-  }
-  var setupModal = document.getElementById('photo-setup-modal');
-  setupModal.style.display = 'flex';
-  Accessibility.modalOpened(setupModal, { onEscape: closePhotoSetup });
-
-  // Reset the candidate list + map status from any previous open before the
-  // fresh GPS fix comes back — avoids showing stale addresses from the last
-  // stop for the second or two it takes to re-fix.
-  var _candList = document.getElementById('photo-setup-addr-candidates');
-  if (_candList) { _candList.style.display = 'none'; _candList.innerHTML = ''; }
-  var _mapStatus = document.getElementById('photo-setup-map-status');
-  if (_mapStatus) _mapStatus.textContent = '📡 Getting your location…';
-  _initPhotoSetupMap();
-
-  // Proactively warm up GPS so coordinates are ready when the first shot is
-  // captured, AND drive the situational-awareness map + address-candidate
-  // list off the same fix. Silent on failure — the stamp pipeline will try
-  // GPS again at capture regardless of what happens here.
-  try {
-    _tryGetLocationForStamp().then(function(gps) {
-      if (gps) {
-        _photoContext.gps = gps;
-        _refreshPhotoSetupParcels(gps);
-      } else if (_mapStatus) {
-        _mapStatus.textContent = '⚠ GPS unavailable — enter address manually';
+    if (caseNumField) caseNumField.value = '';
+    if (addrField) {
+      if (_photoContext.stopId !== null && typeof stops !== 'undefined') {
+        var stop = stops.find(function(x){ return x.id === _photoContext.stopId; });
+        addrField.value = (stop && stop.address) ? stop.address : '';
+      } else {
+        addrField.value = '';
       }
-    }).catch(function(){});
-  } catch(_e) {}
+    }
+    var setupModal = document.getElementById('photo-setup-modal');
+    if (!setupModal) { showToast('⚠ Could not open Prepare Photo'); return; }
+    setupModal.style.display = 'flex';
+    Accessibility.modalOpened(setupModal, { onEscape: closePhotoSetup });
 
-  // Warm up compass heading too (non-blocking, silent on failure).
-  try {
-    _tryGetCompassHeading().then(function(h) {
-      if (typeof h === 'number') _photoContext.heading = h;
-    }).catch(function(){});
-  } catch(_e) {}
+    // Reset the candidate list + map status from any previous open before the
+    // fresh GPS fix comes back — avoids showing stale addresses from the last
+    // stop for the second or two it takes to re-fix.
+    var _candList = document.getElementById('photo-setup-addr-candidates');
+    if (_candList) { _candList.style.display = 'none'; _candList.innerHTML = ''; }
+    var _mapStatus = document.getElementById('photo-setup-map-status');
+    if (_mapStatus) _mapStatus.textContent = '📡 Getting your location…';
+    _initPhotoSetupMap();
+
+    // Proactively warm up GPS so coordinates are ready when the first shot is
+    // captured, AND drive the situational-awareness map + address-candidate
+    // list off the same fix. Silent on failure — the stamp pipeline will try
+    // GPS again at capture regardless of what happens here.
+    //
+    // myToken check on both callbacks: if the user closes this and opens
+    // Prepare Photo again (for the same or a different stop) before this
+    // fix comes back — now a real possibility given how much longer a
+    // cold-GPS attempt can legitimately take — a late-arriving result
+    // from THIS open must not overwrite _photoContext.gps or redraw the
+    // map with data for a session that's no longer the active one.
+    try {
+      _tryGetLocationForStamp(function onSlow() {
+        // Fires once if the high-accuracy attempt is taking a while —
+        // reassures the user this is still working, not stuck, during
+        // what can legitimately be a several-second cold GPS fix.
+        if (myToken !== _photoSetupOpenToken) return;
+        var freshStatus = document.getElementById('photo-setup-map-status');
+        if (freshStatus) freshStatus.textContent = '📡 Still getting a precise location — this can take several seconds on a cold GPS fix…';
+      }).then(function(gps) {
+        if (myToken !== _photoSetupOpenToken) return; // superseded by a newer open — discard
+        if (gps) {
+          _photoContext.gps = gps;
+          _refreshPhotoSetupParcels(gps);
+        } else {
+          var freshStatus2 = document.getElementById('photo-setup-map-status');
+          if (freshStatus2) freshStatus2.textContent = '⚠ GPS unavailable — enter address manually';
+        }
+      }).catch(function(){});
+    } catch(_e) {}
+
+    // Warm up compass heading too (non-blocking, silent on failure).
+    try {
+      _tryGetCompassHeading().then(function(h) {
+        if (myToken !== _photoSetupOpenToken) return;
+        if (typeof h === 'number') _photoContext.heading = h;
+      }).catch(function(){});
+    } catch(_e) {}
+  } catch(_e) {
+    console.error('[openStampedCameraForStop] threw:', _e);
+    showToast('⚠ Could not open Prepare Photo');
+  }
 }
 
 function closePhotoSetup() {
@@ -17351,18 +17383,62 @@ function _readCredsField(key) {
   catch(_e) { return ''; }
 }
 
-function _tryGetLocationForStamp() {
+// 2026-07-19 fix: reported bug — Prepare Photo frequently showed "GPS
+// unavailable" on the FIRST open, then worked normally on a second
+// attempt. Root cause: this only gave a high-accuracy fix 3.5 seconds
+// (4s outer safety net) before giving up. A "cold" GPS chip — exactly
+// the state on the very first request after the page/app loads, since
+// nothing has used it yet — routinely takes longer than that to lock on,
+// especially indoors or near buildings. A second request right after
+// succeeds quickly because the chip is already warmed up from the first
+// (failed) one; nothing else was actually different between the two
+// attempts. Per the explicit ask — "it needs to work correctly on the
+// first load even if that may take a moment longer" — this now:
+//   1. Gives the high-accuracy attempt up to 18s (from 3.5s) before
+//      falling back, instead of failing outright.
+//   2. If it still doesn't come back — whether from timeout or an
+//      explicit error — falls back to a fast, coarse fix (cell/wifi-
+//      based, not dependent on the GPS chip warming up at all) rather
+//      than giving up entirely. Some location beats none, and a coarse
+//      fix is still useful for the situational map/candidate list even
+//      if it's less precise than what capture-time GPS will get later.
+//   3. An optional onSlow callback fires once, ~6s in, if the caller
+//      wants to show a reassuring "still working" message instead of a
+//      static status that could otherwise look stuck partway through an
+//      18-second wait.
+//   4. An absolute outer safety net at 24s in case a browser
+//      implementation never calls either geolocation callback at all (a
+//      known, if rare, real-world quirk) — worst case ~24s before
+//      genuinely giving up, not an indefinite hang.
+function _tryGetLocationForStamp(onSlow) {
   return new Promise(function(resolve) {
     if (!navigator.geolocation) return resolve(null);
-    var done = false;
-    var timer = setTimeout(function(){ if(!done){ done=true; resolve(null); } }, 4000);
+    var settled = false;
+    function finish(result) { if (settled) return; settled = true; resolve(result); }
+
+    var slowTimer = (typeof onSlow === 'function')
+      ? setTimeout(function() { if (!settled) { try { onSlow(); } catch(_e) {} } }, 6000)
+      : null;
+
+    function tryCoarseFallback() {
+      if (slowTimer) { clearTimeout(slowTimer); slowTimer = null; }
+      navigator.geolocation.getCurrentPosition(
+        function(p) { finish({ lat:p.coords.latitude, lng:p.coords.longitude, acc:p.coords.accuracy }); },
+        function(_err) { finish(null); },
+        { timeout: 5000, maximumAge: 60000, enableHighAccuracy: false }
+      );
+    }
+
     navigator.geolocation.getCurrentPosition(
-      function(p) { if (done) return; done=true; clearTimeout(timer);
-        resolve({ lat:p.coords.latitude, lng:p.coords.longitude, acc:p.coords.accuracy });
+      function(p) {
+        if (slowTimer) { clearTimeout(slowTimer); slowTimer = null; }
+        finish({ lat:p.coords.latitude, lng:p.coords.longitude, acc:p.coords.accuracy });
       },
-      function(_err) { if (done) return; done=true; clearTimeout(timer); resolve(null); },
-      { timeout:3500, maximumAge:30000, enableHighAccuracy:true }
+      function(_err) { tryCoarseFallback(); }, // failed OR timed out — try the fast coarse fix before giving up
+      { timeout: 18000, maximumAge: 30000, enableHighAccuracy: true }
     );
+
+    setTimeout(function() { finish(null); }, 24000);
   });
 }
 
