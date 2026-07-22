@@ -2078,18 +2078,30 @@ header{
       style="flex:0 0 68px;width:68px;border:none;background:transparent center/contain no-repeat;padding:0;cursor:pointer"></button>
     <!-- 2026-07-18: replaces the old "Navigate Route" (launchGoogleMaps)
          button — same slot (flex:1, 68px row height), now the entry point
-         for Survey Mode instead. (2026-07-19: launchGoogleMaps() itself
-         has since been removed entirely — it never worked correctly and
-         had no button anywhere after this swap. Per-stop navigation via
-         navToStop() on each stop card is untouched.) Content is
-         populated by _renderSurveyRouteButton() rather than a baked
-         background-image, since the face needs to switch between an
-         idle "Start Survey" state and a live "neighborhood · elapsed"
-         status — a static image can't show that. -->
-    <button data-fn="openSurveyModeModal" id="btn-survey-mode" title="Survey Mode" aria-label="Survey Mode"
-      style="flex:1;min-width:0;border:none;border-radius:10px;padding:0;cursor:pointer;overflow:hidden">
-      <div id="survey-route-btn-content" style="width:100%;height:100%;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:1px;padding:2px 4px"><!-- filled by _renderSurveyRouteButton() --></div>
-    </button>
+         for Survey Mode instead. launchGoogleMaps() itself is untouched
+         in case it needs a home elsewhere later; it just has no button
+         wired to it in this row anymore. Content is populated by
+         _renderSurveyRouteButton() rather than a baked background-image,
+         since the face needs to switch between an idle "Start Survey"
+         state and a live "neighborhood · elapsed" status — a static
+         image can't show that. -->
+    <div style="position:relative;flex:1;min-width:0">
+      <button data-fn="openSurveyModeModal" id="btn-survey-mode" title="Survey Mode" aria-label="Survey Mode"
+        style="width:100%;height:100%;border:none;border-radius:10px;padding:0;cursor:pointer;overflow:hidden">
+        <div id="survey-route-btn-content" style="width:100%;height:100%;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:1px;padding:2px 4px"><!-- filled by _renderSurveyRouteButton() --></div>
+      </button>
+      <!-- 2026-07-22: shown when tracking was auto-paused because the app
+           went to background (phone screen off, etc.) — see
+           _attachLifecycleListeners' visibilitychange handler. Covers the
+           button rather than auto-resuming, so a GPS fix from wherever the
+           phone ended up doesn't silently connect to wherever tracking left
+           off; the inspector explicitly confirms they're back on the route
+           before tracking (and the highlight trail) picks back up. -->
+      <button data-fn="resumeSurveyAfterPause" id="survey-resume-overlay" style="display:none;position:absolute;inset:0;width:100%;height:100%;border:none;border-radius:10px;padding:0;cursor:pointer;background:#c0392b;color:white;font-family:Syne,sans-serif;font-weight:800;font-size:0.8rem;flex-direction:column;align-items:center;justify-content:center;gap:2px">
+        <span style="font-size:1rem;line-height:1">▶</span>
+        <span>Resume Survey</span>
+      </button>
+    </div>
   </div>
   <!-- Drop X.2 (2026-04-30): Route Algorithm panel replaces the old SET BEGIN/END.
        The Set Begin/End functionality was supplanted by the start/end pin buttons
@@ -6946,9 +6958,18 @@ function _cleanupRetiredState() {
 // can happen. The 'online' handler retries pending Sheets pushes that were
 // queued during a previous offline period.
 function _attachLifecycleListeners() {
-  // Persist stops and session on tab hide/close
+  // Persist stops and session on tab hide/close. Also pause Survey Mode
+  // GPS tracking on hide and check whether a "Resume Survey" prompt is
+  // needed on show — see _autoPauseSurveyTracking's module comment for
+  // the bug this fixes (straight line drawn across town after the phone
+  // was off with survey mode left on).
   document.addEventListener('visibilitychange', function() {
-    if (document.visibilityState === 'hidden') { saveStops(); logDaySession(); }
+    if (document.visibilityState === 'hidden') {
+      saveStops(); logDaySession();
+      try { if (typeof _autoPauseSurveyTracking === 'function') _autoPauseSurveyTracking(); } catch(_e) {}
+    } else if (document.visibilityState === 'visible') {
+      try { if (typeof _checkSurveyResumePrompt === 'function') _checkSurveyResumePrompt(); } catch(_e) {}
+    }
   });
   window.addEventListener('beforeunload', saveStops);
 
@@ -13720,12 +13741,32 @@ function navToStop(addr) {
   }
 }
 
-// 2026-07-19: removed launchGoogleMaps() (the "send the entire route to
-// Google Maps" feature) per explicit instruction — it never worked
-// correctly, and had no UI entry point at all since the Route tab button
-// that used to trigger it was replaced by Survey Mode in an earlier
-// drop. navToStop() above (the per-stop "navigate to this address"
-// button on each stop card) is unrelated and untouched — that stays.
+function launchGoogleMaps() {
+  const pending = routeOrder.length > 0
+    ? routeOrder.map(id => stops.find(s => s.id === id)).filter(s => s && !s.done)
+    : stops.filter(s => !s.done);
+  if (!pending.length) { showToast('No stops to navigate'); return; }
+
+  // Build full multi-waypoint route URL — works on desktop AND mobile browser
+  // Google Maps web URL supports up to 10 waypoints via /dir/ syntax
+  const addrs = pending.map(s => encodeURIComponent(s.fullAddress || s.address + ', St. Louis, MO'));
+
+  // Origin: use GPS/manual if set, else omit (Maps uses current location)
+  const origin = manualOrigin ? encodeURIComponent(manualOrigin.label || `${manualOrigin.lat},${manualOrigin.lng}`) : '';
+
+  if (addrs.length === 1) {
+    // Single stop — simplest URL
+    const url = `https://www.google.com/maps/dir/?api=1${origin?'&origin='+origin:''}&destination=${addrs[0]}&travelmode=driving`;
+    window.open(url, '_blank');
+    return;
+  }
+
+  // Multiple stops — use /maps/dir/origin/wp1/wp2/.../dest URL format
+  // This format works on mobile browsers AND opens in Google Maps app
+  const allAddrs = origin ? [origin, ...addrs] : addrs;
+  const routeUrl = 'https://www.google.com/maps/dir/' + allAddrs.join('/');
+  window.open(routeUrl, '_blank');
+}
 // ============================================================
 // SECTION: photo-scan
 // PHOTO SCAN — Anthropic vision API (primary) or on-device TextDetector (fallback)
@@ -15695,126 +15736,75 @@ function _renderSessionStrip() {
     '</div>';
 }
 
-// 2026-07-19: increments on every open — lets a slow, still-in-flight GPS
-// fix from a PREVIOUS open (now possible for much longer given the more
-// generous timeout in _tryGetLocationForStamp below) recognize it's been
-// superseded and discard its result instead of clobbering whatever the
-// user has since opened Prepare Photo for. See openStampedCameraForStop.
-var _photoSetupOpenToken = 0;
-
 // Entry point — opens pre-capture setup modal
-//
-// 2026-07-19 fix: reported bugs — "sometimes crashes back to the main
-// app" and "frequently gets a GPS unavailable error on the first load,
-// then works normally on the second." The GPS piece was concretely
-// diagnosable: _tryGetLocationForStamp only gave a high-accuracy fix
-// 3.5-4 seconds before giving up. A "cold" GPS chip — exactly the state
-// on the FIRST attempt after the page/app loads — routinely takes longer
-// than that to lock on, especially indoors or near buildings. A SECOND
-// attempt right after succeeds quickly because the chip is already
-// warmed up from the first (failed) one. Fixed at the source in
-// _tryGetLocationForStamp (see its own comment) rather than here.
-//
-// The "crashes back to the main app" report couldn't be reproduced or
-// pinned to one exact line by inspection alone, but this function had
-// no top-level error handling at all — unlike nearly everything else in
-// this file — so any unexpected exception here (a null DOM element, a
-// corrupted stops array, anything) would propagate up uncaught before
-// this fix. Wrapping the whole body closes that gap regardless of
-// whether it was the actual cause: worst case it's unnecessary
-// insurance, best case it's exactly what was silently going wrong.
 function openStampedCameraForStop(stopId) {
-  var myToken = ++_photoSetupOpenToken;
-  try {
-    _photoContext.stopId = (stopId === null || stopId === undefined) ? null : Number(stopId);
-    _photoContext.stampedBlob = null;
-    _photoContext.stampedDataUrl = null;
-    _photoContext.originalBlob = null;
-    _photoContext.notes = '';
-    _photoContext.gps = null;
-    _photoContext.capturedAt = null;
-    _photoContext.heading = null;          // compass heading at capture time
-    _photoContext.caseType = null;         // 'SR' / 'WR' / 'Case' / 'Ticket' / 'Inspection'
-    _photoContext.caseNum  = '';           // user-entered tracking number for this photo
+  _photoContext.stopId = (stopId === null || stopId === undefined) ? null : Number(stopId);
+  _photoContext.stampedBlob = null;
+  _photoContext.stampedDataUrl = null;
+  _photoContext.originalBlob = null;
+  _photoContext.notes = '';
+  _photoContext.gps = null;
+  _photoContext.capturedAt = null;
+  _photoContext.heading = null;          // compass heading at capture time
+  _photoContext.caseType = null;         // 'SR' / 'WR' / 'Case' / 'Ticket' / 'Inspection'
+  _photoContext.caseNum  = '';           // user-entered tracking number for this photo
 
-    // Prefill address from stop if available
-    var addrField = document.getElementById('photo-setup-addr');
-    var notesField = document.getElementById('photo-setup-notes');
-    var caseTypeField = document.getElementById('photo-setup-case-type');
-    var caseNumField  = document.getElementById('photo-setup-case-num');
-    if (notesField) notesField.value = '';
-    // Restore the last-used case type (default SR), and clear the number.
-    // The number is intentionally not remembered — each photo gets its own.
-    if (caseTypeField) {
-      var lastType = 'SR';
-      try { lastType = LS.get('photo-case-type-last') || 'SR'; } catch(_e) {}
-      caseTypeField.value = lastType;
-    }
-    if (caseNumField) caseNumField.value = '';
-    if (addrField) {
-      if (_photoContext.stopId !== null && typeof stops !== 'undefined') {
-        var stop = stops.find(function(x){ return x.id === _photoContext.stopId; });
-        addrField.value = (stop && stop.address) ? stop.address : '';
-      } else {
-        addrField.value = '';
-      }
-    }
-    var setupModal = document.getElementById('photo-setup-modal');
-    if (!setupModal) { showToast('⚠ Could not open Prepare Photo'); return; }
-    setupModal.style.display = 'flex';
-    Accessibility.modalOpened(setupModal, { onEscape: closePhotoSetup });
-
-    // Reset the candidate list + map status from any previous open before the
-    // fresh GPS fix comes back — avoids showing stale addresses from the last
-    // stop for the second or two it takes to re-fix.
-    var _candList = document.getElementById('photo-setup-addr-candidates');
-    if (_candList) { _candList.style.display = 'none'; _candList.innerHTML = ''; }
-    var _mapStatus = document.getElementById('photo-setup-map-status');
-    if (_mapStatus) _mapStatus.textContent = '📡 Getting your location…';
-    _initPhotoSetupMap();
-
-    // Proactively warm up GPS so coordinates are ready when the first shot is
-    // captured, AND drive the situational-awareness map + address-candidate
-    // list off the same fix. Silent on failure — the stamp pipeline will try
-    // GPS again at capture regardless of what happens here.
-    //
-    // myToken check on both callbacks: if the user closes this and opens
-    // Prepare Photo again (for the same or a different stop) before this
-    // fix comes back — now a real possibility given how much longer a
-    // cold-GPS attempt can legitimately take — a late-arriving result
-    // from THIS open must not overwrite _photoContext.gps or redraw the
-    // map with data for a session that's no longer the active one.
-    try {
-      _tryGetLocationForStamp(function onSlow() {
-        // Fires once if the high-accuracy attempt is taking a while —
-        // reassures the user this is still working, not stuck, during
-        // what can legitimately be a several-second cold GPS fix.
-        if (myToken !== _photoSetupOpenToken) return;
-        var freshStatus = document.getElementById('photo-setup-map-status');
-        if (freshStatus) freshStatus.textContent = '📡 Still getting a precise location — this can take several seconds on a cold GPS fix…';
-      }).then(function(gps) {
-        if (myToken !== _photoSetupOpenToken) return; // superseded by a newer open — discard
-        if (gps) {
-          _photoContext.gps = gps;
-          _refreshPhotoSetupParcels(gps);
-        } else {
-          var freshStatus2 = document.getElementById('photo-setup-map-status');
-          if (freshStatus2) freshStatus2.textContent = '⚠ GPS unavailable — enter address manually';
-        }
-      }).catch(function(){});
-    } catch(_e) {}
-
-    // Warm up compass heading too (non-blocking, silent on failure).
-    try {
-      _tryGetCompassHeading().then(function(h) {
-        if (myToken !== _photoSetupOpenToken) return;
-        if (typeof h === 'number') _photoContext.heading = h;
-      }).catch(function(){});
-    } catch(_e) {}
-  } catch(_e) {
-    console.error('[openStampedCameraForStop] threw:', _e);
-    showToast('⚠ Could not open Prepare Photo');
+  // Prefill address from stop if available
+  var addrField = document.getElementById('photo-setup-addr');
+  var notesField = document.getElementById('photo-setup-notes');
+  var caseTypeField = document.getElementById('photo-setup-case-type');
+  var caseNumField  = document.getElementById('photo-setup-case-num');
+  if (notesField) notesField.value = '';
+  // Restore the last-used case type (default SR), and clear the number.
+  // The number is intentionally not remembered — each photo gets its own.
+  if (caseTypeField) {
+    var lastType = 'SR';
+    try { lastType = LS.get('photo-case-type-last') || 'SR'; } catch(_e) {}
+    caseTypeField.value = lastType;
   }
+  if (caseNumField) caseNumField.value = '';
+  if (addrField) {
+    if (_photoContext.stopId !== null && typeof stops !== 'undefined') {
+      var stop = stops.find(function(x){ return x.id === _photoContext.stopId; });
+      addrField.value = (stop && stop.address) ? stop.address : '';
+    } else {
+      addrField.value = '';
+    }
+  }
+  var setupModal = document.getElementById('photo-setup-modal');
+  setupModal.style.display = 'flex';
+  Accessibility.modalOpened(setupModal, { onEscape: closePhotoSetup });
+
+  // Reset the candidate list + map status from any previous open before the
+  // fresh GPS fix comes back — avoids showing stale addresses from the last
+  // stop for the second or two it takes to re-fix.
+  var _candList = document.getElementById('photo-setup-addr-candidates');
+  if (_candList) { _candList.style.display = 'none'; _candList.innerHTML = ''; }
+  var _mapStatus = document.getElementById('photo-setup-map-status');
+  if (_mapStatus) _mapStatus.textContent = '📡 Getting your location…';
+  _initPhotoSetupMap();
+
+  // Proactively warm up GPS so coordinates are ready when the first shot is
+  // captured, AND drive the situational-awareness map + address-candidate
+  // list off the same fix. Silent on failure — the stamp pipeline will try
+  // GPS again at capture regardless of what happens here.
+  try {
+    _tryGetLocationForStamp().then(function(gps) {
+      if (gps) {
+        _photoContext.gps = gps;
+        _refreshPhotoSetupParcels(gps);
+      } else if (_mapStatus) {
+        _mapStatus.textContent = '⚠ GPS unavailable — enter address manually';
+      }
+    }).catch(function(){});
+  } catch(_e) {}
+
+  // Warm up compass heading too (non-blocking, silent on failure).
+  try {
+    _tryGetCompassHeading().then(function(h) {
+      if (typeof h === 'number') _photoContext.heading = h;
+    }).catch(function(){});
+  } catch(_e) {}
 }
 
 function closePhotoSetup() {
@@ -16728,6 +16718,51 @@ async function rebuildStampedPreview() {
   if (_photoContext.stopId != null && typeof stops !== 'undefined') {
     linkedStop = stops.find(function(x){ return x.id === _photoContext.stopId; }) || null;
   }
+  // Geo metadata (neighborhood name/number + ward): resolved FRESH at
+  // stamp time via geoLookup(lat, lng) against the shot's actual GPS fix
+  // — not read directly off the linked stop's cached fields. This is a
+  // deliberate fix for two failure modes the naive "read off linkedStop"
+  // approach silently produced: (1) a photo not linked to any saved stop
+  // at all (header button, manually/candidate-picked address — no stop
+  // object to read from, ever), and (2) a stop photographed within
+  // moments of being added, before commitStop's own fire-and-forget geo
+  // lookup has resolved. geoLookup has its own per-coordinate LS cache,
+  // so repeat shots at the same spot cost nothing after the first real
+  // lookup. Falls back to the linked stop's cached fields only when
+  // there's no GPS fix at all to look up fresh — better than showing
+  // nothing, but stale-by-definition since it wasn't re-verified against
+  // this shot's actual location.
+  var nbhdName = null, nbhdNum = null, ward = null;
+  var wantsGeoFields = !!(settings.nbhdName || settings.nbhdNum || settings.ward);
+  if (wantsGeoFields) {
+    if (_photoContext.gps && typeof _photoContext.gps.lat === 'number' && typeof geoLookup === 'function') {
+      try {
+        var _geo = await geoLookup(_photoContext.gps.lat, _photoContext.gps.lng);
+        if (_geo) {
+          nbhdName = _geo.neighborhoodName || null;
+          nbhdNum  = _geo.neighborhood     || null;
+          ward     = _geo.ward             || null;
+          // Backfill the stop too (if any) so future stamps/reports for
+          // it don't need to repeat the lookup.
+          if (linkedStop) {
+            var _stopChanged = false;
+            if (linkedStop.neighborhoodName == null && nbhdName != null) { linkedStop.neighborhoodName = nbhdName; _stopChanged = true; }
+            if (linkedStop.neighborhood == null && nbhdNum != null) { linkedStop.neighborhood = nbhdNum; _stopChanged = true; }
+            if (linkedStop.ward == null && ward != null) { linkedStop.ward = ward; _stopChanged = true; }
+            if (_stopChanged) { try { saveStops(); } catch(_e) {} }
+          }
+        }
+      } catch(_e) {}
+    }
+    // No GPS fix to look up fresh (or the lookup came back empty) — fall
+    // back to whatever the linked stop already has cached, rather than
+    // showing nothing at all.
+    if (linkedStop) {
+      nbhdName = nbhdName || linkedStop.neighborhoodName || null;
+      nbhdNum  = nbhdNum  || linkedStop.neighborhood     || null;
+      ward     = ward     || linkedStop.ward             || null;
+    }
+  }
   // Sequence number: if linked to a stop, use stop.photoCount (already
   // incremented for THIS shot in _stampSingleFile before this runs). If not
   // linked (header-button stamping), fall back to a session-wide counter.
@@ -16748,9 +16783,9 @@ async function rebuildStampedPreview() {
     title:     _readCredsField('title'),
     department: _readCredsField('department'),
     division:  _readCredsField('division'),
-    nbhdName:  linkedStop ? (linkedStop.neighborhoodName || null) : null,
-    nbhdNum:   linkedStop ? (linkedStop.neighborhood || null) : null,
-    ward:      linkedStop ? (linkedStop.ward || null) : null,
+    nbhdName:  nbhdName,
+    nbhdNum:   nbhdNum,
+    ward:      ward,
     heading:   (typeof _photoContext.heading === 'number') ? _photoContext.heading : null,
     caseType:  _photoContext.caseType || null,
     caseNum:   _photoContext.caseNum || '',
@@ -17383,62 +17418,18 @@ function _readCredsField(key) {
   catch(_e) { return ''; }
 }
 
-// 2026-07-19 fix: reported bug — Prepare Photo frequently showed "GPS
-// unavailable" on the FIRST open, then worked normally on a second
-// attempt. Root cause: this only gave a high-accuracy fix 3.5 seconds
-// (4s outer safety net) before giving up. A "cold" GPS chip — exactly
-// the state on the very first request after the page/app loads, since
-// nothing has used it yet — routinely takes longer than that to lock on,
-// especially indoors or near buildings. A second request right after
-// succeeds quickly because the chip is already warmed up from the first
-// (failed) one; nothing else was actually different between the two
-// attempts. Per the explicit ask — "it needs to work correctly on the
-// first load even if that may take a moment longer" — this now:
-//   1. Gives the high-accuracy attempt up to 18s (from 3.5s) before
-//      falling back, instead of failing outright.
-//   2. If it still doesn't come back — whether from timeout or an
-//      explicit error — falls back to a fast, coarse fix (cell/wifi-
-//      based, not dependent on the GPS chip warming up at all) rather
-//      than giving up entirely. Some location beats none, and a coarse
-//      fix is still useful for the situational map/candidate list even
-//      if it's less precise than what capture-time GPS will get later.
-//   3. An optional onSlow callback fires once, ~6s in, if the caller
-//      wants to show a reassuring "still working" message instead of a
-//      static status that could otherwise look stuck partway through an
-//      18-second wait.
-//   4. An absolute outer safety net at 24s in case a browser
-//      implementation never calls either geolocation callback at all (a
-//      known, if rare, real-world quirk) — worst case ~24s before
-//      genuinely giving up, not an indefinite hang.
-function _tryGetLocationForStamp(onSlow) {
+function _tryGetLocationForStamp() {
   return new Promise(function(resolve) {
     if (!navigator.geolocation) return resolve(null);
-    var settled = false;
-    function finish(result) { if (settled) return; settled = true; resolve(result); }
-
-    var slowTimer = (typeof onSlow === 'function')
-      ? setTimeout(function() { if (!settled) { try { onSlow(); } catch(_e) {} } }, 6000)
-      : null;
-
-    function tryCoarseFallback() {
-      if (slowTimer) { clearTimeout(slowTimer); slowTimer = null; }
-      navigator.geolocation.getCurrentPosition(
-        function(p) { finish({ lat:p.coords.latitude, lng:p.coords.longitude, acc:p.coords.accuracy }); },
-        function(_err) { finish(null); },
-        { timeout: 5000, maximumAge: 60000, enableHighAccuracy: false }
-      );
-    }
-
+    var done = false;
+    var timer = setTimeout(function(){ if(!done){ done=true; resolve(null); } }, 4000);
     navigator.geolocation.getCurrentPosition(
-      function(p) {
-        if (slowTimer) { clearTimeout(slowTimer); slowTimer = null; }
-        finish({ lat:p.coords.latitude, lng:p.coords.longitude, acc:p.coords.accuracy });
+      function(p) { if (done) return; done=true; clearTimeout(timer);
+        resolve({ lat:p.coords.latitude, lng:p.coords.longitude, acc:p.coords.accuracy });
       },
-      function(_err) { tryCoarseFallback(); }, // failed OR timed out — try the fast coarse fix before giving up
-      { timeout: 18000, maximumAge: 30000, enableHighAccuracy: true }
+      function(_err) { if (done) return; done=true; clearTimeout(timer); resolve(null); },
+      { timeout:3500, maximumAge:30000, enableHighAccuracy:true }
     );
-
-    setTimeout(function() { finish(null); }, 24000);
   });
 }
 
@@ -18465,11 +18456,18 @@ function startSurveyFromPicker() {
     // prior session was left — otherwise a forgotten pause silently
     // carries over and the next day's survey collects no trail at all.
     try { LS.set('survey-tracking-paused', '0'); } catch(_e) {}
+    try { LS.set('survey-resume-prompt-pending', '0'); } catch(_e) {}
+    try { _hideSurveyResumeOverlay(); } catch(_e) {}
     try { _startBreadcrumbWatch(); } catch(_e) {}
     try { showToast('🧭 Survey started: ' + name); } catch(_e) {}
     // New: fit the map to this area's boundary + gray-mask everything
     // outside it, as soon as a survey starts (not just on manual refresh).
     try { _fitMapToActiveSurveyArea(); } catch(_e) {}
+    // Load and draw any highlight already tracked for this area from a
+    // prior session — otherwise it only appears once a fresh GPS point
+    // comes in, which can be a while, making it look like the highlight
+    // "didn't persist" even though it's sitting right there in storage.
+    try { _redrawBreadcrumbLayer(); } catch(_e) {}
   } finally {
     _renderSurveyPanel();
     _renderSurveyStrip();
@@ -18503,11 +18501,11 @@ function endActiveSurvey() {
     SurveySession.end();
     try { _stopBreadcrumbWatch(); } catch(_e) {}
     try {
-      if (_surveyBreadcrumbLayer && typeof routeMap !== 'undefined' && routeMap) {
-        routeMap.removeLayer(_surveyBreadcrumbLayer);
+      if (typeof routeMap !== 'undefined' && routeMap && _surveyBreadcrumbLayers.length) {
+        _surveyBreadcrumbLayers.forEach(function(layer) { try { routeMap.removeLayer(layer); } catch(_e2) {} });
       }
     } catch(_e) {}
-    _surveyBreadcrumbLayer = null;
+    _surveyBreadcrumbLayers = [];
     // Area mask/outline are equally stale once the survey's ended —
     // _fitMapToActiveSurveyArea() would clear these itself on next call,
     // but there's no guarantee anything calls it again soon (the user
@@ -18520,6 +18518,8 @@ function endActiveSurvey() {
     } catch(_e) {}
     _surveyAreaMaskLayer = null;
     _surveyAreaOutlineLayer = null;
+    _currentSurveyAreaRings = null;
+    _currentSurveyAreaRingsKey = null;
     try { showToast('🧭 Survey ended: ' + active.neighborhoodName); } catch(_e) {}
   } finally {
     _renderSurveyPanel();
@@ -18568,12 +18568,10 @@ function _renderSurveyPanel() {
         '</span>' +
         '<button data-fn="toggleSurveyTracking" style="flex-shrink:0;padding:6px 10px;background:white;border:1.5px solid #e8c878;color:#7a5000;border-radius:6px;font-family:Syne,sans-serif;font-weight:800;font-size:0.58rem;cursor:pointer">' + (paused ? '▶ Resume' : '⏸ Pause') + '</button>' +
       '</div>' +
-      '<div style="background:#fafafa;border:1.5px solid #e5e7eb;border-radius:9px;padding:10px 12px;margin-bottom:10px;display:flex;align-items:center;gap:8px">' +
+      '<div style="background:#fafafa;border:1.5px solid #e5e7eb;border-radius:9px;padding:10px 12px;display:flex;align-items:center;gap:8px">' +
         '<span style="flex:1;font-family:\'Space Mono\',monospace;font-size:0.56rem;color:#666">🗺️ ' + trailLen + ' point' + (trailLen===1?'':'s') + ' highlighted on the map for this area — persists across sessions until cleared.</span>' +
         '<button data-fn="clearSurveyPathUI" style="flex-shrink:0;padding:6px 10px;background:white;border:1.5px solid #c0392b;color:#c0392b;border-radius:6px;font-family:Syne,sans-serif;font-weight:800;font-size:0.56rem;cursor:pointer;white-space:nowrap">🧹 Clear Path</button>' +
-      '</div>' +
-      '<button data-fn="fitMapToActiveSurveyAreaUI" style="width:100%;margin-bottom:10px;padding:9px;background:none;border:1.5px solid #1a4a8c;color:#1a4a8c;border-radius:7px;font-family:Syne,sans-serif;font-weight:800;font-size:0.6rem;cursor:pointer">🔍 Fit Map to This Area</button>' +
-      _checklistPanelHtml(areaKeyStr);
+      '</div>';
   } else {
     var typeButtonsHtml = SurveySession.AREA_TYPES.map(function(t) {
       var isSel = t === _surveyPickerAreaType;
@@ -18620,83 +18618,13 @@ function _renderSurveyPanel() {
 function clearSurveyPathUI() {
   var active = SurveySession.getActive();
   if (!active) return;
-  if (!confirm('Clear the surveyed-path highlight for ' + active.neighborhoodName + '?\n\nThis only clears the GPS trail on the map — your checklist, chronic photo data, and stops are untouched.')) return;
+  if (!confirm('Clear the surveyed-path highlight for ' + active.neighborhoodName + '?\n\nThis only clears the GPS trail on the map — your chronic photo data and stops are untouched.')) return;
   try { SurveyCoverage.clearBreadcrumb(SurveySession.areaKey(active)); } catch(_e) {}
   showToast('🧹 Survey path cleared');
   _renderSurveyPanel();
   try { _redrawBreadcrumbLayer(); } catch(_e) {}
 }
 window.clearSurveyPathUI = clearSurveyPathUI;
-
-// ── Coverage checklist UI ─────────────────────────────────────────────────
-function _checklistPanelHtml(areaKeyStr) {
-  var list = SurveyCoverage.getChecklist(areaKeyStr);
-  var checkedCount = list.filter(function(it) { return it.checked; }).length;
-  var rows = list.length
-    ? list.map(function(it) {
-        return '<div style="display:flex;align-items:center;gap:7px;padding:5px 2px;border-bottom:1px solid #eee">' +
-          '<input type="checkbox"' + (it.checked ? ' checked' : '') + ' data-fn="toggleChecklistItemUI" data-arg="' + escHtml(it.id) + '" style="flex-shrink:0;width:15px;height:15px;cursor:pointer">' +
-          '<span style="flex:1;font-family:\'Space Mono\',monospace;font-size:0.62rem;color:' + (it.checked ? '#999;text-decoration:line-through' : '#333') + '">' + escHtml(it.name) + (it.isAlley ? ' <span style="color:#999">(alley)</span>' : '') + '</span>' +
-          '<button data-fn="removeChecklistItemUI" data-arg="' + escHtml(it.id) + '" style="flex-shrink:0;background:none;border:none;color:#bbb;font-size:0.85rem;cursor:pointer;padding:0 3px;line-height:1">✕</button>' +
-        '</div>';
-      }).join('')
-    : '<div style="font-family:\'Space Mono\',monospace;font-size:0.58rem;color:#999;padding:6px 2px">No streets/alleys added yet.</div>';
-
-  return '<div style="background:#fafafa;border:1.5px solid #e5e7eb;border-radius:9px;padding:10px 12px">' +
-    '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">' +
-      '<span style="font-family:Syne,sans-serif;font-weight:800;font-size:0.68rem;color:#444">📋 Coverage Checklist</span>' +
-      '<span style="font-family:\'Space Mono\',monospace;font-size:0.56rem;color:#888">' + checkedCount + '/' + list.length + ' covered</span>' +
-    '</div>' +
-    '<div style="max-height:180px;overflow-y:auto;margin-bottom:8px">' + rows + '</div>' +
-    '<div style="display:flex;gap:6px;margin-bottom:6px">' +
-      '<input type="text" id="survey-checklist-input" placeholder="Street or alley name…" style="flex:1;padding:7px 9px;border:1px solid #ddd;border-radius:6px;font-family:\'Space Mono\',monospace;font-size:0.6rem">' +
-      '<button data-fn="addChecklistItemFromInput" style="flex-shrink:0;padding:7px 12px;background:#444;color:white;border:none;border-radius:6px;font-family:Syne,sans-serif;font-weight:800;font-size:0.58rem;cursor:pointer">+ Add</button>' +
-    '</div>' +
-    '<button data-fn="seedChecklistFromStopsUI" style="width:100%;padding:7px;background:none;border:1px dashed #ccc;color:#666;border-radius:6px;font-family:\'Space Mono\',monospace;font-size:0.56rem;cursor:pointer">↺ Add streets already seen on stops here</button>' +
-  '</div>';
-}
-
-function addChecklistItemFromInput() {
-  var active = SurveySession.getActive();
-  if (!active) return;
-  var input = document.getElementById('survey-checklist-input');
-  if (!input || !input.value.trim()) return;
-  var added = SurveyCoverage.addChecklistItem(SurveySession.areaKey(active), input.value.trim(), false);
-  if (!added) { showToast('Already on the list'); return; }
-  _renderSurveyPanel();
-  // Re-focus the (freshly re-rendered) input so multi-item entry doesn't
-  // require re-tapping the field each time.
-  setTimeout(function() {
-    var freshInput = document.getElementById('survey-checklist-input');
-    if (freshInput) freshInput.focus();
-  }, 0);
-}
-
-function toggleChecklistItemUI(id) {
-  var active = SurveySession.getActive();
-  if (!active) return;
-  SurveyCoverage.toggleChecklistItem(SurveySession.areaKey(active), id);
-  _renderSurveyPanel();
-}
-
-function removeChecklistItemUI(id) {
-  var active = SurveySession.getActive();
-  if (!active) return;
-  SurveyCoverage.removeChecklistItem(SurveySession.areaKey(active), id);
-  _renderSurveyPanel();
-}
-
-function seedChecklistFromStopsUI() {
-  var active = SurveySession.getActive();
-  if (!active) return;
-  var added = SurveyCoverage.seedFromStops(active);
-  showToast(added ? ('+ ' + added + ' street' + (added===1?'':'s') + ' added') : 'Nothing new to add');
-  _renderSurveyPanel();
-}
-window.addChecklistItemFromInput = addChecklistItemFromInput;
-window.toggleChecklistItemUI      = toggleChecklistItemUI;
-window.removeChecklistItemUI      = removeChecklistItemUI;
-window.seedChecklistFromStopsUI   = seedChecklistFromStopsUI;
 
 // Small persistent banner shown on every tab (in the stop-count-bar area)
 // while a survey is active. Ticks every 60s to keep elapsed time fresh.
@@ -18780,8 +18708,17 @@ function _initSurveyStrip() {
   if (_surveyStripTimer) clearInterval(_surveyStripTimer);
   _surveyStripTimer = setInterval(_renderSurveyStrip, 60000);
   // App reload mid-shift (tab refresh, PWA relaunch) shouldn't silently
-  // drop tracking for whatever survey was already active.
-  try { if (typeof _startBreadcrumbWatch === 'function') _startBreadcrumbWatch(); } catch(_e) {}
+  // drop tracking for whatever survey was already active — UNLESS a
+  // resume prompt is already pending (the reload/relaunch itself may be
+  // what a phone-off/app-kill period looks like), in which case honor
+  // that instead of silently resuming and risking the same straight-line
+  // bug this whole mechanism exists to prevent.
+  try {
+    var _resumePending = false;
+    try { _resumePending = LS.get('survey-resume-prompt-pending') === '1'; } catch(_e) {}
+    if (_resumePending) { try { _checkSurveyResumePrompt(); } catch(_e) {} }
+    else if (typeof _startBreadcrumbWatch === 'function') { _startBreadcrumbWatch(); }
+  } catch(_e) {}
 }
 window._renderSurveyPanel = _renderSurveyPanel;
 window._renderSurveyStrip = _renderSurveyStrip;
@@ -18793,11 +18730,10 @@ window.endActiveSurvey       = endActiveSurvey;
 // ============================================================
 // SECTION: survey-coverage
 // ============================================================
-// ── SURVEY COVERAGE — breadcrumb GPS trail + manual street/alley checklist ──
-// Two independent, complementary ways to see "have I covered this
-// neighborhood": a passive GPS trail (shows where the vehicle actually
-// went) and a manual checklist (catches alleys and anything the trail
-// missed/misjudged). Both are scoped to SurveySession.getActive().
+// ── SURVEY COVERAGE — breadcrumb GPS trail ──────────────────────────────
+// A passive GPS trail showing where the vehicle actually went, scoped to
+// SurveySession.getActive(). (The manual street/alley checklist that used
+// to live alongside this was removed 2026-07-22 — bloat, low use.)
 //
 // Deliberately NOT built as a MapLayers/MapLayerRenderer "layer" —
 // that abstraction is for static, toggleable feature sets sourced from
@@ -18807,14 +18743,15 @@ window.endActiveSurvey       = endActiveSurvey;
 // routeMap instead, the same way the Photostamp setup mini-map draws its
 // own lines outside the MapLayers system.
 //
-// Storage (both keyed by neighborhood NAME, not number — sessions are
-// matched by name elsewhere too, and manual/typo'd neighborhoods may
-// have no number):
-//   'survey-breadcrumb:<name>' -> JSON array of [lat, lng, ts] triples
-//                                  (compact array form, not objects, to
-//                                  keep 1000s of points reasonably small
+// Storage (keyed by neighborhood NAME, not number — sessions are matched
+// by name elsewhere too, and manual/typo'd neighborhoods may have no
+// number):
+//   'survey-breadcrumb:<name>' -> JSON array of [lat, lng, ts, breakBefore?]
+//                                  tuples (compact array form, not objects,
+//                                  to keep 1000s of points reasonably small
 //                                  in localStorage). Capped at 3000 points.
-//   'survey-checklist:<name>'  -> JSON array of {id, name, checked, isAlley}
+//                                  breakBefore (1) marks a tracking-gap
+//                                  segment boundary — see SEGMENT_GAP_MS.
 
 var SurveyCoverage = (function() {
   var BREADCRUMB_CAP = 3000;
@@ -18833,8 +18770,16 @@ var SurveyCoverage = (function() {
   // neighborhood, so nothing already tracked gets silently lost. Writes
   // always go to the new composite key from here on — the old key is
   // left as-is (harmless, unread once the composite key has data).
+  // 2026-07-21: any gap between consecutive GPS fixes longer than this is
+  // treated as a tracking interruption (phone screen off, app backgrounded/
+  // killed, GPS dropout) rather than continuous movement — the point still
+  // gets stored, but flagged as the start of a NEW segment so the map layer
+  // draws a break instead of a straight line connecting wherever tracking
+  // stopped to wherever it picked back up (the "phone off, drove home,
+  // highlighted a straight line across town" bug).
+  var SEGMENT_GAP_MS = 5 * 60 * 1000;
+
   function _bcKey(areaKey) { return 'survey-breadcrumb:' + areaKey; }
-  function _clKey(areaKey) { return 'survey-checklist:' + areaKey; }
   function _legacyBareKey(areaKey) {
     if (areaKey && areaKey.indexOf('neighborhood:') === 0) return areaKey.slice('neighborhood:'.length);
     return null;
@@ -18855,16 +18800,22 @@ var SurveyCoverage = (function() {
 
   // Appends a point if it's the first one, or far enough from the last
   // stored point. Returns true if a point was actually added (caller uses
-  // this to know whether a map redraw is worthwhile).
+  // this to know whether a map redraw is worthwhile). Point shape is
+  // [lat, lng, timestampMs, breakBefore] — breakBefore (1) marks that this
+  // point starts a new segment because too much time passed since the
+  // previous one; omitted (undefined/falsy) means "continues the trail."
   function addBreadcrumbPoint(areaKey, lat, lng) {
     if (!areaKey || lat == null || lng == null) return false;
     var trail = getBreadcrumb(areaKey);
     var last = trail.length ? trail[trail.length - 1] : null;
+    var now = Date.now();
     if (last) {
       var dist = _haversineMeters({ lat: last[0], lng: last[1] }, { lat: lat, lng: lng });
       if (dist != null && dist < MIN_POINT_DISTANCE_M) return false;
     }
-    trail.push([lat, lng, Date.now()]);
+    var point = [lat, lng, now];
+    if (last && last[2] != null && (now - last[2]) > SEGMENT_GAP_MS) point[3] = 1;
+    trail.push(point);
     if (trail.length > BREADCRUMB_CAP) trail = trail.slice(-BREADCRUMB_CAP);
     try { LS.set(_bcKey(areaKey), JSON.stringify(trail)); } catch(_e) {}
     return true;
@@ -18873,8 +18824,8 @@ var SurveyCoverage = (function() {
   // Clears both the composite key and (if applicable) the legacy bare-name
   // key — otherwise a not-yet-migrated legacy trail would silently
   // resurrect itself on the next read after "clearing."  Clearing the
-  // breadcrumb never touches the checklist, ChronicIndex, stops, or
-  // anything else — it's scoped to exactly this one piece of data.
+  // breadcrumb never touches ChronicIndex, stops, or anything else — it's
+  // scoped to exactly this one piece of data.
   function clearBreadcrumb(areaKey) {
     if (!areaKey) return;
     try { LS.set(_bcKey(areaKey), '[]'); } catch(_e) {}
@@ -18882,94 +18833,11 @@ var SurveyCoverage = (function() {
     if (legacy) { try { LS.set(_bcKey(legacy), '[]'); } catch(_e) {} }
   }
 
-  // ── Checklist ──────────────────────────────────────────────────────────
-  function getChecklist(areaKey) {
-    if (!areaKey) return [];
-    try {
-      var raw = LS.get(_clKey(areaKey));
-      if (raw == null) {
-        var legacy = _legacyBareKey(areaKey);
-        if (legacy) raw = LS.get(_clKey(legacy));
-      }
-      var arr = JSON.parse(raw || '[]');
-      return Array.isArray(arr) ? arr : [];
-    } catch(_e) { return []; }
-  }
-  function _saveChecklist(areaKey, list) {
-    try { LS.set(_clKey(areaKey), JSON.stringify(list)); } catch(_e) {}
-  }
-
-  // Adds one item if its name isn't already present (case-insensitive).
-  // Returns the new item, or null if it was a duplicate.
-  function addChecklistItem(areaKey, text, isAlley) {
-    if (!areaKey || !text) return null;
-    var list = getChecklist(areaKey);
-    var norm = text.trim().toLowerCase();
-    if (!norm) return null;
-    var dupe = list.some(function(it) { return it.name.toLowerCase() === norm; });
-    if (dupe) return null;
-    var item = { id: _newClientId(), name: text.trim(), checked: false, isAlley: !!isAlley };
-    list.push(item);
-    _saveChecklist(areaKey, list);
-    return item;
-  }
-
-  function toggleChecklistItem(areaKey, id) {
-    var list = getChecklist(areaKey);
-    var item = list.find(function(it) { return it.id === id; });
-    if (!item) return;
-    item.checked = !item.checked;
-    _saveChecklist(areaKey, list);
-  }
-
-  function removeChecklistItem(areaKey, id) {
-    var list = getChecklist(areaKey).filter(function(it) { return it.id !== id; });
-    _saveChecklist(areaKey, list);
-  }
-
-  // Pulls unique street names already seen on stops within this area and
-  // adds any not already on the checklist. Takes the whole session object
-  // (not just a name) because "which stops count as within this area"
-  // depends on the area type: neighborhoods match stops.neighborhoodName
-  // (already GPS-resolved per stop); wards match stops.ward (a number,
-  // not a name — different comparison entirely). Police districts have no
-  // matching per-stop field today, so seeding always yields 0 for that
-  // type — a graceful no-op, not an error, until/unless stops ever carry
-  // that field. Same number-stripping regex as _metricsStreetSpread, kept
-  // independent rather than sharing a helper since that one operates on a
-  // stop subset the caller already filtered by date range — different
-  // inputs, same small parsing rule not worth abstracting over for one line.
-  // Returns the count of NEW items added.
-  function seedFromStops(session) {
-    if (!session || typeof stops === 'undefined' || typeof SurveySession === 'undefined') return 0;
-    var key = SurveySession.areaKey(session);
-    if (!key) return 0;
-    var type = session.areaType || 'neighborhood';
-    var found = {};
-    stops.forEach(function(s) {
-      var matches = false;
-      if (type === 'neighborhood') matches = (s.neighborhoodName === session.neighborhoodName);
-      else if (type === 'ward') matches = (s.ward != null && String(s.ward) === String(session.neighborhoodNum));
-      if (!matches) return;
-      var m = (s.address || '').match(/^\d+\s+(.+?)(?:,|$)/);
-      if (m) found[m[1].trim()] = true;
-    });
-    var added = 0;
-    Object.keys(found).forEach(function(streetName) {
-      if (addChecklistItem(key, streetName, false)) added++;
-    });
-    return added;
-  }
-
   return {
     getBreadcrumb: getBreadcrumb,
     addBreadcrumbPoint: addBreadcrumbPoint,
     clearBreadcrumb: clearBreadcrumb,
-    getChecklist: getChecklist,
-    addChecklistItem: addChecklistItem,
-    toggleChecklistItem: toggleChecklistItem,
-    removeChecklistItem: removeChecklistItem,
-    seedFromStops: seedFromStops
+    SEGMENT_GAP_MS: SEGMENT_GAP_MS
   };
 })();
 window.SurveyCoverage = SurveyCoverage;
@@ -19013,11 +18881,87 @@ function _stopBreadcrumbWatch() {
 function toggleSurveyTracking() {
   var paused = _isSurveyTrackingPaused();
   try { LS.set('survey-tracking-paused', paused ? '0' : '1'); } catch(_e) {}
-  if (paused) { _startBreadcrumbWatch(); showToast('📍 Tracking resumed'); }
+  if (paused) {
+    // Manually resuming (from inside the panel) always clears any pending
+    // auto-pause prompt too — the inspector just did the equivalent thing.
+    try { LS.set('survey-resume-prompt-pending', '0'); } catch(_e) {}
+    try { _hideSurveyResumeOverlay(); } catch(_e) {}
+    _startBreadcrumbWatch(); showToast('📍 Tracking resumed');
+  }
   else { _stopBreadcrumbWatch(); showToast('📍 Tracking paused'); }
   _renderSurveyPanel();
 }
 window.toggleSurveyTracking = toggleSurveyTracking;
+
+// ── Auto-pause on backgrounding + "Resume Survey" prompt ─────────────────
+// 2026-07-22: reported bug — leaving Survey Mode on, turning the phone off,
+// and driving home drew a straight highlighted line between wherever
+// tracking was when the screen went off and wherever the phone was when it
+// came back on. Root cause: watchPosition kept "watching" through the
+// background period (or got silently restarted on next launch), so the
+// very next GPS fix — miles away, whenever it arrived — got treated as a
+// normal continuation of the trail.
+//
+// Fix: pause tracking the moment the app goes to background, and DON'T
+// auto-resume it when the app comes back — surface a simple "Resume
+// Survey" prompt over the Survey Mode button instead, so the inspector
+// explicitly confirms they're back on the route before tracking (and the
+// highlight) picks back up. (_breadcrumbSegments' gap-based segment break,
+// above, is a second independent backstop in case this still gets missed
+// — e.g. the OS kills the tab outright without firing visibilitychange.)
+function _showSurveyResumeOverlay() {
+  var el = document.getElementById('survey-resume-overlay');
+  if (el) el.style.display = 'flex';
+}
+window._showSurveyResumeOverlay = _showSurveyResumeOverlay;
+
+function _hideSurveyResumeOverlay() {
+  var el = document.getElementById('survey-resume-overlay');
+  if (el) el.style.display = 'none';
+}
+window._hideSurveyResumeOverlay = _hideSurveyResumeOverlay;
+
+// Called when the app is hidden (screen locked, backgrounded, tab
+// switched away) while a survey is actively tracking. Silent — no toast,
+// nothing to interrupt, since the person is walking away from the app
+// right as this fires.
+function _autoPauseSurveyTracking() {
+  var active = null;
+  try { active = SurveySession.getActive(); } catch(_e) {}
+  if (!active || _isSurveyTrackingPaused()) return; // nothing active, or already paused (manually or otherwise)
+  try { _stopBreadcrumbWatch(); } catch(_e) {}
+  try { LS.set('survey-tracking-paused', '1'); } catch(_e) {}
+  try { LS.set('survey-resume-prompt-pending', '1'); } catch(_e) {}
+}
+window._autoPauseSurveyTracking = _autoPauseSurveyTracking;
+
+// Called when the app becomes visible again. Shows the resume prompt if
+// an auto-pause is pending; otherwise makes sure the overlay is hidden.
+// Deliberately does NOT auto-restart the watch — that's the whole point.
+function _checkSurveyResumePrompt() {
+  var active = null;
+  try { active = SurveySession.getActive(); } catch(_e) {}
+  var pending = false;
+  try { pending = LS.get('survey-resume-prompt-pending') === '1'; } catch(_e) {}
+  if (active && pending) { try { _showSurveyResumeOverlay(); } catch(_e) {} }
+  else { try { _hideSurveyResumeOverlay(); } catch(_e) {} if (!active) { try { LS.set('survey-resume-prompt-pending', '0'); } catch(_e) {} } }
+}
+window._checkSurveyResumePrompt = _checkSurveyResumePrompt;
+
+// Tap target for the overlay itself — explicitly resumes tracking. The
+// segment-gap logic in addBreadcrumbPoint (SurveyCoverage.SEGMENT_GAP_MS)
+// naturally keeps whatever happened during the pause from being drawn as
+// a connecting line, so no special-casing is needed here beyond just
+// starting the watch back up.
+function resumeSurveyAfterPause() {
+  try { LS.set('survey-tracking-paused', '0'); } catch(_e) {}
+  try { LS.set('survey-resume-prompt-pending', '0'); } catch(_e) {}
+  _hideSurveyResumeOverlay();
+  try { _startBreadcrumbWatch(); } catch(_e) {}
+  showToast('📍 Survey tracking resumed');
+  try { _renderSurveyPanel(); } catch(_e) {}
+}
+window.resumeSurveyAfterPause = resumeSurveyAfterPause;
 
 // ── Breadcrumb rendering — a dedicated Leaflet polyline on routeMap,
 // independent of routeMapPolylines/MapLayerRenderer (see module comment
@@ -19031,20 +18975,107 @@ window.toggleSurveyTracking = toggleSurveyTracking;
 // neighborhoods/wards/police districts) until explicitly cleared via
 // "🧹 Clear Path" in the Survey Mode panel — ending or restarting a
 // survey in the same area never touches it.
-var _surveyBreadcrumbLayer = null;
+//
+// 2026-07-22: two fixes bundled into the same redraw pass —
+//   1. Clips points to the active area's boundary polygon (using the
+//      rings cached by _fitMapToActiveSurveyArea below) so the highlight
+//      never bleeds outside the neighborhood/ward/district being
+//      surveyed, even if a stray GPS fix landed outside it.
+//   2. Draws the trail as multiple disconnected polyline SEGMENTS rather
+//      than one continuous line, breaking wherever addBreadcrumbPoint
+//      flagged a tracking gap (breakBefore) or a point got clipped out by
+//      the boundary check above. This is the fix for "phone was off,
+//      drove home, app drew a straight line across town" — a gap in
+//      tracking no longer gets rendered as a traveled path.
+var _surveyBreadcrumbLayers = [];
+function _breadcrumbSegments(trail, rings) {
+  var segments = [];
+  var current = [];
+  var lastTs = null;
+  trail.forEach(function(p) {
+    var lat = p[0], lng = p[1], ts = p[2], breakBefore = p[3];
+    if (rings && rings.length && !_pointInSurveyAreaRings(lat, lng, rings)) {
+      // Outside the surveyed area — drop the point and break the segment;
+      // never draw the highlight outside the boundary.
+      if (current.length > 1) segments.push(current);
+      current = [];
+      lastTs = null;
+      return;
+    }
+    var gapMs = (lastTs != null && ts != null) ? (ts - lastTs) : 0;
+    if (breakBefore || (typeof SurveyCoverage !== 'undefined' && gapMs > SurveyCoverage.SEGMENT_GAP_MS)) {
+      if (current.length > 1) segments.push(current);
+      current = [];
+    }
+    current.push([lat, lng]);
+    lastTs = ts;
+  });
+  if (current.length > 1) segments.push(current);
+  return segments;
+}
 function _redrawBreadcrumbLayer() {
   if (typeof routeMap === 'undefined' || !routeMap || typeof L === 'undefined') return;
-  if (_surveyBreadcrumbLayer) { try { routeMap.removeLayer(_surveyBreadcrumbLayer); } catch(_e) {} _surveyBreadcrumbLayer = null; }
+  if (_surveyBreadcrumbLayers.length) {
+    _surveyBreadcrumbLayers.forEach(function(layer) { try { routeMap.removeLayer(layer); } catch(_e) {} });
+    _surveyBreadcrumbLayers = [];
+  }
   var active = SurveySession.getActive();
   if (!active) return;
-  var trail = SurveyCoverage.getBreadcrumb(SurveySession.areaKey(active));
+  var areaKeyStr = SurveySession.areaKey(active);
+  var trail = SurveyCoverage.getBreadcrumb(areaKeyStr);
   if (trail.length < 2) return;
-  var latlngs = trail.map(function(p) { return [p[0], p[1]]; });
-  _surveyBreadcrumbLayer = L.polyline(latlngs, {
-    color: '#f5c518', weight: 12, opacity: 0.4, lineCap: 'round', lineJoin: 'round'
-  }).addTo(routeMap);
+  // Only clip against rings that actually belong to THIS area — a stale
+  // cache from a just-ended or different-area survey would otherwise
+  // wrongly clip everything out.
+  var rings = (_currentSurveyAreaRingsKey === areaKeyStr) ? _currentSurveyAreaRings : null;
+  var segments = _breadcrumbSegments(trail, rings);
+  segments.forEach(function(seg) {
+    var layer = L.polyline(seg, {
+      color: '#f5c518', weight: 12, opacity: 0.4, lineCap: 'round', lineJoin: 'round'
+    }).addTo(routeMap);
+    _surveyBreadcrumbLayers.push(layer);
+  });
 }
 window._redrawBreadcrumbLayer = _redrawBreadcrumbLayer;
+
+// Logs today's highlighted breadcrumb trail for the active survey's area
+// to the console — a developer/debug utility, no UI hookup, callable
+// directly (e.g. from the browser console) when someone needs to eyeball
+// today's raw GPS points and rough mileage without digging through
+// localStorage by hand. "Today" means local midnight through now. Returns
+// the filtered point array (each [lat, lng, timestampMs]) so it can also
+// be used programmatically, not just read off the console.
+function logTodaysHighlightedRoute() {
+  var active = null;
+  try { active = SurveySession.getActive(); } catch(_e) {}
+  if (!active) { console.log('[STLCityRoute] No active survey — nothing to log.'); return []; }
+  var areaKeyStr = SurveySession.areaKey(active);
+  var trail = SurveyCoverage.getBreadcrumb(areaKeyStr);
+  var startOfToday = new Date();
+  startOfToday.setHours(0, 0, 0, 0);
+  var todaysPoints = trail.filter(function(p) { return p[2] != null && p[2] >= startOfToday.getTime(); });
+
+  var totalM = 0;
+  for (var i = 1; i < todaysPoints.length; i++) {
+    var d = _haversineMeters(
+      { lat: todaysPoints[i - 1][0], lng: todaysPoints[i - 1][1] },
+      { lat: todaysPoints[i][0], lng: todaysPoints[i][1] }
+    );
+    if (d != null) totalM += d;
+  }
+
+  var typeLabel = (typeof AREA_TYPE_LABELS !== 'undefined' && AREA_TYPE_LABELS[active.areaType]) || 'Neighborhood';
+  console.log('[STLCityRoute] Today\u2019s highlighted route \u2014 ' + active.neighborhoodName + ' (' + typeLabel + ')');
+  console.log('  ' + todaysPoints.length + ' point' + (todaysPoints.length === 1 ? '' : 's') +
+    ' \u00b7 ~' + Math.round(totalM) + 'm / ' + (totalM / 1609.34).toFixed(2) + ' mi tracked today');
+  if (todaysPoints.length && typeof console.table === 'function') {
+    console.table(todaysPoints.map(function(p) {
+      return { lat: p[0], lng: p[1], time: new Date(p[2]).toLocaleTimeString(), segmentBreak: !!p[3] };
+    }));
+  }
+  return todaysPoints;
+}
+window.logTodaysHighlightedRoute = logTodaysHighlightedRoute;
 
 // ── Survey Mode: fit-to-area + gray mask ──────────────────────────────────
 // When a survey is active, the map should frame the WHOLE area being
@@ -19055,6 +19086,36 @@ window._redrawBreadcrumbLayer = _redrawBreadcrumbLayer;
 // been — the two are independent and both draw at once.
 var _surveyAreaMaskLayer = null;
 var _surveyAreaOutlineLayer = null;
+
+// Cached boundary rings for whichever area is currently active — set by
+// _fitMapToActiveSurveyArea below, consumed by _breadcrumbSegments above
+// to keep the highlight trail clipped to the surveyed area. Keyed
+// alongside the areaKey it belongs to so a redraw never applies one
+// area's boundary to another area's trail.
+var _currentSurveyAreaRings = null;
+var _currentSurveyAreaRingsKey = null;
+
+// Point-in-polygon test against Leaflet-shaped [lat,lng] rings (the same
+// shape _geoJsonPolygonRingsLatLng produces) — standard ray casting,
+// true if the point falls inside ANY of the given rings (each ring is
+// its own outer boundary; St. Louis neighborhood/ward/district shapes
+// don't have holes worth handling here, matching
+// _geoJsonPolygonRingsLatLng's own simplifying assumption).
+function _pointInSurveyAreaRings(lat, lng, rings) {
+  for (var r = 0; r < rings.length; r++) {
+    var ring = rings[r];
+    var inside = false;
+    for (var i = 0, j = ring.length - 1; i < ring.length; j = i++) {
+      var yi = ring[i][0], xi = ring[i][1];
+      var yj = ring[j][0], xj = ring[j][1];
+      var intersect = ((yi > lat) !== (yj > lat)) &&
+                      (lng < (xj - xi) * (lat - yi) / (yj - yi + 1e-12) + xi);
+      if (intersect) inside = !inside;
+    }
+    if (inside) return true;
+  }
+  return false;
+}
 
 // Extracts the outer ring(s) of a GeoJSON Polygon/MultiPolygon as
 // Leaflet-shaped [lat,lng] rings. For a MultiPolygon, only the outer ring
@@ -19118,12 +19179,20 @@ async function _fitMapToActiveSurveyArea() {
   if (_surveyAreaMaskLayer) { try { routeMap.removeLayer(_surveyAreaMaskLayer); } catch(_e) {} _surveyAreaMaskLayer = null; }
   if (_surveyAreaOutlineLayer) { try { routeMap.removeLayer(_surveyAreaOutlineLayer); } catch(_e) {} _surveyAreaOutlineLayer = null; }
   var active = SurveySession.getActive();
-  if (!active) return;
+  if (!active) { _currentSurveyAreaRings = null; _currentSurveyAreaRingsKey = null; return; }
   var feature = await _findActiveSurveyAreaFeature();
   if (!feature || !feature.geometry) return;
 
   var rings = _geoJsonPolygonRingsLatLng(feature.geometry);
   if (!rings.length) return;
+
+  // Cache the rings for the breadcrumb-clipping logic above, then
+  // re-clip/redraw the trail now that a boundary is actually available —
+  // covers the case where the trail rendered once already (e.g. right at
+  // survey start) before this async lookup resolved.
+  _currentSurveyAreaRings = rings;
+  _currentSurveyAreaRingsKey = SurveySession.areaKey(active);
+  try { _redrawBreadcrumbLayer(); } catch(_e) {}
 
   // Gray mask: a giant rectangle covering the whole visible world with
   // the area's ring(s) cut out as holes — Leaflet polygons support
@@ -19149,16 +19218,6 @@ async function _fitMapToActiveSurveyArea() {
   } catch(_e) {}
 }
 window._fitMapToActiveSurveyArea = _fitMapToActiveSurveyArea;
-
-// "Fit Map to This Area" button in the Survey Mode panel — jumps to the
-// Map tab (the mask/fit only means anything there) and applies the fit.
-function fitMapToActiveSurveyAreaUI() {
-  var active = SurveySession.getActive();
-  if (!active) { showToast('Start a survey first'); return; }
-  try { switchTab('map'); } catch(_e) {}
-  setTimeout(function() { try { _fitMapToActiveSurveyArea(); } catch(_e) {} }, 150);
-}
-window.fitMapToActiveSurveyAreaUI = fitMapToActiveSurveyAreaUI;
 
 
 // ============================================================
@@ -27888,8 +27947,6 @@ const CoverageReport = (function() {
     } catch(_e) {}
 
     var breadcrumb = (typeof SurveyCoverage !== 'undefined' && areaKeyStr) ? SurveyCoverage.getBreadcrumb(areaKeyStr) : [];
-    var checklist = (typeof SurveyCoverage !== 'undefined' && areaKeyStr) ? SurveyCoverage.getChecklist(areaKeyStr) : [];
-    var checklistChecked = checklist.filter(function(it) { return it.checked; }).length;
 
     var chronicSettings = (typeof ChronicIndex !== 'undefined') ? ChronicIndex.getSettings() : null;
     var chronicWinMs = chronicSettings ? ChronicIndex.windowMsFor(chronicSettings) : 0;
@@ -27935,10 +27992,7 @@ const CoverageReport = (function() {
       coverage: {
         breadcrumbPointCount: breadcrumb.length,
         breadcrumbFirstMs: breadcrumbFirstMs,
-        breadcrumbLastMs: breadcrumbLastMs,
-        checklistTotal: checklist.length,
-        checklistChecked: checklistChecked,
-        checklist: checklist
+        breadcrumbLastMs: breadcrumbLastMs
       },
       chronic: {
         settings: chronicSettings,
@@ -27981,13 +28035,6 @@ const CoverageReport = (function() {
     if (report.active) rows.push([esc(report.active.startedAt), 'in progress'].join(','));
     rows.push([]);
 
-    rows.push(['COVERAGE CHECKLIST'].join(','));
-    rows.push(['Item', 'Type', 'Covered'].join(','));
-    report.coverage.checklist.forEach(function(it) {
-      rows.push([esc(it.name), esc(it.isAlley ? 'alley' : 'street'), esc(it.checked ? 'yes' : 'no')].join(','));
-    });
-    rows.push([]);
-
     rows.push(['CHRONIC LOCATIONS'].join(','));
     rows.push(['Location', 'PhotosInWindow', 'TotalPhotosEver', 'Severity'].join(','));
     report.chronic.locations.forEach(function(loc) {
@@ -28020,11 +28067,6 @@ const CoverageReport = (function() {
 
     lines.push('COVERAGE');
     lines.push(c.breadcrumbPointCount + ' breadcrumb points tracked' + (c.breadcrumbFirstMs ? (' (' + new Date(c.breadcrumbFirstMs).toLocaleDateString() + ' – ' + new Date(c.breadcrumbLastMs).toLocaleDateString() + ')') : ''));
-    lines.push('Checklist: ' + c.checklistChecked + '/' + c.checklistTotal + ' covered');
-    var uncovered = c.checklist.filter(function(it) { return !it.checked; });
-    if (uncovered.length) {
-      lines.push('Not yet covered: ' + uncovered.map(function(it) { return it.name; }).join(', '));
-    }
     lines.push('');
 
     if (ch.locations.length) {
@@ -28057,11 +28099,6 @@ const CoverageReport = (function() {
       sessionRows = '<tr style="background:#fff8c5"><td style="padding:4px 8px">' + safe(new Date(report.active.startedAt).toLocaleString()) + '</td>' +
         '<td style="padding:4px 8px"><b>in progress</b></td></tr>' + sessionRows;
     }
-
-    var checklistRows = c.checklist.map(function(it) {
-      return '<tr><td style="padding:4px 8px">' + (it.checked ? '✓' : '○') + '</td>' +
-        '<td style="padding:4px 8px">' + safe(it.name) + (it.isAlley ? ' <span style="color:#999">(alley)</span>' : '') + '</td></tr>';
-    }).join('');
 
     var chronicRows = ch.locations.map(function(loc) {
       return '<tr><td style="padding:4px 8px">' + safe(loc.displayLabel) + '</td>' +
@@ -28102,11 +28139,10 @@ const CoverageReport = (function() {
         '<div class="kpi"><div class="kpi-num">' + (report.sessions.length + (report.active ? 1 : 0)) + '</div><div class="kpi-label">Sessions</div></div>' +
         '<div class="kpi"><div class="kpi-num">' + st.total + '</div><div class="kpi-label">Stops</div></div>' +
         '<div class="kpi"><div class="kpi-num">' + st.completionRate + '%</div><div class="kpi-label">Close rate</div></div>' +
-        '<div class="kpi"><div class="kpi-num">' + c.checklistChecked + '/' + c.checklistTotal + '</div><div class="kpi-label">Checklist covered</div></div>' +
+        '<div class="kpi"><div class="kpi-num">' + c.breadcrumbPointCount + '</div><div class="kpi-label">Breadcrumb points</div></div>' +
       '</div>';
 
     html += '<h2>Sessions</h2><table>' + (sessionRows || '<tr><td style="padding:4px 8px;color:#999">No sessions logged.</td></tr>') + '</table>';
-    html += '<h2>Coverage checklist</h2><table>' + (checklistRows || '<tr><td style="padding:4px 8px;color:#999">No checklist items.</td></tr>') + '</table>';
     if (c.breadcrumbPointCount) {
       html += '<div style="font-size:13px;color:#666;margin-top:6px">' + c.breadcrumbPointCount + ' breadcrumb points tracked' +
         (c.breadcrumbFirstMs ? (' from ' + new Date(c.breadcrumbFirstMs).toLocaleDateString() + ' to ' + new Date(c.breadcrumbLastMs).toLocaleDateString()) : '') + '</div>';
@@ -28203,7 +28239,6 @@ function generateCoverageReportUI(areaKeyStr) {
     '<div style="background:#fafafa;border:1.5px solid #e5e7eb;border-radius:9px;padding:12px;margin-bottom:12px;font-family:\'Space Mono\',monospace;font-size:0.62rem;color:#444;line-height:1.9">' +
       '<div>' + sessionCount + ' survey session' + (sessionCount === 1 ? '' : 's') + (report.active ? ' <span style="color:#7a5000">(1 in progress)</span>' : '') + '</div>' +
       '<div>' + st.total + ' stops · ' + st.completed + ' completed (' + st.completionRate + '%)</div>' +
-      '<div>' + c.checklistChecked + '/' + c.checklistTotal + ' checklist items covered</div>' +
       '<div>' + c.breadcrumbPointCount + ' breadcrumb points tracked</div>' +
       '<div>' + ch.locations.length + ' chronic location' + (ch.locations.length === 1 ? '' : 's') + '</div>' +
       '<div>' + pl.totalLoggedPhotos + ' logged photo' + (pl.totalLoggedPhotos === 1 ? '' : 's') + ' across ' + pl.stopsWithPhotos.length + ' stop' + (pl.stopsWithPhotos.length === 1 ? '' : 's') + '</div>' +
