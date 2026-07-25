@@ -1142,47 +1142,6 @@ header{
     </details>
 
     <details class="settings-panel">
-      <summary>📈 Google Sheets Sync</summary>
-      <div class="settings-panel-body">
-        <div style="font-size:0.56rem;color:#888;font-family:'Space Mono',monospace;margin-bottom:8px">Paste the Apps Script Web App URL to enable "Push to Sheets" from the Data tab. One-time setup — follow steps below.</div>
-        <div id="settings-sheets-status" style="font-size:0.62rem;font-family:'Space Mono',monospace;color:#555;background:#f5f5f5;border-radius:8px;padding:6px 10px;margin-bottom:7px;word-break:break-all">Not configured</div>
-        <input type="url" id="settings-sheets-url" class="input-field" placeholder="https://script.google.com/macros/s/…/exec" style="margin-bottom:6px;font-size:0.65rem" autocomplete="off">
-        <div style="display:flex;gap:6px;margin-bottom:10px">
-          <button class="btn-sm btn-nav" style="flex:1;padding:8px;font-size:0.62rem" data-fn="saveSheetsWebhook">💾 SAVE URL</button>
-          <button class="btn-sm btn-del" style="flex:1;padding:8px;font-size:0.62rem" data-fn="clearSheetsWebhook">🗑 CLEAR</button>
-        </div>
-        <details style="margin-top:4px">
-          <summary style="cursor:pointer;font-family:'Syne',sans-serif;font-weight:700;font-size:0.6rem;color:#555;padding:6px 0;user-select:none">📋 Setup steps + Apps Script code</summary>
-          <div style="font-size:0.58rem;color:#333;font-family:'Space Mono',monospace;line-height:1.9;padding:6px 0">
-            1. Open a new Google Sheet at sheets.google.com<br>
-            2. Click <b>Extensions → Apps Script</b><br>
-            3. Delete the existing code and paste the script below<br>
-            4. Click <b>Deploy → New deployment → Web app</b><br>
-            5. Set "Who has access" to <b>Anyone</b><br>
-            6. Click <b>Deploy</b> and copy the Web App URL<br>
-            7. Paste the URL above and tap SAVE URL
-          </div>
-          <div style="position:relative;margin-top:6px">
-            <pre id="settings-sheets-script-pre" style="background:#f4f4f4;border-radius:8px;padding:10px 12px;font-size:0.5rem;color:#333;overflow-x:auto;line-height:1.7;white-space:pre-wrap;margin:0">function doPost(e) {
-  var data = JSON.parse(e.postData.contents);
-  var ss = SpreadsheetApp.getActiveSpreadsheet();
-  var sh = ss.getSheetByName('Stops') || ss.insertSheet('Stops');
-  if (sh.getLastRow() === 0)
-    sh.appendRow(['Date','Address','Type','Notes','Done','DurationMins','Lat','Lng','Inspector']);
-  (data.stops || []).forEach(s => sh.appendRow([
-    data.exportedAt, s.address, s.type,
-    s.notes||'', s.done, s.durationMins||'',
-    s.lat||'', s.lng||'', data.inspector
-  ]));
-  return ContentService.createTextOutput('ok');
-}</pre>
-            <button onclick="navigator.clipboard?.writeText(document.getElementById('settings-sheets-script-pre').textContent).then(()=>showToast('Script copied ✓')).catch(()=>showToast('Copy failed'))" style="position:absolute;top:6px;right:6px;padding:4px 8px;border:none;border-radius:5px;background:#3794ff;color:white;font-family:'Syne',sans-serif;font-weight:700;font-size:0.52rem;cursor:pointer">📋 COPY</button>
-          </div>
-        </details>
-      </div>
-    </details>
-
-    <details class="settings-panel">
       <summary>🔘 Header Buttons</summary>
       <div class="settings-panel-body">
         <div style="font-size:0.56rem;color:#888;font-family:'Space Mono',monospace;margin-bottom:8px">Show or hide the clock-in icon in the header. Off by default.</div>
@@ -1694,8 +1653,8 @@ header{
     <textarea id="close-notes-field" class="note-input" style="height:72px;width:100%;margin-bottom:4px;font-size:0.62rem" placeholder="Add completion notes (optional)..."></textarea>
     <!-- Reason textarea: always visible. Used ONLY if you tap the Flag for
          Follow-up button below; harmless to leave empty if you're using the
-         normal Mark Complete path. Surfaced in email body and Sheets push
-         when the followup flag is set. -->
+         normal Mark Complete path. Surfaced in email body and Reports
+         panel exports when the followup flag is set. -->
     <div id="close-followup-reason-wrap" style="margin-bottom:4px">
       <div style="font-family:'Space Mono',monospace;font-size:0.55rem;color:#7a4f00;margin-bottom:3px;letter-spacing:0.3px">🔔 IF FLAGGING — WHY? (optional)</div>
       <textarea id="close-followup-reason-field" class="note-input" style="height:48px;width:100%;font-size:0.62rem;border-color:#d4a017;background:#fffbf0" placeholder="e.g. Owner agreed to fix by next week, scheduled re-inspection, called CSB about complaint..."></textarea>
@@ -1707,7 +1666,7 @@ header{
       </button>
       <button data-fn="closeStopCompleteAndFlag" style="padding:14px 16px;border:none;border-radius:11px;background:linear-gradient(135deg,#a07a00,#d4a017);color:white;font-family:'Syne',sans-serif;font-weight:800;font-size:0.78rem;cursor:pointer;text-align:left">
         ✅🔔 COMPLETE &amp; FLAG FOR FOLLOW-UP
-        <div style="font-size:0.56rem;font-weight:400;opacity:0.85;margin-top:2px">Marks done, but tags this stop with a follow-up flag. Shows up in email summaries, sheets push, and on the completed card.</div>
+        <div style="font-size:0.56rem;font-weight:400;opacity:0.85;margin-top:2px">Marks done, but tags this stop with a follow-up flag. Shows up in email summaries, Reports panel exports, and on the completed card.</div>
       </button>
       <button onclick="emailStopSummary(_closeStopId, true)" style="padding:13px 16px;border:none;border-radius:11px;background:#1a5276;color:white;font-family:'Syne',sans-serif;font-weight:800;font-size:0.74rem;cursor:pointer;text-align:left">
         📧 EMAIL STOP SUMMARY
@@ -2417,49 +2376,30 @@ header{
 <div class="screen" id="screen-data">
   <div style="padding:4px 4px 80px">
 
-    <!-- Header -->
-    <div style="display:flex;align-items:center;justify-content:space-between;padding:10px 6px 6px">
-      <div style="font-family:'Syne',sans-serif;font-weight:800;font-size:0.9rem;color:white">📊 Field Data & Metrics</div>
-      <div style="display:flex;gap:6px">
-        <button data-fn="exportDataCSV" style="background:#2563eb;border:none;border-radius:8px;padding:5px 12px;font-family:'Syne',sans-serif;font-weight:800;font-size:0.58rem;color:white;cursor:pointer">📥 CSV</button>
-        <button data-fn="openDataExportModal" style="background:#16a34a;border:none;border-radius:8px;padding:5px 12px;font-family:'Syne',sans-serif;font-weight:800;font-size:0.58rem;color:white;cursor:pointer">📤 EXPORT</button>
-      </div>
-    </div>
-
-    <!-- Date range selector -->
-    <div style="background:white;border-radius:10px;padding:10px 12px;margin:0 2px 10px;box-shadow:0 1px 4px rgba(0,0,0,0.08);display:flex;align-items:center;gap:8px;flex-wrap:wrap">
-      <div style="font-family:'Syne',sans-serif;font-weight:800;font-size:0.6rem;color:var(--forest)">RANGE</div>
-      <div style="display:flex;gap:4px;flex-wrap:wrap">
-        <button data-fn="setDataRange" data-arg="today" id="data-range-today" class="data-range-btn active-range">Today</button>
-        <button data-fn="setDataRange" data-arg="week" id="data-range-week" class="data-range-btn">7 Days</button>
-        <button data-fn="setDataRange" data-arg="month" id="data-range-month" class="data-range-btn">30 Days</button>
-        <button data-fn="setDataRange" data-arg="all" id="data-range-all" class="data-range-btn">All Time</button>
-        <button data-fn="setDataRange" data-arg="custom" id="data-range-custom" class="data-range-btn">Custom</button>
-      </div>
-      <div id="data-custom-range" style="display:none;margin-top:8px;display:none">
-        <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap">
-          <div style="font-family:Syne,sans-serif;font-weight:700;font-size:0.56rem;color:white;white-space:nowrap">From</div>
-          <input type="date" id="data-custom-start" onchange="applyCustomRange()" style="font-family:monospace;font-size:0.6rem;border:1.5px solid #ddd;border-radius:6px;padding:3px 6px;color:#333;flex:1;min-width:100px">
-          <div style="font-family:Syne,sans-serif;font-weight:700;font-size:0.56rem;color:white;white-space:nowrap">To</div>
-          <input type="date" id="data-custom-end" onchange="applyCustomRange()" style="font-family:monospace;font-size:0.6rem;border:1.5px solid #ddd;border-radius:6px;padding:3px 6px;color:#333;flex:1;min-width:100px">
-        </div>
-      </div>
-      <div style="margin-left:auto;font-family:'Space Mono',monospace;font-size:0.56rem;color:#999" id="data-range-label">Today</div>
-    </div>
-
-    <!-- Stat cards row 1 -->
-    <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:6px;margin:0 2px 8px" id="data-stat-cards">
-      <!-- Filled by renderDataTab() -->
-    </div>
-
-    <!-- Period Reports — Drop AP.5b (2026-05-09). Replaces the old
-         Session Log panel. Lets the user pick a period kind (Day / Week /
-         Month / Year) and an anchor date; renders a full report with KPIs,
-         ward/neighborhood/street breakdowns, and shareable export
-         (CSV / HTML / clipboard). -->
+    <!-- 2026-07-25: merged panel — this used to be two separate things
+         (a "Period Reports" panel with its own KPI body, and a
+         "Ward/Neighborhood/District Report" card that opened a separate
+         modal reusing this panel's period selection). Combined into one
+         "Reports" panel: the period nav below is the single shared
+         period control, the three area selectors right under it are
+         AND-combined optional filters (moved in from the old modal —
+         same picker functions, same element IDs, just relocated), and
+         the report body below THAT is generated by AreaPeriodReport for
+         every case — whole city when all three filters are "Any" (this
+         is what "Period Reports" used to be, on its own), narrowed to
+         whichever combination is picked otherwise (this is what the
+         separate Ward/Neighborhood/District modal used to be). One
+         report generator, one panel, one set of Copy/CSV/HTML/PDF/Share
+         buttons regardless of which mode you're in.
+         PeriodReports module's own breakdown-by-ward/street tables are
+         no longer shown here — AreaPeriodReport doesn't have an
+         equivalent view, and reimplementing it wasn't part of this
+         request. The module itself (and CSV/HTML/text formatters,
+         PeriodReports.buildReport) is untouched and still callable if
+         that ever needs to come back. -->
     <div style="background:white;border-radius:10px;padding:12px 14px;margin:0 2px 8px;box-shadow:0 1px 4px rgba(0,0,0,0.08)" id="period-reports-panel">
       <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">
-        <div style="font-family:'Syne',sans-serif;font-weight:800;font-size:0.68rem;color:var(--forest)">📅 Period Reports</div>
+        <div style="font-family:'Syne',sans-serif;font-weight:800;font-size:0.68rem;color:var(--forest)">📅 Reports</div>
         <div style="display:flex;gap:6px;align-items:center">
           <button data-fn="togglePeriodReportSettings" id="period-settings-toggle" title="Settings" aria-label="Period report settings" style="background:none;border:1px solid #ddd;border-radius:6px;padding:3px 8px;font-family:Syne,sans-serif;font-weight:700;font-size:0.5rem;color:#666;cursor:pointer">⚙</button>
           <label style="font-family:'Space Mono',monospace;font-size:0.56rem;color:#999;display:flex;align-items:center;gap:4px">
@@ -2475,12 +2415,12 @@ header{
           <label style="white-space:nowrap">Week starts on:</label>
           <select id="period-week-start" onchange="setPeriodWeekStart(this.value)" style="font-family:'Space Mono',monospace;font-size:0.6rem;border:1px solid #ddd;border-radius:6px;padding:3px 6px;color:#333;background:white">
             <option value="0">Sunday</option>
-            <option value="1" selected>Monday</option>
+            <option value="1">Monday</option>
             <option value="2">Tuesday</option>
             <option value="3">Wednesday</option>
             <option value="4">Thursday</option>
             <option value="5">Friday</option>
-            <option value="6">Saturday</option>
+            <option value="6" selected>Saturday</option>
           </select>
         </div>
         <div style="font-size:0.5rem;color:#999;margin-top:6px;line-height:1.6">
@@ -2507,28 +2447,43 @@ header{
       <!-- Status badge row -->
       <div id="period-status-row" style="margin-bottom:10px;text-align:center"></div>
 
-      <!-- Report body — filled by renderPeriodReport() -->
-      <div id="period-report-body"></div>
-
-      <!-- Share row -->
-      <div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:10px;padding-top:10px;border-top:1px dashed #ddd">
-        <button data-fn="copyPeriodReport"  style="flex:1;min-width:90px;background:#fff;border:1.5px solid #ccc;border-radius:7px;padding:7px 10px;font-family:Syne,sans-serif;font-weight:700;font-size:0.58rem;color:#444;cursor:pointer">📋 Copy</button>
-        <button data-fn="downloadPeriodCSV" style="flex:1;min-width:90px;background:#fff;border:1.5px solid #9cbbd4;border-radius:7px;padding:7px 10px;font-family:Syne,sans-serif;font-weight:700;font-size:0.58rem;color:#1a5276;cursor:pointer">📥 CSV</button>
-        <button data-fn="downloadPeriodHTML" style="flex:1;min-width:90px;background:var(--forest);border:none;border-radius:7px;padding:7px 10px;font-family:Syne,sans-serif;font-weight:800;font-size:0.58rem;color:white;cursor:pointer">🌐 HTML report</button>
+      <!-- Area filters — AND-combined, each optional, "Any" = whole city.
+           2026-07-25: reordered District → Ward → Neighborhood (top of
+           the geographic hierarchy down), and each level below District
+           now cascades: picking a district narrows the ward list to
+           wards inside it; picking a ward (and/or district) narrows the
+           neighborhood list the same way. Containment is computed via
+           _computeAreaHierarchy — see that function's own comment for
+           how and why (no direct ward/district field exists on the
+           neighborhood data to just read off). -->
+      <div style="margin-bottom:6px">
+        <div style="font-family:'Space Mono',monospace;font-size:0.54rem;color:#999;text-transform:uppercase;letter-spacing:0.4px;margin-bottom:3px">Police District</div>
+        <div id="area-report-district-picker"></div>
       </div>
-    </div>
-
-    <!-- Ward / Neighborhood / District Report — reuses the period already
-         selected above in Period Reports (Day/Week/Month/Year + ‹ › nav)
-         rather than duplicating a second period navigator; adds the one
-         axis Period Reports and Coverage Report each lack on their own:
-         period AND area together. -->
-    <div style="background:white;border-radius:10px;padding:12px 14px;margin:0 2px 8px;box-shadow:0 1px 4px rgba(0,0,0,0.08)">
-      <div style="font-family:'Syne',sans-serif;font-weight:800;font-size:0.68rem;color:var(--forest);margin-bottom:6px">📍 Ward / Neighborhood / District Report</div>
-      <div style="font-family:'Space Mono',monospace;font-size:0.58rem;color:#666;margin-bottom:10px;line-height:1.5">
-        One area, one period — stops, photo tracker hotspots, and coverage for just the ward/neighborhood/district you pick, using the period selected above. Good for a per-alderperson weekly report.
+      <div style="margin-bottom:6px">
+        <div style="font-family:'Space Mono',monospace;font-size:0.54rem;color:#999;text-transform:uppercase;letter-spacing:0.4px;margin-bottom:3px">Ward</div>
+        <div id="area-report-ward-picker"></div>
       </div>
-      <button data-fn="openAreaPeriodReportModal" style="width:100%;padding:10px;background:var(--forest);border:none;border-radius:7px;font-family:Syne,sans-serif;font-weight:800;font-size:0.62rem;color:white;cursor:pointer">📍 Build Area Report</button>
+      <div id="area-report-shortlist-row" style="display:none;flex-wrap:wrap;gap:5px;margin-bottom:6px"></div>
+      <div style="margin-bottom:6px">
+        <div style="font-family:'Space Mono',monospace;font-size:0.54rem;color:#999;text-transform:uppercase;letter-spacing:0.4px;margin-bottom:3px">Neighborhood</div>
+        <div id="area-report-neighborhood-picker"></div>
+      </div>
+      <button data-fn="toggleAreaReportShortlistCurrent" id="area-report-shortlist-toggle" style="display:none;width:100%;padding:6px;margin-bottom:10px;background:none;border:1px dashed #bbb;color:#888;border-radius:6px;font-family:'Space Mono',monospace;font-size:0.56rem;cursor:pointer">☆ Save to My Neighborhoods</button>
+      <div style="font-family:'Space Mono',monospace;font-size:0.54rem;color:#aaa;margin-bottom:10px;line-height:1.5">Leave all three on "Any" for a whole-city report. Picking a district narrows Ward to wards inside it; picking a ward narrows Neighborhood to that ward's neighborhoods.</div>
+
+      <!-- Report body — filled by renderAreaPeriodReport() with KPIs and
+           Copy/CSV/HTML/PDF/Share buttons, for whatever combination of
+           period + area filters is currently selected. -->
+      <div id="area-report-preview"></div>
+
+      <!-- Period-only, all-areas spec export — relocated from the old
+           modal. Deliberately ignores the area filters above (see
+           AreaPeriodReport.buildExport's own comment for why); uses the
+           same period selected above. -->
+      <div style="margin-top:14px;padding-top:10px;border-top:1px dashed #ddd">
+        <button data-fn="downloadAreaReportExportJSON" style="width:100%;padding:8px;background:none;border:1px solid #ccc;color:#555;border-radius:7px;font-family:'Space Mono',monospace;font-size:0.56rem;cursor:pointer">📤 Export JSON for report-generator (this period, all areas)</button>
+      </div>
     </div>
 
     <!-- Storage usage -->
@@ -2663,15 +2618,12 @@ header{
     </details>
 
     <details class="help-panel">
-      <summary>📊 Data &amp; Exports</summary>
+      <summary>📊 Reports</summary>
       <div class="help-panel-body">
-        Open the DATA tab from the INFO screen to see today's metrics and your shift history.<br><br>
-        <b>Date ranges:</b> Today · 7 Days · 30 Days · All Time · Custom.<br><br>
-        <b>Export formats:</b><br>
-        · <b>CSV Spreadsheet</b> — One row per stop. Columns: #, Inspector, Address, Type, Status, AddedAt, CompletedAt, DurationMins, Lat, Lng, Notes. Opens in Excel or Google Sheets.<br>
-        · <b>Text Summary</b> — Three-section plain-text report (Field Worker, Manager, Geographic). Good for email.<br>
-        · <b>Push to Sheets</b> — Sends data directly to a Google Sheet you control. Requires one-time Apps Script setup (see below).<br><br>
-        <b>📅 Period Reports</b> — A separate, more detailed report below the main metrics. Pick <b>Day / Week / Month / Year</b>, then use ‹ › to navigate to any period — the current one shows an "● IN PROGRESS" badge and updates live, past ones show "✓ COMPLETED" as a fixed snapshot. Each report includes KPIs plus ward, neighborhood, street, and stop-type breakdowns. Share it as 📋 <b>Copy</b> (plain text to clipboard), 📥 <b>CSV</b> (downloadable spreadsheet), or 🌐 <b>HTML report</b> (a fully-styled standalone page that prints cleanly to PDF from any browser). The ⚙ icon lets you set which day your week starts on.
+        Open the DATA tab from the INFO screen — the <b>Reports</b> panel is the single place to build and export field data now.<br><br>
+        <b>Period:</b> Day / Week / Month / Year, with ‹ › to navigate — the current one shows an "● IN PROGRESS" badge and updates live, past ones show "✓ COMPLETED" as a fixed snapshot. The ⚙ icon sets which day your week starts on.<br><br>
+        <b>Area filters:</b> District, Ward, and Neighborhood — each optional, combine as AND (pick any mix, or leave all on "Any" for a whole-city report). Picking a district narrows the ward list to wards inside it; picking a ward narrows the neighborhood list the same way.<br><br>
+        <b>Output:</b> 📋 <b>Copy</b> (plain text to clipboard), 📥 <b>CSV</b>, 🌐 <b>HTML report</b> (a fully-styled standalone page with an interactive map — photo-activity heatmap, completed stops, survey trail), ⬇ <b>PDF</b> (built directly, no print step), and 📤 <b>Share</b> where your browser supports it (straight to Mail/Drive/AirDrop from the share sheet).
       </div>
     </details>
 
@@ -2679,6 +2631,7 @@ header{
       <summary>📧 Email Stop Summaries</summary>
       <div class="help-panel-body">
         <b>What's in a stop summary email?</b> Address, type, times (added / arrived / completed / dwell), GPS coordinates, your inspector name, completion notes, transactions with totals, and the filenames of any photos taken at that stop.<br><br>
+
         <b>Three ways to send one:</b><br>
         · <b>📧 EMAIL STOP SUMMARY</b> in the close-stop modal (text only) — opens your share sheet or mail app with the summary pre-filled. Photo filenames are listed in the body so the recipient knows what to look for in the gallery.<br>
         · <b>📧📷 EMAIL SUMMARY + photos attached</b> in the close-stop modal (text + photos) — appears only if photos for this stop are still in the 48-hour cache. Opens the share sheet with the stamped JPEGs pre-attached.<br>
@@ -2707,37 +2660,6 @@ header{
     </details>
 
     <details class="help-panel">
-      <summary>📈 Google Sheets Setup</summary>
-      <div class="help-panel-body">
-        One-time setup — takes about 5 minutes:<br><br>
-        1. Open a new Google Sheet at sheets.google.com<br>
-        2. Click <b>Extensions → Apps Script</b><br>
-        3. Delete the existing code and paste the script below<br>
-        4. Click <b>Deploy → New deployment → Web app</b><br>
-        5. Set "Who has access" to <b>Anyone</b><br>
-        6. Click <b>Deploy</b> and copy the Web App URL<br>
-        7. In this app, tap Export → Push to Sheets → paste the URL<br><br>
-        After setup, every time you tap "Push to Sheets" your latest stops and metrics are appended to your sheet automatically.
-      </div>
-      <div style="position:relative;margin:0 14px 14px">
-        <pre id="sheets-script-pre" style="background:#f4f4f4;border-radius:8px;padding:10px 12px;font-size:0.5rem;color:#333;overflow-x:auto;line-height:1.7;white-space:pre-wrap">function doPost(e) {
-  var data = JSON.parse(e.postData.contents);
-  var ss = SpreadsheetApp.getActiveSpreadsheet();
-  var sh = ss.getSheetByName('Stops') || ss.insertSheet('Stops');
-  if (sh.getLastRow() === 0)
-    sh.appendRow(['Date','Address','Type','Notes','Done','DurationMins','Lat','Lng','Inspector']);
-  (data.stops || []).forEach(s => sh.appendRow([
-    data.exportedAt, s.address, s.type,
-    s.notes||'', s.done, s.durationMins||'',
-    s.lat||'', s.lng||'', data.inspector
-  ]));
-  return ContentService.createTextOutput('ok');
-}</pre>
-        <button onclick="navigator.clipboard?.writeText(document.getElementById('sheets-script-pre').textContent).then(()=>showToast('Script copied ✓')).catch(()=>showToast('Copy failed'))" style="position:absolute;top:8px;right:8px;padding:4px 8px;border:none;border-radius:5px;background:#3794ff;color:white;font-family:'Syne',sans-serif;font-weight:700;font-size:0.52rem;cursor:pointer">📋 COPY</button>
-      </div>
-    </details>
-
-    <details class="help-panel">
       <summary>🪪 INFO Tab</summary>
       <div class="help-panel-body">
         <b>ID Card</b> — Your digital business card. Shows your name, title, division, department, scope, email, and phone. Tap it to show a fullscreen version. Upload an ID photo via ⚙️ Settings.<br><br>
@@ -2756,7 +2678,6 @@ header{
         &nbsp;&nbsp;· 📊 AI Usage (per-feature token counts, this session)<br>
         &nbsp;&nbsp;· 📷 Photo Cache (48h temporary photo storage management)<br>
         &nbsp;&nbsp;· 📧 How email attachments work (explainer)<br>
-        &nbsp;&nbsp;· 📈 Google Sheets Sync (one-time setup for push-to-sheets)<br>
         &nbsp;&nbsp;· 💾 Profile Backup &amp; Restore (export/import your full setup as JSON)<br>
         &nbsp;&nbsp;· App Install (PWA add-to-home-screen helper)<br>
         &nbsp;&nbsp;· Share link (send the app URL to a coworker)
@@ -2774,7 +2695,6 @@ header{
         · A bright yellow 🔔 banner on the completed stop's card<br>
         · A prominent banner at the top of the email summary body<br>
         · 🔔 prefix on the email subject line<br>
-        · A boolean column in the Google Sheets push payload (visible to anyone reviewing the sheet)<br>
         · Editable through ✎ Edit Stop — uncheck the flag if no longer needed
       </div>
     </details>
@@ -2955,36 +2875,7 @@ header{
 </div>
 
 <!-- DATA EXPORT MODAL -->
-<div id="data-export-modal" class="modal-overlay" role="dialog" aria-modal="true" aria-labelledby="data-export-modal-title" data-backdrop-close style="display:none">
-  <div class="modal-sheet" style="padding-bottom:28px">
-    <div class="modal-handle"></div>
-    <div class="modal-title" id="data-export-modal-title">📤 Export Data</div>
-    <div style="font-size:0.58rem;color:#888;font-family:'Space Mono',monospace;margin-bottom:16px">Choose format and delivery method</div>
-    <div style="display:flex;flex-direction:column;gap:8px">
-      <div style="font-family:'Syne',sans-serif;font-weight:800;font-size:0.62rem;color:white;letter-spacing:0.5px;margin-bottom:2px">DOWNLOAD</div>
-      <button onclick="_beacon('export',{format:'csv'});exportDataCSV();closeDataExportModal()" style="padding:12px;border-radius:10px;border:1.5px solid #ddd;background:#f9f9f9;font-family:'Syne',sans-serif;font-weight:800;font-size:0.72rem;cursor:pointer;text-align:left">
-        📊 CSV Spreadsheet<br><span style="font-size:0.55rem;font-weight:400;color:#888">All stops, dates, types, notes, duration — opens in Excel / Google Sheets</span>
-      </button>
-      <button onclick="_beacon('export',{format:'text'});exportDataText();closeDataExportModal()" style="padding:12px;border-radius:10px;border:1.5px solid #ddd;background:#f9f9f9;font-family:'Syne',sans-serif;font-weight:800;font-size:0.72rem;cursor:pointer;text-align:left">
-        📄 Text Summary<br><span style="font-size:0.55rem;font-weight:400;color:#888">Field worker, manager, and geographic sections — good for email</span>
-      </button>
-      <button onclick="_beacon('export',{format:'sheets'});pushToGoogleSheets()" style="padding:12px;border-radius:10px;border:1.5px solid rgba(16,163,74,0.4);background:rgba(16,163,74,0.06);font-family:'Syne',sans-serif;font-weight:800;font-size:0.72rem;color:#0a7a38;cursor:pointer;text-align:left">
-        📊 Push to Google Sheets<br><span style="font-weight:400;font-size:0.55rem;color:#666">Sync directly — requires one-time Apps Script setup</span>
-      </button>
-      <div style="height:1px;background:#eee;margin:4px 0"></div>
-      <div style="font-family:'Syne',sans-serif;font-weight:800;font-size:0.62rem;color:var(--forest);letter-spacing:0.5px;margin-bottom:2px">DELIVERY</div>
-      <button onclick="shareDataNative();closeDataExportModal()" style="padding:12px;border-radius:10px;border:1.5px solid #ddd;background:#f9f9f9;font-family:'Syne',sans-serif;font-weight:800;font-size:0.72rem;cursor:pointer;text-align:left">
-        📱 Share (Email / Text / AirDrop)<br><span style="font-size:0.55rem;font-weight:400;color:#888">Opens system share sheet</span>
-      </button>
-      <button onclick="copyDataToClipboard();closeDataExportModal()" style="padding:12px;border-radius:10px;border:1.5px solid #ddd;background:#f9f9f9;font-family:'Syne',sans-serif;font-weight:800;font-size:0.72rem;cursor:pointer;text-align:left">
-        📋 Copy to Clipboard<br><span style="font-size:0.55rem;font-weight:400;color:#888">Paste into any app</span>
-      </button>
-    </div>
-    <button class="btn-modal-cancel" data-close-modal style="margin-top:14px">Cancel</button>
-  </div>
-</div>
-
-</div><!-- /content -->
+<div><!-- /content -->
 </div><!-- /app -->
 
 <div class="toast" id="toast"></div>
@@ -3556,9 +3447,6 @@ header{
 // ·  L18604  Core metrics computation
 // §  L18606  computeMetrics and its helpers
 // ·  L18871  Render data tab
-// ·  L19305  Export: CSV
-// ·  L19318  Google Sheets smart push
-// ·  L19660  Share: text summary
 // ·  L19741  Init: schedule auto-send on app load
 //
 // ============================================================================
@@ -7349,8 +7237,7 @@ function _cleanupRetiredState() {
 // Phase 13: attach window/document lifecycle listeners. Runs LAST in the
 // boot sequence because these handlers can fire as soon as the page becomes
 // hidden or loses focus, and we want all earlier setup complete before that
-// can happen. The 'online' handler retries pending Sheets pushes that were
-// queued during a previous offline period.
+// can happen.
 function _attachLifecycleListeners() {
   // Persist stops and session on tab hide/close. Also pause Survey Mode
   // GPS tracking on hide and check whether a "Resume Survey" prompt is
@@ -7366,21 +7253,6 @@ function _attachLifecycleListeners() {
     }
   });
   window.addEventListener('beforeunload', saveStops);
-
-  // Retry pending Sheets push when coming back online
-  window.addEventListener('online', function() {
-    var pending = LS.get('sheets-pending-push');
-    if (!pending) return;
-    var webhookUrl = LS.get('sheets-webhook-url');
-    if (!webhookUrl) return;
-    // RAW FETCH (not fetchWithTimeout): mode:'no-cors' fire-and-forget — the
-    // response is opaque, no body to read, no real timeout needed. The 'online'
-    // event already implies network reachability; if the request hangs the
-    // browser will eventually drop the connection on its own.
-    fetch(webhookUrl, { method:'POST', mode:'no-cors', headers:{'Content-Type':'application/json'}, body: pending })
-      .then(function() { LS.remove('sheets-pending-push'); showToast('📊 Pending Sheets sync sent ✓'); })
-      .catch(function() {});
-  });
 }
 
 // _initBody — DOMContentLoaded entry point. Calls each boot phase in the
@@ -15696,7 +15568,10 @@ function _txnInRange(txn, range) {
 }
 
 function renderTransactionsPanel() {
-  var range = (typeof _dataRange !== 'undefined') ? _dataRange : 'today';
+  // 2026-07-25: was scoped to the top-of-page date range selector, which
+  // is gone now (the Reports panel is the app's single scoped-report
+  // surface; this panel is a standalone ledger, always shows everything).
+  var range = 'all';
   var all = loadTransactions();
   var inRange = all.filter(function(t){ return _txnInRange(t, range); });
   var total = inRange.reduce(function(s,t){ return s + (Number(t.amount)||0); }, 0);
@@ -15763,7 +15638,7 @@ function deleteTransaction(txnId) {
 
 function exportTransactionsCSV() {
   var all = loadTransactions();
-  var range = (typeof _dataRange !== 'undefined') ? _dataRange : 'today';
+  var range = 'all'; // see renderTransactionsPanel's comment — no more date-range picker to read
   var inRange = all.filter(function(t){ return _txnInRange(t, range); });
   if (!inRange.length) { showToast('No transactions in selected range'); return; }
   var sorted = inRange.slice().sort(function(a,b){ return new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime(); });
@@ -24762,7 +24637,6 @@ function _openSettingsPanel() {
   updateSettingsInstallStatus();
   try { renderSettingsPhotoStamp(); } catch(_e) {}
   try { renderSettingsCustomTypes(); } catch(_e) {}
-  try { refreshSheetsWebhookDisplay(); } catch(_e) {}
   try { renderAiUsage(); } catch(_e) {}
   try { renderPhotoCacheStats(); } catch(_e) {}
   try { renderClusterRadius(); } catch(_e) {}
@@ -25011,64 +24885,6 @@ function renderAiUsage() {
     }
   }
   body.innerHTML = pills + rows.join('') + total + providerBreakdown;
-}
-
-// ── Google Sheets webhook URL (Apps Script Web App) ──────────────────────────
-function refreshSheetsWebhookDisplay() {
-  const url    = LS.get('sheets-webhook-url') || '';
-  const status = document.getElementById('settings-sheets-status');
-  const input  = document.getElementById('settings-sheets-url');
-  if (status) {
-    if (url) {
-      status.textContent = '✓ Configured — ' + url.slice(0, 48) + (url.length > 48 ? '…' : '');
-      status.style.color = '#1b5e20';
-    } else {
-      status.textContent = 'Not configured';
-      status.style.color = '#555';
-    }
-  }
-  if (input) input.value = url;
-}
-
-function saveSheetsWebhook() {
-  const input = document.getElementById('settings-sheets-url');
-  const raw   = (input?.value || '').trim();
-  if (!raw) { showToast('Paste your Apps Script Web App URL first'); return; }
-  if (!raw.startsWith('https://')) { showToast('URL must start with https://'); return; }
-  // Drop M: Privacy tripwire on FIRST set. If the user has not previously
-  // configured a webhook URL, show a confirmation that names what data will
-  // be sent. Subsequent edits (changing an already-configured URL) skip the
-  // tripwire — the user has already opted into the integration. The tripwire
-  // protects against accidental paste of a malicious URL into a setup wizard.
-  const prevUrl = LS.get('sheets-webhook-url') || '';
-  if (!prevUrl) {
-    const confirmed = confirm(
-      'Confirm Google Sheets webhook\n\n' +
-      'This URL will receive a copy of every completed stop, including:\n' +
-      '  • Address and GPS coordinates\n' +
-      '  • Times (added, arrived, completed, dwell)\n' +
-      '  • Inspector name\n' +
-      '  • Notes and transactions\n' +
-      '  • Photo filenames (not photo bytes)\n\n' +
-      'Only set this if YOU control the destination.\n\n' +
-      'URL: ' + raw.slice(0, 80) + (raw.length > 80 ? '…' : '') + '\n\n' +
-      'Continue?'
-    );
-    if (!confirmed) {
-      showToast('Webhook NOT saved');
-      return;
-    }
-  }
-  LS.set('sheets-webhook-url', raw);
-  refreshSheetsWebhookDisplay();
-  showToast('Google Sheets webhook saved ✓');
-}
-
-function clearSheetsWebhook() {
-  if (!LS.get('sheets-webhook-url')) { showToast('Nothing to clear'); return; }
-  LS.remove('sheets-webhook-url');
-  refreshSheetsWebhookDisplay();
-  showToast('Webhook URL cleared');
 }
 
 async function saveSettingsKey() {
@@ -26252,7 +26068,13 @@ function _buildAskDataSnapshot() {
       id: s.id,
       address: s.address,
       type: s.type,
-      neighborhood: s.neighborhood || null,
+      // 2026-07-25 fix: stops carry the neighborhood NAME in
+      // .neighborhoodName and a separate numeric id in .neighborhood —
+      // this was reading the numeric id while the schema doc (below)
+      // promises a name string, an inherited bug from an older snapshot
+      // function elsewhere in the file. Same underlying data, correct
+      // field.
+      neighborhood: s.neighborhoodName || null,
       ward: s.ward != null ? s.ward : null,
       policeDistrict: s.policeDistrict || null,
       lat: (typeof s.lat === 'number') ? s.lat : null,
@@ -28768,9 +28590,9 @@ const PeriodReports = (function() {
   // start of the week.
   function getWeekStart() {
     var raw = LS.get('period-report-week-start');
-    if (raw == null || raw === '') return 1; // default Mon
+    if (raw == null || raw === '') return 6; // default Sat
     var n = parseInt(raw, 10);
-    if (isNaN(n) || n < 0 || n > 6) return 1;
+    if (isNaN(n) || n < 0 || n > 6) return 6;
     return n;
   }
   function setWeekStart(n) {
@@ -29531,6 +29353,128 @@ window.CoverageReport = CoverageReport;
 //
 // areaType values match the three kinds a stop/photo tracker-location can
 // carry post-geoLookup-extension: 'ward' | 'neighborhood' | 'policeDistrict'.
+// ============================================================
+// SECTION: area-geographic-hierarchy
+// ============================================================
+// 2026-07-25: which wards fall inside which police district, and which
+// neighborhoods fall inside which ward. Neither the ward, district, nor
+// neighborhood GeoJSON carries a cross-reference field to the others
+// (confirmed — neighborhoods only carry NHD_NUM/NHD_NAME, wards and
+// districts are separate independently-drawn polygon layers) — this has
+// to be computed geometrically. Uses each smaller area's polygon
+// CENTROID tested for containment inside the larger area's polygon
+// (area-weighted centroid, not a vertex average — matters for oddly-
+// shaped wards where a naive average could land outside the shape
+// entirely). A ward or neighborhood that straddles a boundary gets
+// bucketed wherever its centroid falls, which is the same "best single
+// answer" approach a plain-language "which district is Ward 5 in"
+// listing would give — not a claim that 100% of the area is inside.
+//
+// Computed once and cached (wards/districts/neighborhoods don't move at
+// runtime) rather than recomputed on every picker interaction.
+
+var _areaHierarchyCache = null;
+var _areaHierarchyPromise = null;
+
+// Area-weighted polygon centroid (shoelace formula), operating on a
+// single ring of [lat,lng] points. Falls back to a plain vertex average
+// only for a degenerate (near-zero-area) ring, which a valid closed
+// polygon should never actually produce.
+function _areaHierarchyRingCentroid(ring) {
+  var area = 0, cx = 0, cy = 0;
+  for (var i = 0; i < ring.length - 1; i++) {
+    var x0 = ring[i][1], y0 = ring[i][0];
+    var x1 = ring[i + 1][1], y1 = ring[i + 1][0];
+    var cross = x0 * y1 - x1 * y0;
+    area += cross;
+    cx += (x0 + x1) * cross;
+    cy += (y0 + y1) * cross;
+  }
+  area = area / 2;
+  if (Math.abs(area) < 1e-12) {
+    var sx = 0, sy = 0;
+    ring.forEach(function(p) { sy += p[0]; sx += p[1]; });
+    return [sy / ring.length, sx / ring.length];
+  }
+  return [cy / (6 * area), cx / (6 * area)];
+}
+
+// Picks the largest-area ring among a feature's ring(s) and returns its
+// centroid — the representative point for MultiPolygon features (e.g. a
+// neighborhood split by a highway or rail corridor), so the centroid
+// lands inside actual land rather than being pulled toward wherever an
+// average of several disconnected pieces happens to sit.
+function _largestRingCentroid(rings) {
+  var best = null, bestArea = -1;
+  rings.forEach(function(ring) {
+    if (!ring || ring.length < 3) return;
+    var area = 0;
+    for (var i = 0; i < ring.length - 1; i++) {
+      area += ring[i][1] * ring[i + 1][0] - ring[i + 1][1] * ring[i][0];
+    }
+    area = Math.abs(area / 2);
+    if (area > bestArea) { bestArea = area; best = ring; }
+  });
+  return best ? _areaHierarchyRingCentroid(best) : null;
+}
+
+// Returns {wardToDistrict: {'1': 'District 3', ...}, neighborhoodToWard:
+// {'Franz Park': '24', ...}} — string keys/values throughout, matching
+// AREA_REPORT_WARD_OPTIONS/AREA_REPORT_POLICE_OPTIONS/
+// STL_NEIGHBORHOODS_BY_NAME's own key conventions so callers can use the
+// result directly against those lists without translation. A ward or
+// neighborhood whose containing area couldn't be resolved (offline, no
+// cached geometry yet) maps to null — callers should treat that as "don't
+// filter this one out," not "it belongs nowhere."
+async function _computeAreaHierarchy() {
+  if (_areaHierarchyCache) return _areaHierarchyCache;
+  if (_areaHierarchyPromise) return _areaHierarchyPromise;
+  _areaHierarchyPromise = (async function() {
+    var result = { wardToDistrict: {}, neighborhoodToWard: {} };
+    try {
+      if (typeof GeoCache === 'undefined' || typeof MapLayers === 'undefined') return result;
+      var wardsFC = await GeoCache.getWards();
+      var districtsFC = await GeoCache.getPoliceDistricts();
+      var nbhdFC = await GeoCache.getNeighborhoods();
+      var wardFeatures = (wardsFC && wardsFC.features) || [];
+      var districtFeatures = (districtsFC && districtsFC.features) || [];
+      var nbhdFeatures = (nbhdFC && nbhdFC.features) || [];
+
+      var districtRingSets = districtFeatures.map(function(f) {
+        return { name: MapLayers.policeDistrictLabelFromProps(f.properties || {}), rings: _geoJsonPolygonRingsLatLng(f.geometry) };
+      }).filter(function(d) { return d.name && d.rings.length; });
+
+      var wardRingSets = wardFeatures.map(function(f) {
+        var label = MapLayers.wardLabelFromProps(f.properties || {}); // "Ward 5"
+        var num = label ? String(label).replace(/^\D+/, '') : null;
+        return { num: num, rings: _geoJsonPolygonRingsLatLng(f.geometry) };
+      }).filter(function(w) { return w.num && w.rings.length; });
+
+      wardRingSets.forEach(function(w) {
+        var centroid = _largestRingCentroid(w.rings);
+        if (!centroid) { result.wardToDistrict[w.num] = null; return; }
+        var match = districtRingSets.find(function(d) { return _pointInSurveyAreaRings(centroid[0], centroid[1], d.rings); });
+        result.wardToDistrict[w.num] = match ? match.name : null;
+      });
+
+      nbhdFeatures.forEach(function(f) {
+        var props = f.properties || {};
+        var name = props.NHD_NAME || props.name || props.NAME || props.Name || props.neighborhood || null;
+        if (!name) return;
+        var rings = _geoJsonPolygonRingsLatLng(f.geometry);
+        var centroid = rings.length ? _largestRingCentroid(rings) : null;
+        if (!centroid) { result.neighborhoodToWard[name] = null; return; }
+        var match = wardRingSets.find(function(w) { return _pointInSurveyAreaRings(centroid[0], centroid[1], w.rings); });
+        result.neighborhoodToWard[name] = match ? match.num : null;
+      });
+    } catch(_e) {}
+    _areaHierarchyCache = result;
+    return result;
+  })();
+  return _areaHierarchyPromise;
+}
+window._computeAreaHierarchy = _computeAreaHierarchy;
+
 const AreaPeriodReport = (function() {
 
   function _wardMatches(stopWard, areaName) {
@@ -29538,28 +29482,34 @@ const AreaPeriodReport = (function() {
     return String(stopWard) === String(areaName).replace(/^\D+/, '');
   }
 
-  // Does a stop (or photo tracker-index entry — both carry the same three
-  // geo fields) belong to the requested area?
-  function _matchesArea(rec, areaType, areaName) {
+  // 2026-07-25: replaces the old single (areaType, areaName) matcher.
+  // filters is {ward, neighborhood, policeDistrict}, each independently
+  // optional — every filter that's set must match (AND), not "any one of
+  // three types" like before. No filters set at all = whole city, matches
+  // everything (used by every collector below the same way).
+  function _hasAnyFilter(filters) {
+    return !!(filters && (filters.ward || filters.neighborhood || filters.policeDistrict));
+  }
+  function _matchesFilters(rec, filters) {
     if (!rec) return false;
-    if (areaType === 'ward') return _wardMatches(rec.ward, areaName);
-    if (areaType === 'neighborhood') return rec.neighborhoodName === areaName;
-    if (areaType === 'policeDistrict') return rec.policeDistrict === areaName;
-    return false;
+    if (filters.ward && !_wardMatches(rec.ward, filters.ward)) return false;
+    if (filters.neighborhood && rec.neighborhoodName !== filters.neighborhood) return false;
+    if (filters.policeDistrict && rec.policeDistrict !== filters.policeDistrict) return false;
+    return true;
   }
 
-  // ── Stops: period ∩ area ─────────────────────────────────────────
+  // ── Stops: period ∩ filters ─────────────────────────────────────────
   // Same dual-source (live `stops` + StopArchive) pattern as both
   // PeriodReports._collectStops and CoverageReport._collectStops, with
   // both filters applied together instead of either alone. Period check
   // reuses PeriodReports' own "addedAt OR completedAt falls in bounds"
   // rule — a stop added Monday and completed Tuesday is relevant to
   // whichever week's report is asking.
-  function _collectStops(startMs, endMs, areaType, areaName) {
+  function _collectStops(startMs, endMs, filters) {
     var byId = {};
     function consider(s) {
       if (!s || s.id == null) return;
-      if (!_matchesArea(s, areaType, areaName)) return;
+      if (!_matchesFilters(s, filters)) return;
       var addedT = s.addedAt ? new Date(s.addedAt).getTime() : (s.id || 0);
       var completedT = s.completedAt ? new Date(s.completedAt).getTime() : null;
       var addedIn = addedT >= startMs && addedT < endMs;
@@ -29575,7 +29525,7 @@ const AreaPeriodReport = (function() {
     return Object.keys(byId).map(function(k) { return byId[k]; });
   }
 
-  // ── Photo Tracker locations: period ∩ area ─────────────────────────────
+  // ── Photo Tracker locations: period ∩ filters ─────────────────────────
   // "In period" means at least one photo event at that location falls in
   // [startMs, endMs) — the location itself isn't dated, only its photo
   // history is. countInPeriod (used for severity below) counts ONLY the
@@ -29589,11 +29539,11 @@ const AreaPeriodReport = (function() {
       return isFinite(t) && t >= startMs && t < endMs;
     }).length;
   }
-  function _collectPhotoTrackerLocations(startMs, endMs, areaType, areaName) {
+  function _collectPhotoTrackerLocations(startMs, endMs, filters) {
     if (typeof PhotoTrackerIndex === 'undefined') return [];
     var settings = PhotoTrackerIndex.getSettings();
     return PhotoTrackerIndex.getAll()
-      .filter(function(loc) { return _matchesArea(loc, areaType, areaName); })
+      .filter(function(loc) { return _matchesFilters(loc, filters); })
       .map(function(loc) {
         var countInPeriod = _photosInRange(loc, startMs, endMs);
         return { loc: loc, countInPeriod: countInPeriod };
@@ -29652,29 +29602,57 @@ const AreaPeriodReport = (function() {
     } catch(_e) { return null; }
   }
 
-  // ── Sessions: period ∩ area, SAME-AREA case only ──────────────────
-  // Session *count* genuinely can't be anything but same-area — a
-  // session's area type/name is what it was, there's no geography to
-  // reinterpret. (Breadcrumb *points* are different — see below.)
-  function _collectSessionCount(startMs, endMs, areaType, areaName) {
+  // 2026-07-25: resolves boundary geometry for EVERY active filter
+  // dimension at once (ward, neighborhood, policeDistrict — whichever are
+  // set), via Promise.all since the lookups are independent. Returns an
+  // array of {type, name, feature}; a dimension whose lookup failed
+  // (offline, unrecognized name) is simply omitted rather than blocking
+  // the others — same "degrade gracefully" contract _findAreaFeature
+  // itself already has.
+  async function _findAreaFeatures(filters) {
+    var wants = [];
+    if (filters.ward) wants.push({ type: 'ward', name: filters.ward });
+    if (filters.neighborhood) wants.push({ type: 'neighborhood', name: filters.neighborhood });
+    if (filters.policeDistrict) wants.push({ type: 'policeDistrict', name: filters.policeDistrict });
+    if (!wants.length) return [];
+    var results = await Promise.all(wants.map(function(w) { return _findAreaFeature(w.type, w.name); }));
+    return wants.map(function(w, i) { return { type: w.type, name: w.name, feature: results[i] }; }).filter(function(r) { return !!r.feature; });
+  }
+
+  // ── Sessions: period ∩ filters ──────────────────────────────────────
+  // A survey session has its own single area type/name (or 'multi'/'city'
+  // for a multi-area survey) — it can't be reinterpreted against an
+  // arbitrary combination of filters the way stops/photos can (those are
+  // per-record fields; a session just IS whatever it was). A session
+  // counts here if it matches AT LEAST ONE active filter dimension
+  // (ward OR neighborhood OR policeDistrict, whichever are set) — "survey
+  // activity touching part of this report's scope." With zero filters
+  // (whole city), every session counts.
+  function _collectSessionCount(startMs, endMs, filters) {
     var none = { sessionCount: 0, activeInPeriod: false };
-    // Guard: SurveySession.getLogFor() silently reinterprets an
-    // unrecognized areaType as 'neighborhood' rather than erroring —
-    // calling it with an unsupported type would return the WRONG
-    // sessions instead of none. Short-circuit instead of calling through.
-    if (typeof SurveySession === 'undefined' || SurveySession.AREA_TYPES.indexOf(areaType) === -1) {
-      return none;
+    if (typeof SurveySession === 'undefined') return none;
+    var hasFilter = _hasAnyFilter(filters);
+
+    function sessionMatches(s) {
+      if (!hasFilter) return true;
+      var st = s.areaType || 'neighborhood';
+      var sn = s.neighborhoodName;
+      if (filters.ward && st === 'ward' && _wardMatches(parseInt(String(sn).replace(/^\D+/, ''), 10) || sn, filters.ward)) return true;
+      if (filters.neighborhood && st === 'neighborhood' && sn === filters.neighborhood) return true;
+      if (filters.policeDistrict && st === 'policeDistrict' && sn === filters.policeDistrict) return true;
+      return false;
     }
+
     var log = [];
-    try { log = SurveySession.getLogFor(areaName, areaType); } catch(_e) {}
+    try { log = SurveySession.getAllLog(); } catch(_e) {}
     var inPeriod = log.filter(function(s) {
       var t = s.startedAt ? new Date(s.startedAt).getTime() : null;
-      return t != null && t >= startMs && t < endMs;
+      return t != null && t >= startMs && t < endMs && sessionMatches(s);
     });
     var active = null;
     try {
       var a = SurveySession.getActive();
-      if (a && a.neighborhoodName === areaName && (a.areaType || 'neighborhood') === areaType) {
+      if (a && sessionMatches(a)) {
         var at = a.startedAt ? new Date(a.startedAt).getTime() : null;
         if (at != null && at >= startMs && at < endMs) active = a;
       }
@@ -29682,52 +29660,77 @@ const AreaPeriodReport = (function() {
     return { sessionCount: inPeriod.length + (active ? 1 : 0), activeInPeriod: !!active };
   }
 
-  // ── Breadcrumb: period ∩ area, GEOGRAPHIC clipping ────────────────
-  // The step-5 upgrade: pulls every recorded trail point from EVERY
-  // session ever run (SurveyCoverage.getAllTrails, any area), not just
-  // ones scoped to this exact area, then keeps only the points that are
-  // both in the period AND geographically inside the target area's
-  // polygon (_pointInSurveyAreaRings — the same point-in-polygon test
-  // Survey Mode's own highlight-bleed fix already uses). This is what
-  // makes a Ward 3 report correctly include the Ward-3-crossing portion
-  // of a neighborhood survey that was never scoped to Ward 3 itself.
-  //
-  // Falls back to the old same-area-only sum when no boundary polygon
-  // is available (offline or unknown area name) — degraded but not
-  // broken; `clipped: false` on the result tells the caller/UI which
-  // mode it got.
-  async function _collectBreadcrumb(startMs, endMs, areaType, areaName) {
-    var feature = await _findAreaFeature(areaType, areaName);
-    var rings = (feature && feature.geometry) ? _geoJsonPolygonRingsLatLng(feature.geometry) : [];
-    if (rings.length && typeof SurveyCoverage !== 'undefined' && typeof SurveyCoverage.getAllTrails === 'function'
-        && typeof _pointInSurveyAreaRings === 'function') {
-      var points = [];
+  // Point-in-EVERY-ring-set test — a point must fall inside all of the
+  // given ring-sets (one per active filter dimension) to count as "inside
+  // the combined filtered area." Mathematically the same result as
+  // testing against the true geometric intersection of the polygons,
+  // without needing to actually compute that intersection shape (which
+  // full polygon-clipping would require) — point membership in an
+  // intersection is exactly "inside every one of the pieces."
+  function _pointInAllRingSets(lat, lng, ringSets) {
+    for (var i = 0; i < ringSets.length; i++) {
+      if (!_pointInSurveyAreaRings(lat, lng, ringSets[i])) return false;
+    }
+    return true;
+  }
+
+  // ── Breadcrumb: period ∩ filters, GEOGRAPHIC AND-clipping ──────────
+  // Pulls every recorded trail point from EVERY session ever run
+  // (SurveyCoverage.getAllTrails, any area — the same "any area" pull the
+  // single-filter version always did), then:
+  //   - No filters (whole city): every in-period point counts, no
+  //     geography needed.
+  //   - One or more filters, ALL of them resolved to boundary geometry:
+  //     a point counts only if it's inside EVERY resolved ring-set
+  //     (_pointInAllRingSets) — the AND semantics extended from stops to
+  //     geography.
+  //   - One or more filters, but at least one couldn't resolve geometry
+  //     (offline, unrecognized name): unlike the old single-filter
+  //     version, there's no clean same-area storage key to fall back to
+  //     for a COMBINATION of filters, so this returns no points rather
+  //     than a potentially-wrong partial answer. `clipped: false` still
+  //     signals the degraded state; whatever boundaries DID resolve are
+  //     still returned for the map to draw.
+  async function _collectBreadcrumb(startMs, endMs, filters) {
+    var hasFilter = _hasAnyFilter(filters);
+    if (!hasFilter) {
+      var allPoints = [];
       try {
-        SurveyCoverage.getAllTrails().forEach(function(trail) {
-          trail.forEach(function(pt) {
-            var lat = pt[0], lng = pt[1], ts = pt[2];
-            if (ts == null || ts < startMs || ts >= endMs) return;
-            if (_pointInSurveyAreaRings(lat, lng, rings)) points.push([lat, lng, ts]);
+        if (typeof SurveyCoverage !== 'undefined' && typeof SurveyCoverage.getAllTrails === 'function') {
+          SurveyCoverage.getAllTrails().forEach(function(trail) {
+            trail.forEach(function(pt) {
+              var ts = pt[2];
+              if (ts != null && ts >= startMs && ts < endMs) allPoints.push(pt);
+            });
           });
-        });
+        }
       } catch(_e) {}
-      return { points: points, clipped: true, boundaryRings: rings };
+      return { points: allPoints, clipped: true, boundaryRings: [] };
     }
-    // Fallback: same-area-only sum (step 2 behavior), no polygon needed.
-    var sessionCount = _collectSessionCount(startMs, endMs, areaType, areaName);
-    var fallbackPoints = [];
-    if ((sessionCount.sessionCount > 0) && typeof SurveySession !== 'undefined' &&
-        SurveySession.AREA_TYPES.indexOf(areaType) !== -1 && typeof SurveyCoverage !== 'undefined') {
-      try {
-        var areaKeyStr = SurveySession.areaKey({ neighborhoodName: areaName, areaType: areaType });
-        var trail = areaKeyStr ? SurveyCoverage.getBreadcrumb(areaKeyStr) : [];
-        fallbackPoints = trail.filter(function(pt) {
-          var t = pt[2];
-          return t != null && t >= startMs && t < endMs;
+
+    var resolved = await _findAreaFeatures(filters);
+    var wantedCount = (filters.ward ? 1 : 0) + (filters.neighborhood ? 1 : 0) + (filters.policeDistrict ? 1 : 0);
+    var ringSets = resolved.map(function(r) { return _geoJsonPolygonRingsLatLng(r.feature.geometry); }).filter(function(r) { return r.length; });
+    var flatRings = [].concat.apply([], ringSets);
+
+    if (ringSets.length !== wantedCount || !ringSets.length) {
+      // Not every active filter resolved a boundary — can't reliably
+      // AND-clip, so no points, but still hand back whatever partial
+      // boundary geometry did resolve for the map to at least outline.
+      return { points: [], clipped: false, boundaryRings: flatRings };
+    }
+
+    var points = [];
+    try {
+      SurveyCoverage.getAllTrails().forEach(function(trail) {
+        trail.forEach(function(pt) {
+          var lat = pt[0], lng = pt[1], ts = pt[2];
+          if (ts == null || ts < startMs || ts >= endMs) return;
+          if (_pointInAllRingSets(lat, lng, ringSets)) points.push(pt);
         });
-      } catch(_e) {}
-    }
-    return { points: fallbackPoints, clipped: false, boundaryRings: rings };
+      });
+    } catch(_e) {}
+    return { points: points, clipped: true, boundaryRings: flatRings };
   }
 
   // Human-readable label for an arbitrary [startMs, endMs) range — same
@@ -29755,32 +29758,49 @@ const AreaPeriodReport = (function() {
            lastDay.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
   }
 
-  // buildReport is now ASYNC as of step 5 (was sync in steps 2–4) — the
-  // geographic breadcrumb clipping needs an async GeoCache polygon
-  // fetch, same as Survey Mode's own _fitMapToActiveSurveyArea/
-  // _findActiveSurveyAreaFeature are already async for the same reason.
-  // No shipped UI calls buildReport yet (step 6 is still pending), so
-  // this is a clean point to make the change — nothing breaks.
+  // buildReport is async — the geographic breadcrumb clipping needs an
+  // async GeoCache polygon fetch, same as Survey Mode's own
+  // _fitMapToActiveSurveyArea/_findActiveSurveyAreaFeature are async for
+  // the same reason.
+  //
+  // 2026-07-25: opts changed from {areaType, areaName} (exactly one area)
+  // to {ward, neighborhood, policeDistrict} (each optional, ANDed
+  // together). Passing none of the three means "whole city" — every stop/
+  // photo/breadcrumb point in the period, unfiltered. This is a breaking
+  // change to buildReport's own signature, but every caller (the Data tab
+  // UI) was updated in the same drop.
   async function buildReport(opts) {
     opts = opts || {};
     var startMs = opts.startMs, endMs = opts.endMs;
-    var areaType = opts.areaType, areaName = opts.areaName;
-    if (typeof startMs !== 'number' || typeof endMs !== 'number' || !areaType || !areaName) {
-      throw new Error('AreaPeriodReport.buildReport requires startMs, endMs, areaType, areaName');
+    if (typeof startMs !== 'number' || typeof endMs !== 'number') {
+      throw new Error('AreaPeriodReport.buildReport requires startMs, endMs');
     }
+    var filters = {
+      ward: opts.ward || null,
+      neighborhood: opts.neighborhood || null,
+      policeDistrict: opts.policeDistrict || null
+    };
+    var hasFilter = _hasAnyFilter(filters);
 
-    var areaStops = _collectStops(startMs, endMs, areaType, areaName);
+    var areaStops = _collectStops(startMs, endMs, filters);
     var completedStops = areaStops.filter(function(s) { return s.done; });
-    var photoTrackerLocations = _collectPhotoTrackerLocations(startMs, endMs, areaType, areaName);
-    var sessionCount = _collectSessionCount(startMs, endMs, areaType, areaName);
-    var breadcrumb = await _collectBreadcrumb(startMs, endMs, areaType, areaName);
+    var photoTrackerLocations = _collectPhotoTrackerLocations(startMs, endMs, filters);
+    var sessionCount = _collectSessionCount(startMs, endMs, filters);
+    var breadcrumb = await _collectBreadcrumb(startMs, endMs, filters);
+
+    var labelParts = [];
+    if (filters.ward) labelParts.push('Ward ' + String(filters.ward).replace(/^\D+/, ''));
+    if (filters.neighborhood) labelParts.push(filters.neighborhood);
+    if (filters.policeDistrict) labelParts.push(filters.policeDistrict);
+    var areaLabel = labelParts.length ? labelParts.join(' ∩ ') : 'Entire City';
 
     return {
       generatedAt: new Date().toISOString(),
       period: { startMs: startMs, endMs: endMs, label: _periodLabel(startMs, endMs) },
       area: {
-        type: areaType, name: areaName,
-        label: (typeof AREA_TYPE_LABELS !== 'undefined' && AREA_TYPE_LABELS[areaType]) || areaType,
+        ward: filters.ward, neighborhood: filters.neighborhood, policeDistrict: filters.policeDistrict,
+        hasFilter: hasFilter,
+        label: areaLabel,
         boundaryRings: breadcrumb.boundaryRings.length ? breadcrumb.boundaryRings : null
       },
       stops: {
@@ -29817,7 +29837,7 @@ const AreaPeriodReport = (function() {
       return s;
     }
     var rows = [];
-    rows.push(['# CityRoute Report — ' + report.area.label + ' ' + report.area.name + ' — ' + report.period.label].join(','));
+    rows.push(['# CityRoute Report — ' + report.area.label + ' — ' + report.period.label].join(','));
     rows.push(['# Generated ' + new Date(report.generatedAt).toLocaleString()].join(','));
     rows.push([]);
 
@@ -29851,7 +29871,7 @@ const AreaPeriodReport = (function() {
   function formatAsText(report) {
     var st = report.stops, ch = report.photoTracker, cov = report.coverage;
     var lines = [];
-    lines.push('CityRoute Report — ' + report.area.label + ' ' + report.area.name);
+    lines.push('CityRoute Report — ' + report.area.label);
     lines.push(report.period.label);
     lines.push('—');
     lines.push('Generated ' + new Date(report.generatedAt).toLocaleString());
@@ -29887,11 +29907,18 @@ const AreaPeriodReport = (function() {
   // for why: avoids a rasterization library + CDN dependency purely to
   // flatten a Leaflet map to a PNG, and keeps the CSP inline-handler
   // cleanup effort from picking up a new external script domain). Shows
-  // the area boundary, the clipped breadcrumb trail, and photo tracker
-  // location markers colored by severity, scaled to the boundary's own
-  // bounding box. Returns null when there's no boundary polygon to draw
-  // against (caller should omit the map section entirely in that case,
-  // not show an empty/misleading box).
+  // the boundary outline(s) (if any filters are active — a whole-city
+  // report has none), the clipped breadcrumb trail, a photo-density heat
+  // layer, and completed-stop markers, scaled to fit everything that's
+  // actually present. Returns null only when there's truly nothing
+  // geographic to draw (no boundary, no breadcrumb, no located stop or
+  // photo) — caller omits the map section entirely in that case.
+  //
+  // 2026-07-25: bounding box used to come from the boundary rings alone,
+  // which made sense when every report had exactly one area. A whole-city
+  // report (no filters) has boundaryRings: [] by design — the box now
+  // also grows to fit every located stop/photo point, so those reports
+  // still get a useful map instead of none at all.
   //
   // Longitude is compressed by cos(latitude) so the shape isn't visibly
   // stretched east-west — at St. Louis's ~38.6°N, a degree of longitude
@@ -29899,25 +29926,31 @@ const AreaPeriodReport = (function() {
   // plotting both on the same raw scale measurably distorts ward/
   // neighborhood shapes people would otherwise recognize at a glance.
   function _buildStaticSVG(report) {
-    var rings = report.area.boundaryRings;
-    if (!rings || !rings.length) return null;
+    var rings = report.area.boundaryRings || [];
+    var photoPts = (report.photoTracker.locations || []).filter(function(l) { return l.gps && typeof l.gps.lat === 'number'; });
+    var completedPts = (report.stops.list || []).filter(function(s) { return s.done && typeof s.lat === 'number' && typeof s.lng === 'number'; });
+    var breadcrumbPts = report.coverage.breadcrumbPoints || [];
 
-    var W = 640, H = 640, PAD = 24;
     var minLat = Infinity, maxLat = -Infinity, minLng = Infinity, maxLng = -Infinity;
-    rings.forEach(function(ring) {
-      ring.forEach(function(pt) {
-        if (pt[0] < minLat) minLat = pt[0];
-        if (pt[0] > maxLat) maxLat = pt[0];
-        if (pt[1] < minLng) minLng = pt[1];
-        if (pt[1] > maxLng) maxLng = pt[1];
-      });
-    });
+    function extend(lat, lng) {
+      if (lat < minLat) minLat = lat; if (lat > maxLat) maxLat = lat;
+      if (lng < minLng) minLng = lng; if (lng > maxLng) maxLng = lng;
+    }
+    rings.forEach(function(ring) { ring.forEach(function(pt) { extend(pt[0], pt[1]); }); });
+    photoPts.forEach(function(l) { extend(l.gps.lat, l.gps.lng); });
+    completedPts.forEach(function(s) { extend(s.lat, s.lng); });
+    breadcrumbPts.forEach(function(pt) { extend(pt[0], pt[1]); });
     if (!isFinite(minLat) || !isFinite(minLng)) return null;
 
+    var W = 640, H = 640, PAD = 24;
     var latMid = (minLat + maxLat) / 2;
     var lngScale = Math.cos(latMid * Math.PI / 180) || 1;
-    var spanLat = Math.max(maxLat - minLat, 1e-6);
-    var spanLngAdj = Math.max((maxLng - minLng) * lngScale, 1e-6);
+    // Whole-city / sparse reports can have a near-zero span (one stop, or
+    // a tight cluster) — floor the span so a single point doesn't blow up
+    // the scale into an absurd zoom level.
+    var MIN_SPAN_DEG = 0.01;
+    var spanLat = Math.max(maxLat - minLat, MIN_SPAN_DEG);
+    var spanLngAdj = Math.max((maxLng - minLng) * lngScale, MIN_SPAN_DEG * lngScale);
     var innerW = W - PAD * 2, innerH = H - PAD * 2;
     var scale = Math.min(innerW / spanLngAdj, innerH / spanLat);
     var offsetX = PAD + (innerW - spanLngAdj * scale) / 2;
@@ -29935,11 +29968,10 @@ const AreaPeriodReport = (function() {
       }).join(' ') + ' Z';
     }
 
-    var boundaryPath = rings.map(ringPath).join(' ');
+    var boundaryPath = rings.length ? rings.map(ringPath).join(' ') : '';
 
     var breadcrumbPath = '';
-    var pts = report.coverage.breadcrumbPoints || [];
-    if (pts.length > 1) {
+    if (breadcrumbPts.length > 1) {
       // Break the line wherever consecutive points are more than 5
       // minutes apart — same SEGMENT_GAP_MS threshold Survey Mode's own
       // breadcrumb layer uses, hardcoded here rather than read from
@@ -29949,7 +29981,7 @@ const AreaPeriodReport = (function() {
       var segs = [];
       var cur = [];
       var lastTs = null;
-      pts.slice().sort(function(a, b) { return (a[2] || 0) - (b[2] || 0); }).forEach(function(pt) {
+      breadcrumbPts.slice().sort(function(a, b) { return (a[2] || 0) - (b[2] || 0); }).forEach(function(pt) {
         var ts = pt[2];
         if (lastTs != null && ts != null && (ts - lastTs) > GAP_MS) {
           if (cur.length > 1) segs.push(cur);
@@ -29967,16 +29999,44 @@ const AreaPeriodReport = (function() {
       }).join(' ');
     }
 
-    var markers = (report.photoTracker.locations || []).filter(function(l) { return l.gps && typeof l.gps.lat === 'number'; }).map(function(loc) {
+    // Photo density "heat" layer: a shared radial gradient (hot red core
+    // fading to transparent) stamped once per location, sized/opacity by
+    // that location's photo count this period. No blend-mode CSS —
+    // overlapping semi-transparent gradients already visually build up
+    // intensity through ordinary alpha compositing, which stays reliable
+    // across print/PDF rasterization (mix-blend-mode support is spottier
+    // there than in a live browser tab). A small solid dot on top marks
+    // the exact point under each blob.
+    var heatBlobs = photoPts.map(function(loc) {
       var p = project(loc.gps.lat, loc.gps.lng);
-      var color = loc.severityColor || '#888';
-      return '<circle cx="' + p[0].toFixed(1) + '" cy="' + p[1].toFixed(1) + '" r="6" fill="' + color + '" stroke="white" stroke-width="1.5"/>';
+      var weight = loc.countInPeriod || 1;
+      var r = 16 + Math.min(weight, 20) * 2.4;
+      var op = Math.min(0.6, 0.28 + weight * 0.035);
+      return '<circle cx="' + p[0].toFixed(1) + '" cy="' + p[1].toFixed(1) + '" r="' + r.toFixed(1) + '" fill="url(#heatGrad)" opacity="' + op.toFixed(2) + '"/>';
+    }).join('');
+    var heatDots = photoPts.map(function(loc) {
+      var p = project(loc.gps.lat, loc.gps.lng);
+      return '<circle cx="' + p[0].toFixed(1) + '" cy="' + p[1].toFixed(1) + '" r="3" fill="' + (loc.severityColor || '#c0392b') + '" stroke="white" stroke-width="1"/>';
+    }).join('');
+
+    // Completed stops: solid green markers, distinct from the photo heat
+    // dots above, so a reader can visually separate "where work was
+    // finished" from "where chronic photo activity is."
+    var completedMarkers = completedPts.map(function(s) {
+      var p = project(s.lat, s.lng);
+      return '<circle cx="' + p[0].toFixed(1) + '" cy="' + p[1].toFixed(1) + '" r="5" fill="#2d7d3f" stroke="white" stroke-width="1.5"/>';
     }).join('');
 
     return '<svg viewBox="0 0 ' + W + ' ' + H + '" xmlns="http://www.w3.org/2000/svg" style="width:100%;height:auto;display:block;background:#fafaf6;border-radius:8px">' +
-      '<path d="' + boundaryPath + '" fill="#eef4e9" stroke="#5c8a3e" stroke-width="2.5" fill-rule="evenodd"/>' +
+      '<defs><radialGradient id="heatGrad" cx="50%" cy="50%" r="50%">' +
+        '<stop offset="0%" stop-color="#ff2b00" stop-opacity="0.95"/>' +
+        '<stop offset="40%" stop-color="#ff6a00" stop-opacity="0.55"/>' +
+        '<stop offset="75%" stop-color="#ffcf40" stop-opacity="0.22"/>' +
+        '<stop offset="100%" stop-color="#ffcf40" stop-opacity="0"/>' +
+      '</radialGradient></defs>' +
+      (boundaryPath ? '<path d="' + boundaryPath + '" fill="#eef4e9" stroke="#5c8a3e" stroke-width="2.5" fill-rule="evenodd"/>' : '') +
       (breadcrumbPath ? '<path d="' + breadcrumbPath + '" fill="none" stroke="#f5c518" stroke-width="4" stroke-linecap="round" stroke-linejoin="round" opacity="0.85"/>' : '') +
-      markers +
+      heatBlobs + heatDots + completedMarkers +
       '</svg>';
   }
 
@@ -30016,24 +30076,32 @@ const AreaPeriodReport = (function() {
         (s.notes ? '<tr><td></td><td colspan="3" style="padding:0 8px 8px;font-size:11px;color:#555;font-style:italic">' + safe((s.notes || '').slice(0, 280)) + '</td></tr>' : '');
     }).join('');
 
-    var title = report.area.label + ' ' + report.area.name;
+    var title = report.area.label;
 
     // Map section: only built when there's something worth drawing — a
-    // boundary polygon, breadcrumb points, or at least one photo tracker
-    // location with a GPS fix. A report with none of those (e.g. a
-    // police-district report before boundaries are wired, with a couple
-    // of address-only stops and no photo tracker activity) just omits the
-    // section rather than showing an empty box.
+    // boundary polygon, breadcrumb points, a photo tracker location with a
+    // GPS fix, or a completed stop with coordinates. A report with none of
+    // those just omits the section rather than showing an empty box.
+    // 2026-07-25: completedStopMarkers added to this check — a whole-city
+    // report (no boundary at all by design) can still have plenty of
+    // completed, geocoded stops worth mapping.
     var hasBoundary = !!(report.area.boundaryRings && report.area.boundaryRings.length);
     var mapMarkers = ch.locations.filter(function(l) { return l.gps && typeof l.gps.lat === 'number'; });
-    var hasMapContent = hasBoundary || cov.breadcrumbPointCount > 0 || mapMarkers.length > 0;
+    var completedStopMarkers = st.list.filter(function(s) { return s.done && typeof s.lat === 'number' && typeof s.lng === 'number'; });
+    var hasMapContent = hasBoundary || cov.breadcrumbPointCount > 0 || mapMarkers.length > 0 || completedStopMarkers.length > 0;
     var staticSVG = hasMapContent ? _buildStaticSVG(report) : null;
 
     var head = '<!doctype html><html><head><meta charset="utf-8">' +
       '<title>CityRoute — ' + safe(title) + ' — ' + safe(report.period.label) + '</title>' +
       '<meta name="viewport" content="width=device-width, initial-scale=1">' +
       (hasMapContent ? '<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css">' +
-        '<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"><\/script>' : '') +
+        '<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"><\/script>' +
+        // Photo density heat layer for the live map — additive only. If
+        // this particular CDN script fails to load (unlike the core
+        // leaflet.js check below, this one is NOT treated as fatal).
+        // typeof L.heatLayer is checked before use and the map still
+        // renders everything else normally without it.
+        '<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet.heat/0.2.0/leaflet-heat.js"><\/script>' : '') +
       '<style>' +
         'body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;color:#222;margin:0;padding:24px;background:#fafaf6;line-height:1.5}' +
         '.report{max-width:780px;margin:0 auto;background:white;padding:32px 36px;border-radius:14px;box-shadow:0 2px 12px rgba(0,0,0,0.06)}' +
@@ -30045,10 +30113,13 @@ const AreaPeriodReport = (function() {
         '.kpi-num{font-size:26px;font-weight:800;color:#1a5c34;line-height:1.1}' +
         '.kpi-label{font-size:11px;color:#666;text-transform:uppercase;letter-spacing:0.5px;margin-top:2px}' +
         'table{border-collapse:collapse;width:100%;font-size:13px}' +
-        '#area-map{height:380px;border-radius:10px;margin-top:6px;background:#eee}' +
+        '#area-map{height:420px;border-radius:10px;margin-top:6px;background:#eee}' +
+        '.map-legend{display:flex;gap:14px;flex-wrap:wrap;margin-top:8px;font-size:11px;color:#666}' +
+        '.map-legend span{display:inline-flex;align-items:center;gap:5px}' +
+        '.map-legend i{width:10px;height:10px;border-radius:50%;display:inline-block}' +
         // Screen: live Leaflet map visible, static SVG fallback hidden.
         // Print/PDF: the opposite — Leaflet tiles rarely print cleanly
-        // and #area-map's height:380px div would just print blank/gray,
+        // and #area-map's height:420px div would just print blank/gray,
         // so @media print swaps to the plain-shapes SVG instead (see
         // _buildStaticSVG's own comment for why it has no basemap tiles
         // at all, not just "hidden until print").
@@ -30069,6 +30140,11 @@ const AreaPeriodReport = (function() {
 
     if (hasMapContent) {
       html += '<h2>Map</h2><div id="area-map"></div>' +
+        '<div class="map-legend">' +
+          (mapMarkers.length ? '<span><i style="background:#ff6a00"></i>Photo activity (heat = density)</span>' : '') +
+          (completedStopMarkers.length ? '<span><i style="background:#2d7d3f"></i>Completed stops</span>' : '') +
+          (cov.breadcrumbPointCount ? '<span><i style="background:#f5c518"></i>Survey path</span>' : '') +
+        '</div>' +
         (staticSVG ? '<div class="static-map-print">' + staticSVG + '</div>' : '');
     }
 
@@ -30086,25 +30162,23 @@ const AreaPeriodReport = (function() {
     if (hasMapContent) {
       var boundaryLatLngsJson = JSON.stringify(report.area.boundaryRings || []);
       var breadcrumbLatLngsJson = JSON.stringify((cov.breadcrumbPoints || []).map(function(p) { return [p[0], p[1]]; }));
+      var heatPointsJson = JSON.stringify(mapMarkers.map(function(l) {
+        return [l.gps.lat, l.gps.lng, Math.min(1, 0.3 + (l.countInPeriod || 1) * 0.08)];
+      }));
       var markersJson = JSON.stringify(mapMarkers.map(function(l) {
         return { lat: l.gps.lat, lng: l.gps.lng, label: l.displayLabel, count: l.countInPeriod, color: l.severityColor, severity: l.severityLabel };
       }));
-      // 2026-07-24 fix: this report is generated in the field and often
-      // opened/shared later with no connectivity — but #area-map depends
-      // on TWO separate network fetches (the leaflet.js CDN <script> tag
-      // in <head>, and the CARTO basemap tiles below), and neither one
-      // failing was ever handled. A failed CDN script load left `L`
-      // undefined and threw inside this IIFE (uncaught — nothing after
-      // it ran either); a failed tile fetch with `L` present just left
-      // the div showing its plain #eee background with, at best, a
-      // barely-visible 4%-opacity boundary outline. Both symptoms read
-      // as "blank map" to whoever opens the file. Fixed by checking
-      // up front and swapping in the .static-map-print SVG (already
-      // built for the print stylesheet — see _buildStaticSVG's own
-      // comment for why it has no basemap tiles at all) as a live
-      // fallback, not just a print-only one, plus a tileerror listener
-      // for the case where L loaded fine but the tiles themselves can't
-      // reach the network.
+      var completedJson = JSON.stringify(completedStopMarkers.map(function(s) {
+        return { lat: s.lat, lng: s.lng, address: s.address || '(no address)', completedAt: s.completedAt || null };
+      }));
+      // 2026-07-24 fix (still applies): this report is generated in the
+      // field and often opened/shared later with no connectivity —
+      // #area-map depends on network fetches (leaflet.js, leaflet-heat.js,
+      // and the CARTO basemap tiles), none of which are guaranteed. A
+      // failed leaflet.js load or offline tile fetch falls back to the
+      // .static-map-print SVG, same as before. leaflet-heat.js failing is
+      // treated as non-fatal — L.heatLayer is checked before use, so a
+      // missing heat plugin just means no heat overlay, not a broken map.
       html += '<script>' +
         '(function(){' +
           'function useFallback(){' +
@@ -30116,7 +30190,9 @@ const AreaPeriodReport = (function() {
           'if (typeof L === "undefined" || navigator.onLine === false) { useFallback(); return; }' +
           'var boundaryRings = ' + boundaryLatLngsJson + ';' +
           'var breadcrumb = ' + breadcrumbLatLngsJson + ';' +
+          'var heatPts = ' + heatPointsJson + ';' +
           'var markers = ' + markersJson + ';' +
+          'var completed = ' + completedJson + ';' +
           'try {' +
             'var map = L.map("area-map", {zoomControl:true, attributionControl:true});' +
             'var tiles = L.tileLayer("https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png", {subdomains:"abcd", maxZoom:20}).addTo(map);' +
@@ -30126,9 +30202,15 @@ const AreaPeriodReport = (function() {
             'var fitGroup = L.featureGroup();' +
             'if (boundaryRings.length) { L.polygon(boundaryRings, {color:"#1a4a8c", weight:3, fillOpacity:0.04}).addTo(map).addTo(fitGroup); }' +
             'if (breadcrumb.length > 1) { L.polyline(breadcrumb, {color:"#f5c518", weight:8, opacity:0.5, lineCap:"round"}).addTo(map).addTo(fitGroup); }' +
+            'if (heatPts.length && typeof L.heatLayer === "function") { L.heatLayer(heatPts, {radius:32, blur:24, maxZoom:17, gradient:{0.2:"#ffcf40",0.5:"#ff6a00",1.0:"#ff2b00"}}).addTo(map); }' +
             'markers.forEach(function(p){' +
-              'var m = L.circleMarker([p.lat, p.lng], {radius: 8 + Math.min(p.count,10), color: p.color, weight:2, fillColor: p.color, fillOpacity:0.55});' +
+              'var m = L.circleMarker([p.lat, p.lng], {radius: 5, color: p.color, weight:2, fillColor: p.color, fillOpacity:0.85});' +
               'm.bindPopup("<b>" + p.label.replace(/</g,"&lt;") + "</b><br>" + p.count + " photo(s) this period &middot; " + (p.severity||""));' +
+              'm.addTo(map).addTo(fitGroup);' +
+            '});' +
+            'completed.forEach(function(s){' +
+              'var m = L.circleMarker([s.lat, s.lng], {radius: 6, color: "#2d7d3f", weight:2, fillColor: "#2d7d3f", fillOpacity:0.75});' +
+              'm.bindPopup("<b>✓ " + s.address.replace(/</g,"&lt;") + "</b>" + (s.completedAt ? "<br>" + new Date(s.completedAt).toLocaleString() : ""));' +
               'm.addTo(map).addTo(fitGroup);' +
             '});' +
             'try { var b = fitGroup.getBounds(); if (b.isValid()) map.fitBounds(b.pad(0.08)); else map.setView([38.6270,-90.1994], 12); } catch(_e) { map.setView([38.6270,-90.1994], 12); }' +
@@ -30141,9 +30223,150 @@ const AreaPeriodReport = (function() {
     return html;
   }
 
-  // ── External export — matches stlcityroute_export_spec.md exactly ──
-  // Deliberately NOT area-scoped, unlike everything above: the spec
-  // describes a single weekly (or arbitrary-range) file covering every
+  // ── Direct PDF generation ────────────────────────────────────────────
+  // 2026-07-25: generates a PDF directly from the report data, rather than
+  // relying on "download the HTML, open it, use the browser's Print →
+  // Save as PDF." Uses jsPDF (CDN, loaded lazily — only when a PDF is
+  // actually requested, so nobody pays for the fetch just by opening the
+  // report modal) rather than a heavier plugin stack. No autotable
+  // plugin either: the stop/photo lists are simple enough that manual
+  // line-by-line layout with page-break checks is less code and one
+  // fewer CDN dependency than pulling in jspdf-autotable for it.
+  //
+  // The map image is the SAME _buildStaticSVG output the HTML report's
+  // print stylesheet and offline fallback already use — rasterized to a
+  // PNG via an off-screen <img>+<canvas> round trip (SVG data URI in,
+  // canvas.toDataURL PNG out) since jsPDF can't embed raw SVG without an
+  // additional plugin. One drawing routine, three consumers (live map
+  // fallback, print stylesheet, PDF) — heatmap and completed-stop
+  // markers drawn once, shown everywhere.
+  function _ensureJsPDF() {
+    if (window.jspdf && window.jspdf.jsPDF) return Promise.resolve(window.jspdf.jsPDF);
+    return new Promise(function(resolve, reject) {
+      var s = document.createElement('script');
+      s.src = 'https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js';
+      s.onload = function() {
+        if (window.jspdf && window.jspdf.jsPDF) resolve(window.jspdf.jsPDF);
+        else reject(new Error('PDF library loaded but did not initialize as expected'));
+      };
+      s.onerror = function() { reject(new Error('Could not load the PDF library — check your connection and try again, or use Download HTML instead')); };
+      document.head.appendChild(s);
+    });
+  }
+
+  function _svgToPngDataUrl(svgString, w, h) {
+    return new Promise(function(resolve, reject) {
+      try {
+        var img = new Image();
+        img.onload = function() {
+          try {
+            var canvas = document.createElement('canvas');
+            canvas.width = w; canvas.height = h;
+            var ctx = canvas.getContext('2d');
+            // Match the SVG's own background so any transparent edge
+            // doesn't come out black on renderers that composite
+            // transparency oddly.
+            ctx.fillStyle = '#fafaf6';
+            ctx.fillRect(0, 0, w, h);
+            ctx.drawImage(img, 0, 0, w, h);
+            resolve(canvas.toDataURL('image/png'));
+          } catch(e) { reject(e); }
+        };
+        img.onerror = function() { reject(new Error('Map image failed to render')); };
+        img.src = 'data:image/svg+xml;base64,' + btoa(unescape(encodeURIComponent(svgString)));
+      } catch(e) { reject(e); }
+    });
+  }
+
+  // Returns a Blob (application/pdf) — caller decides what to do with it
+  // (download, share via the Web Share API, etc.), same "build the bytes,
+  // don't assume delivery" separation formatAsHTML/formatAsCSV keep.
+  async function buildPdfBlob(report) {
+    var jsPDFCtor = await _ensureJsPDF();
+    var doc = new jsPDFCtor({ unit: 'mm', format: 'letter' });
+    var pageW = doc.internal.pageSize.getWidth();
+    var pageH = doc.internal.pageSize.getHeight();
+    var margin = 15;
+    var y = margin;
+    var lineH = 5.2;
+
+    function ensureRoom(neededMm) {
+      if (y + neededMm > pageH - margin) { doc.addPage(); y = margin; }
+    }
+    function line(text, opts) {
+      opts = opts || {};
+      doc.setFont('helvetica', opts.bold ? 'bold' : 'normal');
+      doc.setFontSize(opts.size || 10);
+      var c = opts.color || [30, 30, 30];
+      doc.setTextColor(c[0], c[1], c[2]);
+      var wrapped = doc.splitTextToSize(String(text), pageW - margin * 2);
+      wrapped.forEach(function(ln) {
+        ensureRoom(lineH);
+        doc.text(ln, margin, y);
+        y += lineH;
+      });
+    }
+
+    var st = report.stops, ch = report.photoTracker, cov = report.coverage;
+
+    line(report.area.label, { size: 18, bold: true, color: [26, 51, 32] });
+    line(report.period.label + '  ·  Generated ' + new Date(report.generatedAt).toLocaleString(), { size: 9, color: [130, 130, 130] });
+    y += 1;
+    line(st.total + ' stops · ' + st.completed + ' completed (' + st.completionRate + '%) · ' +
+      ch.locations.length + ' photo tracker location' + (ch.locations.length === 1 ? '' : 's') +
+      (cov.sessionCount ? ' · ' + cov.sessionCount + ' survey session' + (cov.sessionCount === 1 ? '' : 's') : ''),
+      { size: 10, bold: true });
+    y += 2;
+
+    var mapMarkers = ch.locations.filter(function(l) { return l.gps && typeof l.gps.lat === 'number'; });
+    var completedStopMarkers = st.list.filter(function(s) { return s.done && typeof s.lat === 'number' && typeof s.lng === 'number'; });
+    var hasMapContent = (report.area.boundaryRings && report.area.boundaryRings.length) || cov.breadcrumbPointCount > 0 || mapMarkers.length > 0 || completedStopMarkers.length > 0;
+    if (hasMapContent) {
+      var svg = _buildStaticSVG(report);
+      if (svg) {
+        try {
+          var pngDataUrl = await _svgToPngDataUrl(svg, 640, 640);
+          var imgSizeMm = Math.min(pageW - margin * 2, 150);
+          ensureRoom(imgSizeMm + 8);
+          doc.addImage(pngDataUrl, 'PNG', margin, y, imgSizeMm, imgSizeMm);
+          y += imgSizeMm + 3;
+          line('Orange heat = photo activity density · Green = completed stops · Yellow = survey path', { size: 7.5, color: [150, 150, 150] });
+          y += 2;
+        } catch(_e) {
+          line('(Map image could not be generated for this PDF.)', { size: 8, color: [180, 60, 60] });
+        }
+      }
+    }
+
+    if (ch.locations.length) {
+      y += 2;
+      line('PHOTO TRACKER LOCATIONS (' + ch.locations.length + ')', { size: 12, bold: true, color: [26, 51, 32] });
+      y += 1;
+      ch.locations.forEach(function(loc) {
+        line('• ' + loc.displayLabel + ' — ' + loc.countInPeriod + ' photo' + (loc.countInPeriod === 1 ? '' : 's') +
+          (loc.severityLabel ? ' · ' + loc.severityLabel : ''), { size: 9 });
+      });
+    }
+
+    y += 2;
+    line('STOPS (' + st.list.length + ')', { size: 12, bold: true, color: [26, 51, 32] });
+    y += 1;
+    if (!st.list.length) {
+      line('No stops in this period.', { size: 9, color: [160, 160, 160] });
+    } else {
+      st.list.slice().sort(function(a, b) {
+        var ta = a.completedAt ? new Date(a.completedAt).getTime() : (a.addedAt ? new Date(a.addedAt).getTime() : 0);
+        var tb = b.completedAt ? new Date(b.completedAt).getTime() : (b.addedAt ? new Date(b.addedAt).getTime() : 0);
+        return ta - tb;
+      }).forEach(function(s) {
+        var mark = s.done ? '✓' : (s.followup ? '⚑' : '○');
+        line(mark + ' ' + (s.address || '(no address)') + (s.neighborhoodName ? ' · ' + s.neighborhoodName : ''), { size: 9 });
+      });
+    }
+
+    return doc.output('blob');
+  }
+
   // stop, with the report-generator tool doing its own per-ward grouping
   // on the receiving end. Scoping this to one area would mean running it
   // once per ward/neighborhood just to reassemble the same city-wide
@@ -30224,15 +30447,18 @@ const AreaPeriodReport = (function() {
     formatAsCSV: formatAsCSV,
     formatAsText: formatAsText,
     formatAsHTML: formatAsHTML,
+    buildPdfBlob: buildPdfBlob,
     buildExport: buildExport,
     formatAsExportJSON: formatAsExportJSON,
     staticMapSVG: _buildStaticSVG,
     // Exposed for the smoke-test harness — not part of the "public API"
     // in a load-bearing sense, but no reason to hide pure functions
     // behind a closure that later steps will need to call anyway.
-    _matchesArea: _matchesArea,
+    _matchesFilters: _matchesFilters,
+    _hasAnyFilter: _hasAnyFilter,
     _photosInRange: _photosInRange,
-    _findAreaFeature: _findAreaFeature
+    _findAreaFeature: _findAreaFeature,
+    _findAreaFeatures: _findAreaFeatures
   };
 })();
 window.AreaPeriodReport = AreaPeriodReport;
@@ -30379,27 +30605,6 @@ function renderDataTab() {
   var logChk = document.getElementById('data-logging-enabled');
   if (logChk) logChk.checked = (settings.loggingEnabled !== false);
 
-  // Stat cards
-  var cards = document.getElementById('data-stat-cards');
-  if (cards) {
-    var DOW = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
-    var bestDow = m.closeRateByDow.reduce(function(best,rate,i){
-      if (rate !== null && (best.rate===null || rate > best.rate)) return {rate:rate,day:i};
-      return best;
-    },{rate:null,day:null});
-    cards.innerHTML =
-      statCard(m.completed, 'Completed', m.totalStops ? m.completed + '/' + m.totalStops : '—') +
-      statCard(m.completionRate + '%', 'Close Rate', m.pending + ' remaining') +
-      statCard(m.stopsPerHour ? m.stopsPerHour : '—', 'Stops/hr', m.stopsPerHour ? 'field pace' : 'in progress') +
-      statCard(m.avgMinsPerStop ? m.avgMinsPerStop + ' min' : '—', 'Avg/Stop', 'median time between completions') +
-      statCard(m.returnVisits || '0', 'Return Visits', 'stops to same address') +
-      statCard(m.stopsWithNotes || '0', 'With Notes', 'stops that have field notes') +
-      statCard(m.uniqueStreets || '—', 'Streets Covered', 'unique street names today') +
-      (m.avgShiftHrs ? statCard(m.avgShiftHrs + 'h', 'Avg Shift', (m.overtimeShifts||0) + ' overtime shifts') : '') +
-      (bestDow.day !== null ? statCard(DOW[bestDow.day], 'Best Day', bestDow.rate + '% close rate') : '') +
-      (m.firstStopTime ? statCard(m.firstStopTime.toLocaleTimeString('en-US',{hour:'numeric',minute:'2-digit'}), 'First Stop', m.lastStopTime ? 'Last: '+m.lastStopTime.toLocaleTimeString('en-US',{hour:'numeric',minute:'2-digit'}) : '') : '');
-  }
-
   // Timeline / activity list
   var timeline = document.getElementById('data-timeline');
   if (timeline) {
@@ -30445,12 +30650,15 @@ function renderDataTab() {
     }
   }
 
-  // Period Reports panel — Drop AP.5b. Replaces the prior Session Log
-  // render. The panel has its own DOM (#period-reports-panel) populated
-  // by renderPeriodReport from the PeriodReports module. Triggered here
-  // so any data change (new stop, completion, navigation in or out of
-  // the tab) refreshes the visible report.
-  try { if (typeof renderPeriodReport === 'function') renderPeriodReport(); } catch(_e) {}
+  // 2026-07-25: merged Reports panel (period nav + ward/neighborhood/
+  // district filters + the one report body, all driven by
+  // AreaPeriodReport now — see that panel's own markup comment for the
+  // full history). Triggered here so any data change (new stop,
+  // completion, navigation in or out of the tab) refreshes the visible
+  // report, same trigger point the old separate Period Reports panel
+  // used. Full rebuild (not just the preview) since the picker <select>
+  // elements themselves need to reflect current state too.
+  try { if (typeof _renderAreaPeriodReportModal === 'function') _renderAreaPeriodReportModal(); } catch(_e) {}
 
   // Storage info
   var storageEl = document.getElementById('data-storage-info');
@@ -30809,14 +31017,23 @@ window.downloadPeriodCSV         = downloadPeriodCSV;
 window.downloadPeriodHTML        = downloadPeriodHTML;
 
 // ────────────────────────────────────────────────────────────────────────
-// Area + Period Report — UI handlers (step 6, report-system build)
+// Area + Period Report — UI handlers
 // ────────────────────────────────────────────────────────────────────────
 // Deliberately does NOT duplicate a second period navigator — reuses
 // _periodKind/_periodAnchor (and PeriodReports.periodBoundsFor) straight
-// from the Period Reports panel above. The area picker is the only new
+// from the Period Reports panel above. The area pickers are the only new
 // axis this modal adds; the period is whatever's already selected there.
-var _areaReportType = 'ward';
-var _areaReportName = '1';
+//
+// 2026-07-25: three independent selectors (ward / neighborhood / police
+// district) replace the old single "pick a type, then pick one name"
+// pattern. Each is optional; whichever are set combine as AND filters;
+// none set = whole city. '' (empty string) means "Any" for that
+// dimension throughout this block — never null/undefined, so the
+// <select>'s own empty-option value lines up directly with the picker
+// state without a separate sentinel to translate.
+var _areaReportWard = '';
+var _areaReportNeighborhood = '';
+var _areaReportPoliceDistrict = '';
 var _lastAreaPeriodReport = null;
 
 var AREA_REPORT_WARD_OPTIONS = (function() {
@@ -30828,22 +31045,6 @@ var AREA_REPORT_WARD_OPTIONS = (function() {
 // comment): six polygons, districts 1-6.
 var AREA_REPORT_POLICE_OPTIONS = ['District 1', 'District 2', 'District 3', 'District 4', 'District 5', 'District 6'];
 
-function openAreaPeriodReportModal() {
-  var modal = document.getElementById('area-period-report-modal');
-  if (!modal) return;
-  modal.style.display = 'flex';
-  _renderAreaPeriodReportModal();
-  Accessibility.modalOpened(modal, { onEscape: closeAreaPeriodReportModal });
-}
-function closeAreaPeriodReportModal() {
-  var modal = document.getElementById('area-period-report-modal');
-  if (!modal) return;
-  modal.style.display = 'none';
-  Accessibility.modalClosed(modal);
-}
-window.openAreaPeriodReportModal  = openAreaPeriodReportModal;
-window.closeAreaPeriodReportModal = closeAreaPeriodReportModal;
-
 function _areaReportShortlist() {
   try {
     var arr = JSON.parse(LS.get('area-report-neighborhood-shortlist') || '[]');
@@ -30853,12 +31054,15 @@ function _areaReportShortlist() {
 function _saveAreaReportShortlist(arr) {
   return LS.set('area-report-neighborhood-shortlist', JSON.stringify(arr));
 }
+// Shortlist stays tied to the neighborhood selector specifically — it's
+// still a meaningful shortcut ("the handful of neighborhoods I report on
+// most") independent of whatever ward/district is also selected alongside it.
 function toggleAreaReportShortlistCurrent() {
-  if (_areaReportType !== 'neighborhood' || !_areaReportName) return;
+  if (!_areaReportNeighborhood) return;
   var list = _areaReportShortlist();
-  var idx = list.indexOf(_areaReportName);
+  var idx = list.indexOf(_areaReportNeighborhood);
   if (idx === -1) {
-    list.push(_areaReportName);
+    list.push(_areaReportNeighborhood);
     if (!_saveAreaReportShortlist(list)) { showToast('Could not save — storage full?'); return; }
     showToast('★ Added to My Neighborhoods');
   } else {
@@ -30870,98 +31074,122 @@ function toggleAreaReportShortlistCurrent() {
 }
 window.toggleAreaReportShortlistCurrent = toggleAreaReportShortlistCurrent;
 
-function setAreaReportType(type) {
-  if (['ward', 'neighborhood', 'policeDistrict'].indexOf(type) === -1) return;
-  _areaReportType = type;
-  document.querySelectorAll('#area-report-type-ward,#area-report-type-neighborhood,#area-report-type-policeDistrict').forEach(function(b) {
-    b.classList.remove('active-period');
-  });
-  var btn = document.getElementById('area-report-type-' + type);
-  if (btn) btn.classList.add('active-period');
-  // Reset to a sensible default name for the new type — first option,
-  // or the first shortlisted neighborhood if there is one.
-  if (type === 'ward') _areaReportName = AREA_REPORT_WARD_OPTIONS[0];
-  else if (type === 'policeDistrict') _areaReportName = AREA_REPORT_POLICE_OPTIONS[0];
-  else {
-    var shortlist = _areaReportShortlist();
-    _areaReportName = shortlist.length ? shortlist[0] : Object.keys(STL_NEIGHBORHOODS_BY_NAME).sort()[0];
-  }
+// 2026-07-25: District and Ward now cascade — picking either one can
+// invalidate a finer-grained selection below it (e.g. picking a new
+// district while "Ward 5" was selected, when Ward 5 isn't in that
+// district) — so these three call the FULL picker rebuild
+// (_renderAreaPeriodReportModal), not just the report render, to
+// recompute which options the lower levels should even show.
+// setAreaReportNeighborhood is the exception: it's the bottom of the
+// hierarchy, nothing below it to cascade into, so it only needs to
+// re-render the report itself.
+function setAreaReportWard(val) {
+  _areaReportWard = val || '';
   _renderAreaPeriodReportModal();
 }
-window.setAreaReportType = setAreaReportType;
+window.setAreaReportWard = setAreaReportWard;
 
-function setAreaReportName(name) {
-  _areaReportName = name;
+function setAreaReportNeighborhood(val) {
+  _areaReportNeighborhood = val || '';
   renderAreaPeriodReport();
   _updateAreaReportShortlistToggle();
 }
-window.setAreaReportName = setAreaReportName;
+window.setAreaReportNeighborhood = setAreaReportNeighborhood;
+
+function setAreaReportPoliceDistrict(val) {
+  _areaReportPoliceDistrict = val || '';
+  _renderAreaPeriodReportModal();
+}
+window.setAreaReportPoliceDistrict = setAreaReportPoliceDistrict;
 
 function _updateAreaReportShortlistToggle() {
   var btn = document.getElementById('area-report-shortlist-toggle');
   if (!btn) return;
-  if (_areaReportType !== 'neighborhood' || !_areaReportName) { btn.style.display = 'none'; return; }
+  if (!_areaReportNeighborhood) { btn.style.display = 'none'; return; }
   btn.style.display = 'block';
-  var starred = _areaReportShortlist().indexOf(_areaReportName) !== -1;
+  var starred = _areaReportShortlist().indexOf(_areaReportNeighborhood) !== -1;
   btn.textContent = starred ? '★ Saved to My Neighborhoods (tap to remove)' : '☆ Save to My Neighborhoods';
   btn.style.color = starred ? '#a86a00' : '#888';
   btn.style.borderStyle = starred ? 'solid' : 'dashed';
 }
 
-// Rebuilds the whole modal body: type pills already have their own
-// handler (setAreaReportType), this fills the shortlist row and the name
-// picker beneath them, then triggers the report render.
-function _renderAreaPeriodReportModal() {
-  var noteEl = document.getElementById('area-report-period-note');
-  if (noteEl && typeof PeriodReports !== 'undefined') {
-    try {
-      var bounds = PeriodReports.periodBoundsFor(_periodKind, _periodAnchor);
-      noteEl.innerHTML = 'Using the period from <b>Period Reports</b> above: <b>' + escHtml(bounds.label) + '</b>' +
-        (bounds.isCurrent ? ' <span style="color:#7a5000">(in progress)</span>' : '') +
-        '. Close this and change it up there if needed, then reopen.';
-    } catch(_e) { noteEl.textContent = ''; }
-  }
-
-  document.querySelectorAll('#area-report-type-ward,#area-report-type-neighborhood,#area-report-type-policeDistrict').forEach(function(b) {
-    b.classList.remove('active-period');
-  });
-  var typeBtn = document.getElementById('area-report-type-' + _areaReportType);
-  if (typeBtn) typeBtn.classList.add('active-period');
-
+// Rebuilds the three cascading area pickers (District → Ward →
+// Neighborhood, each defaults to "Any") plus the neighborhood shortlist
+// row, then triggers the report render. 2026-07-25: now async — needs
+// the geographic hierarchy (_computeAreaHierarchy) to know which wards
+// belong to the selected district and which neighborhoods belong to the
+// selected ward/district, to filter the lower two pickers' option lists.
+// Name kept as-is (no longer modal-specific — see the wider file history
+// for why) to avoid touching every call site for a rename alone.
+//
+// Cascading rule, in both directions of "don't know" safety:
+//   - A ward/neighborhood whose containing area couldn't be resolved
+//     (hierarchy lookup returned null — offline on first load, still
+//     fetching) stays VISIBLE rather than disappearing. Silently hiding
+//     options because of a temporary lookup gap would look like data
+//     loss, not a filter.
+//   - If the currently-selected ward or neighborhood is no longer valid
+//     under a newly-picked higher-level filter, it resets to "Any"
+//     rather than silently staying selected-but-hidden.
+async function _renderAreaPeriodReportModal() {
   var shortlistRow = document.getElementById('area-report-shortlist-row');
-  var pickerEl = document.getElementById('area-report-name-picker');
-  if (!shortlistRow || !pickerEl) return;
+  var wardPicker = document.getElementById('area-report-ward-picker');
+  var nbhdPicker = document.getElementById('area-report-neighborhood-picker');
+  var districtPicker = document.getElementById('area-report-district-picker');
+  if (!wardPicker || !nbhdPicker || !districtPicker) return;
 
-  if (_areaReportType === 'neighborhood') {
-    var shortlist = _areaReportShortlist();
-    if (shortlist.length) {
-      shortlistRow.style.display = 'flex';
-      shortlistRow.innerHTML = shortlist.map(function(name) {
-        var active = name === _areaReportName;
-        return '<button data-fn="setAreaReportName" data-arg="' + escHtml(name) + '" style="padding:5px 10px;border-radius:14px;border:1.5px solid ' + (active ? 'var(--forest)' : '#ddd') + ';background:' + (active ? 'var(--forest)' : 'white') + ';color:' + (active ? 'white' : '#555') + ';font-family:\'Space Mono\',monospace;font-size:0.56rem;cursor:pointer">★ ' + escHtml(name) + '</button>';
-      }).join('');
-    } else {
-      shortlistRow.style.display = 'none';
-      shortlistRow.innerHTML = '';
-    }
-    var allNames = Object.keys(STL_NEIGHBORHOODS_BY_NAME).sort();
-    if (allNames.indexOf(_areaReportName) === -1) _areaReportName = allNames[0];
-    pickerEl.innerHTML = '<select onchange="setAreaReportName(this.value)" style="width:100%;padding:9px;border:1px solid #ddd;border-radius:7px;font-family:\'Space Mono\',monospace;font-size:0.64rem;background:white">' +
-      allNames.map(function(n) { return '<option value="' + escHtml(n) + '"' + (n === _areaReportName ? ' selected' : '') + '>' + escHtml(n) + '</option>'; }).join('') +
-      '</select>';
-  } else if (_areaReportType === 'ward') {
-    shortlistRow.style.display = 'none'; shortlistRow.innerHTML = '';
-    if (AREA_REPORT_WARD_OPTIONS.indexOf(_areaReportName) === -1) _areaReportName = AREA_REPORT_WARD_OPTIONS[0];
-    pickerEl.innerHTML = '<select onchange="setAreaReportName(this.value)" style="width:100%;padding:9px;border:1px solid #ddd;border-radius:7px;font-family:\'Space Mono\',monospace;font-size:0.64rem;background:white">' +
-      AREA_REPORT_WARD_OPTIONS.map(function(n) { return '<option value="' + n + '"' + (n === _areaReportName ? ' selected' : '') + '>Ward ' + n + '</option>'; }).join('') +
-      '</select>';
-  } else { // policeDistrict
-    shortlistRow.style.display = 'none'; shortlistRow.innerHTML = '';
-    if (AREA_REPORT_POLICE_OPTIONS.indexOf(_areaReportName) === -1) _areaReportName = AREA_REPORT_POLICE_OPTIONS[0];
-    pickerEl.innerHTML = '<select onchange="setAreaReportName(this.value)" style="width:100%;padding:9px;border:1px solid #ddd;border-radius:7px;font-family:\'Space Mono\',monospace;font-size:0.64rem;background:white">' +
-      AREA_REPORT_POLICE_OPTIONS.map(function(n) { return '<option value="' + escHtml(n) + '"' + (n === _areaReportName ? ' selected' : '') + '>' + escHtml(n) + '</option>'; }).join('') +
-      '</select>';
+  var hierarchy = { wardToDistrict: {}, neighborhoodToWard: {} };
+  try { hierarchy = await _computeAreaHierarchy(); } catch(_e) {}
+
+  // District — top of the hierarchy, never filtered.
+  districtPicker.innerHTML = '<select onchange="setAreaReportPoliceDistrict(this.value)" style="width:100%;padding:9px;border:1px solid #ddd;border-radius:7px;font-family:\'Space Mono\',monospace;font-size:0.64rem;background:white">' +
+    '<option value="">Any district</option>' +
+    AREA_REPORT_POLICE_OPTIONS.map(function(n) { return '<option value="' + escHtml(n) + '"' + (n === _areaReportPoliceDistrict ? ' selected' : '') + '>' + escHtml(n) + '</option>'; }).join('') +
+    '</select>';
+
+  // Ward — narrowed to wards inside the selected district, if any.
+  var wardOptions = AREA_REPORT_WARD_OPTIONS.filter(function(w) {
+    if (!_areaReportPoliceDistrict) return true;
+    var d = hierarchy.wardToDistrict[w];
+    return d == null || d === _areaReportPoliceDistrict;
+  });
+  if (_areaReportWard && wardOptions.indexOf(_areaReportWard) === -1) _areaReportWard = '';
+  wardPicker.innerHTML = '<select onchange="setAreaReportWard(this.value)" style="width:100%;padding:9px;border:1px solid #ddd;border-radius:7px;font-family:\'Space Mono\',monospace;font-size:0.64rem;background:white">' +
+    '<option value="">Any ward</option>' +
+    wardOptions.map(function(n) { return '<option value="' + n + '"' + (n === _areaReportWard ? ' selected' : '') + '>Ward ' + n + '</option>'; }).join('') +
+    '</select>';
+
+  var shortlist = _areaReportShortlist();
+  if (shortlist.length) {
+    shortlistRow.style.display = 'flex';
+    shortlistRow.innerHTML = shortlist.map(function(name) {
+      var active = name === _areaReportNeighborhood;
+      return '<button data-fn="setAreaReportNeighborhood" data-arg="' + escHtml(name) + '" style="padding:5px 10px;border-radius:14px;border:1.5px solid ' + (active ? 'var(--forest)' : '#ddd') + ';background:' + (active ? 'var(--forest)' : 'white') + ';color:' + (active ? 'white' : '#555') + ';font-family:\'Space Mono\',monospace;font-size:0.56rem;cursor:pointer">★ ' + escHtml(name) + '</button>';
+    }).join('');
+  } else {
+    shortlistRow.style.display = 'none';
+    shortlistRow.innerHTML = '';
   }
+
+  // Neighborhood — narrowed to the selected ward's neighborhoods; with
+  // no ward but a district IS selected, narrowed transitively (every
+  // neighborhood in every ward that belongs to that district).
+  var allNames = Object.keys(STL_NEIGHBORHOODS_BY_NAME).sort();
+  var nbhdOptions = allNames.filter(function(name) {
+    var w = hierarchy.neighborhoodToWard[name];
+    if (_areaReportWard) return w == null || w === _areaReportWard;
+    if (_areaReportPoliceDistrict) {
+      if (w == null) return true;
+      var d = hierarchy.wardToDistrict[w];
+      return d == null || d === _areaReportPoliceDistrict;
+    }
+    return true;
+  });
+  if (_areaReportNeighborhood && nbhdOptions.indexOf(_areaReportNeighborhood) === -1) _areaReportNeighborhood = '';
+  nbhdPicker.innerHTML = '<select onchange="setAreaReportNeighborhood(this.value)" style="width:100%;padding:9px;border:1px solid #ddd;border-radius:7px;font-family:\'Space Mono\',monospace;font-size:0.64rem;background:white">' +
+    '<option value="">Any neighborhood</option>' +
+    nbhdOptions.map(function(n) { return '<option value="' + escHtml(n) + '"' + (n === _areaReportNeighborhood ? ' selected' : '') + '>' + escHtml(n) + '</option>'; }).join('') +
+    '</select>';
 
   _updateAreaReportShortlistToggle();
   renderAreaPeriodReport();
@@ -30969,17 +31197,14 @@ function _renderAreaPeriodReportModal() {
 window._renderAreaPeriodReportModal = _renderAreaPeriodReportModal;
 
 // The only async render in the report UI layer — AreaPeriodReport.buildReport
-// itself is async as of step 5 (polygon fetch for breadcrumb clipping).
-// Shows a lightweight loading state so a slow/offline GeoCache fetch
-// doesn't look like a frozen modal.
+// itself is async (polygon fetch for breadcrumb clipping). Shows a
+// lightweight loading state so a slow/offline GeoCache fetch doesn't look
+// like a frozen modal. No "pick something first" guard anymore — empty
+// selectors are a valid state (whole city), always renders.
 var _areaReportRenderToken = 0;
 async function renderAreaPeriodReport() {
   var preview = document.getElementById('area-report-preview');
   if (!preview || typeof AreaPeriodReport === 'undefined' || typeof PeriodReports === 'undefined') return;
-  if (!_areaReportName) {
-    preview.innerHTML = '<div style="font-family:\'Space Mono\',monospace;font-size:0.6rem;color:#999;padding:8px 2px">Enter a district to generate a report.</div>';
-    return;
-  }
   var myToken = ++_areaReportRenderToken;
   preview.innerHTML = '<div style="font-family:\'Space Mono\',monospace;font-size:0.6rem;color:#999;padding:12px 2px;text-align:center">Building report…</div>';
 
@@ -30988,14 +31213,16 @@ async function renderAreaPeriodReport() {
   try {
     report = await AreaPeriodReport.buildReport({
       startMs: bounds.startMs, endMs: bounds.endMs,
-      areaType: _areaReportType, areaName: _areaReportName
+      ward: _areaReportWard || null,
+      neighborhood: _areaReportNeighborhood || null,
+      policeDistrict: _areaReportPoliceDistrict || null
     });
   } catch(e) {
     if (myToken !== _areaReportRenderToken) return; // a newer render superseded this one
     preview.innerHTML = '<div style="font-family:\'Space Mono\',monospace;font-size:0.6rem;color:#c0392b;padding:8px 2px">Couldn\'t build report: ' + escHtml(e && e.message || 'unknown error') + '</div>';
     return;
   }
-  // A newer render (area/period changed while this one was in flight)
+  // A newer render (filters/period changed while this one was in flight)
   // already took over — drop this stale result rather than flashing it
   // in over the current selection.
   if (myToken !== _areaReportRenderToken) return;
@@ -31004,15 +31231,18 @@ async function renderAreaPeriodReport() {
   var st = report.stops, ch = report.photoTracker, cov = report.coverage;
   preview.innerHTML =
     '<div style="background:#fafafa;border:1.5px solid #e5e7eb;border-radius:9px;padding:12px;margin-bottom:12px;font-family:\'Space Mono\',monospace;font-size:0.62rem;color:#444;line-height:1.9">' +
+      '<div style="font-family:Syne,sans-serif;font-weight:800;font-size:0.66rem;color:#1a4a8c;margin-bottom:4px">' + escHtml(report.area.label) + '</div>' +
       '<div>' + st.total + ' stop' + (st.total === 1 ? '' : 's') + ' · ' + st.completed + ' completed (' + st.completionRate + '%)</div>' +
       '<div>' + ch.locations.length + ' photo tracker location' + (ch.locations.length === 1 ? '' : 's') + '</div>' +
       (cov.sessionCount ? '<div>' + cov.sessionCount + ' survey session' + (cov.sessionCount === 1 ? '' : 's') + (cov.activeInPeriod ? ' <span style="color:#7a5000">(1 in progress)</span>' : '') + '</div>' : '') +
-      (cov.breadcrumbPointCount ? '<div>' + cov.breadcrumbPointCount + ' breadcrumb point' + (cov.breadcrumbPointCount === 1 ? '' : 's') + (cov.breadcrumbClipped ? '' : ' <span style="color:#999">(same-area sessions only — boundary unavailable)</span>') + '</div>' : '') +
+      (cov.breadcrumbPointCount ? '<div>' + cov.breadcrumbPointCount + ' breadcrumb point' + (cov.breadcrumbPointCount === 1 ? '' : 's') + (cov.breadcrumbClipped ? '' : ' <span style="color:#999">(boundary unavailable — points omitted)</span>') + '</div>' : '') +
     '</div>' +
     '<div style="display:flex;flex-direction:column;gap:7px">' +
       '<button data-fn="copyAreaPeriodReport" style="width:100%;padding:10px;background:#444;color:white;border:none;border-radius:7px;font-family:Syne,sans-serif;font-weight:800;font-size:0.62rem;cursor:pointer">📋 Copy Text Summary</button>' +
       '<button data-fn="downloadAreaPeriodReportCSV" style="width:100%;padding:10px;background:none;border:1.5px solid #444;color:#444;border-radius:7px;font-family:Syne,sans-serif;font-weight:800;font-size:0.62rem;cursor:pointer">⬇ Download CSV</button>' +
-      '<button data-fn="downloadAreaPeriodReportHTML" style="width:100%;padding:10px;background:none;border:1.5px solid #444;color:#444;border-radius:7px;font-family:Syne,sans-serif;font-weight:800;font-size:0.62rem;cursor:pointer">⬇ Download HTML (prints to PDF)</button>' +
+      '<button data-fn="downloadAreaPeriodReportHTML" style="width:100%;padding:10px;background:none;border:1.5px solid #444;color:#444;border-radius:7px;font-family:Syne,sans-serif;font-weight:800;font-size:0.62rem;cursor:pointer">⬇ Download HTML (interactive map)</button>' +
+      '<button id="area-report-pdf-btn" data-fn="downloadAreaPeriodReportPDF" style="width:100%;padding:10px;background:linear-gradient(135deg,#1a4a9c,#2563eb);color:white;border:none;border-radius:7px;font-family:Syne,sans-serif;font-weight:800;font-size:0.62rem;cursor:pointer">⬇ Download PDF</button>' +
+      (typeof _renderAreaReportShareRow === 'function' ? _renderAreaReportShareRow() : '') +
     '</div>';
 }
 window.renderAreaPeriodReport = renderAreaPeriodReport;
@@ -31033,7 +31263,7 @@ window.copyAreaPeriodReport = copyAreaPeriodReport;
 function _areaReportSlug() {
   if (!_lastAreaPeriodReport) return 'area_report';
   var r = _lastAreaPeriodReport;
-  var name = (r.area.label + '_' + r.area.name + '_' + r.period.label).replace(/[^a-zA-Z0-9]+/g, '_').replace(/^_+|_+$/g, '');
+  var name = (r.area.label + '_' + r.period.label).replace(/[^a-zA-Z0-9]+/g, '_').replace(/^_+|_+$/g, '');
   return 'CityRoute_' + name;
 }
 function downloadAreaPeriodReportCSV() {
@@ -31046,6 +31276,67 @@ function downloadAreaPeriodReportHTML() {
 }
 window.downloadAreaPeriodReportCSV  = downloadAreaPeriodReportCSV;
 window.downloadAreaPeriodReportHTML = downloadAreaPeriodReportHTML;
+
+// Direct PDF download — builds the PDF (lazy-loads jsPDF, rasterizes the
+// same static map every other format shares) and hands the resulting
+// Blob straight to _periodDownload, which already accepts a Blob as-is
+// (new Blob([existingBlob], {type}) is valid). Button shows a busy state
+// since this is genuinely async work (CDN fetch + image rasterization),
+// unlike the synchronous CSV/HTML downloads next to it.
+async function downloadAreaPeriodReportPDF() {
+  if (!_lastAreaPeriodReport || typeof AreaPeriodReport === 'undefined') return;
+  var btn = document.getElementById('area-report-pdf-btn');
+  var origLabel = btn ? btn.textContent : '';
+  if (btn) { btn.disabled = true; btn.style.opacity = '0.6'; btn.textContent = '⏳ Building PDF…'; }
+  try {
+    var blob = await AreaPeriodReport.buildPdfBlob(_lastAreaPeriodReport);
+    _periodDownload(blob, 'pdf', 'application/pdf', _areaReportSlug());
+  } catch(e) {
+    showToast('⚠ Could not build PDF: ' + (e && e.message || 'unknown error'));
+  } finally {
+    if (btn) { btn.disabled = false; btn.style.opacity = ''; btn.textContent = origLabel || '⬇ Download PDF'; }
+  }
+}
+window.downloadAreaPeriodReportPDF = downloadAreaPeriodReportPDF;
+
+// 2026-07-25: "how do I get this report onto a laptop to write my email"
+// — the Web Share API (file sharing, Level 2) is the most seamless bridge
+// available without standing up a server: it hands the report file
+// straight to whatever the OS offers (Gmail, Mail, Drive, AirDrop,
+// Nearby Share, ...) instead of a download-to-Downloads-then-go-find-and-
+// move-it flow. Shares the HTML report specifically — it's the one
+// format that's both self-contained (opens correctly on any device,
+// with the map, no companion files) and directly viewable without a
+// separate app, which is what actually matters when the report needs to
+// land somewhere and be READ, not just stored. Only rendered when the
+// browser actually supports sharing files (most desktop browsers and
+// some older mobile ones don't) — the three download buttons above it
+// already work everywhere and stay the fallback path.
+function _renderAreaReportShareRow() {
+  if (!(navigator.share && navigator.canShare)) return '';
+  return '<button data-fn="shareAreaPeriodReport" style="width:100%;padding:10px;background:none;border:1.5px dashed #888;color:#555;border-radius:7px;font-family:Syne,sans-serif;font-weight:800;font-size:0.62rem;cursor:pointer">📤 Share… (email, Drive, AirDrop, etc.)</button>';
+}
+
+async function shareAreaPeriodReport() {
+  if (!_lastAreaPeriodReport || typeof AreaPeriodReport === 'undefined') return;
+  if (!(navigator.share && navigator.canShare)) {
+    showToast('Sharing isn\'t available in this browser — use a download button instead');
+    return;
+  }
+  try {
+    var htmlText = AreaPeriodReport.formatAsHTML(_lastAreaPeriodReport);
+    var file = new File([htmlText], _areaReportSlug() + '.html', { type: 'text/html' });
+    if (!navigator.canShare({ files: [file] })) {
+      showToast('This device can\'t share files directly — use a download button instead');
+      return;
+    }
+    await navigator.share({ files: [file], title: _lastAreaPeriodReport.area.label, text: _lastAreaPeriodReport.period.label + ' report' });
+  } catch(e) {
+    if (e && e.name === 'AbortError') return; // person just backed out of the share sheet — not an error
+    showToast('⚠ Could not share: ' + (e && e.message || 'unknown error'));
+  }
+}
+window.shareAreaPeriodReport = shareAreaPeriodReport;
 
 // Period-only, all-areas — matches the uploaded stlcityroute_export_spec.md.
 // Uses the same period as everything else in this modal, ignores the area
@@ -31083,336 +31374,6 @@ function toggleDataLogging(enabled) {
   renderDataTab();
 }
 
-// ── Export: CSV ───────────────────────────────────────────────────────────────
-function openDataExportModal() {
-  var modal = document.getElementById('data-export-modal');
-  modal.style.display = 'flex';
-  Accessibility.modalOpened(modal, { onEscape: closeDataExportModal });
-}
-
-function closeDataExportModal() {
-  var modal = document.getElementById('data-export-modal');
-  modal.style.display = 'none';
-  Accessibility.modalClosed(modal);
-}
-
-// ── Google Sheets smart push ──────────────────────────────────────────────────
-// Checks for a saved Apps Script webhook URL, then POSTs current metrics JSON.
-// If no URL is saved, guides the user to set it up.
-function pushToGoogleSheets() {
-  const webhookUrl = LS.get('sheets-webhook-url');
-
-  if (!webhookUrl) {
-    // Not set up yet — show setup guidance
-    const msg = [
-      'Google Sheets sync is not set up yet.\n',
-      '1. Open your Google Sheet',
-      '2. Extensions → Apps Script → delete existing code',
-      '3. Paste the script from Help → Google Sheets Setup',
-      '4. Click Deploy → New deployment → Web app',
-      '5. Set access to "Anyone" → Deploy → copy the URL',
-      '6. Tap OK and paste your Web App URL to save it'
-    ].join('\n');
-    const url = prompt(msg + '\n\nPaste your Apps Script Web App URL here (or Cancel to view Help):');
-    if (url && url.startsWith('https://')) {
-      LS.set('sheets-webhook-url', url.trim());
-      showToast('Webhook saved ✓ — tap Push again to sync');
-    } else if (url !== null) {
-      showToast('Invalid URL — must start with https://');
-    } else {
-      // User cancelled — switch to help
-      closeDataExportModal();
-      switchTab('help');
-    }
-    return;
-  }
-
-  // Build payload
-  const m = computeMetrics(_dataRange || 'today');
-  const payload = {
-    exportedAt: new Date().toISOString(),
-    inspector: getInspectorId() || '',
-    range: _dataRange || 'today',
-    completed: m.completed,
-    totalStops: m.totalStops,
-    completionRate: m.completionRate,
-    stopsPerHour: m.stopsPerHour,
-    avgMinsPerStop: m.avgMinsPerStop,
-    returnVisits: m.returnVisits,
-    uniqueStreets: m.uniqueStreets,
-    stopsWithNotes: m.stopsWithNotes,
-    avgShiftHrs: m.avgShiftHrs,
-    byType: m.byType,
-    topStreets: m.topStreets,
-    stops: (stops||[]).map(s => ({
-      address: s.address, type: s.type, done: s.done,
-      addedAt: s.addedAt, completedAt: s.completedAt||null,
-      notes: s.notes||'', lat: s.lat||null, lng: s.lng||null,
-      neighborhood: s.neighborhood || null,
-      neighborhoodName: s.neighborhoodName || null,
-      ward: s.ward || null,
-      flaggedForFollowup: !!s.flaggedForFollowup,
-      followupReason: s.followupReason || null
-    }))
-  };
-
-  // Show sending indicator
-  showToast('📊 Pushing to Sheets…');
-
-  // Note: no-cors mode means the response is opaque — we can't check status.
-  // A successful delivery is assumed if no network error is thrown.
-  // RAW FETCH (not fetchWithTimeout): mode:'no-cors' fire-and-forget — no
-  // response body to read. The catch handler already saves to LS for the
-  // online-event retry handler at the top of init() to pick up.
-  fetch(webhookUrl, {
-    method: 'POST',
-    mode: 'no-cors',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(payload)
-  }).then(() => {
-    showToast('✅ Pushed to Google Sheets ✓');
-    closeDataExportModal();
-  }).catch(() => {
-    // Save payload for retry when connection returns. LS.set returns false
-    // on failure — don't tell the user the push is queued if it wasn't saved.
-    if (LS.set('sheets-pending-push', JSON.stringify(payload))) {
-      showToast('📵 Offline — push queued, will retry when connected');
-    } else {
-      showToast('⚠ Offline and storage full — push could not be queued');
-    }
-  });
-}
-
-
-function _buildDataSummaryText() {
-  var range = _dataRange || 'today';
-  var m = computeMetrics(range);
-  var name = (typeof getInspectorId === 'function' ? getInspectorId() : '') || 'Inspector';
-  var email = (typeof getCredsVal === 'function' ? getCredsVal('email') : '') || '';
-  var phone = (typeof getCredsVal === 'function' ? getCredsVal('phone') : '') || '';
-  var title = (typeof getCredsVal === 'function' ? getCredsVal('title') : '') || '';
-  var division = (typeof getCredsVal === 'function' ? getCredsVal('division') : '') || '';
-  var dept = (typeof getCredsVal === 'function' ? getCredsVal('department') : '') || '';
-  var scope = (typeof getCredsVal === 'function' ? getCredsVal('scope') : '') || '';
-  var now = new Date();
-  var dateStr = now.toLocaleDateString('en-US', { weekday:'long', month:'long', day:'numeric', year:'numeric' });
-  var DOW = ['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
-  var rangeLabel = {today:'Today', week:'Last 7 Days', month:'Last 30 Days', all:'All Time', custom:'Custom Range'}[range] || range;
-  var sep = '══════════════════════════════════════════════\n';
-  var thin = '──────────────────────────────────────────────\n';
-
-  var txt = 'STLCityRoute  —  Field Activity Report\n';
-  txt += sep;
-  txt += 'Inspector:    ' + name + '\n';
-  if (title)    txt += 'Title:        ' + title + '\n';
-  if (division) txt += 'Division:     ' + division + '\n';
-  if (dept)     txt += 'Department:   ' + dept + '\n';
-  if (scope)    txt += 'Scope:        ' + scope + '\n';
-  if (email)    txt += 'Email:        ' + email + '\n';
-  if (phone)    txt += 'Phone:        ' + phone + '\n';
-  txt += 'Report Date:  ' + dateStr + '\n';
-  txt += 'Range:        ' + rangeLabel + '\n';
-  txt += sep + '\n';
-
-  // ── FIELD WORKER SECTION ──────────────────────────────
-  txt += '[ FIELD WORKER METRICS ]\n' + thin;
-  txt += 'Stops Completed:     ' + m.completed + ' / ' + m.totalStops + '  (' + m.completionRate + '% close rate)\n';
-  txt += 'Stops Pending:       ' + m.pending + '\n';
-  if (m.stopsPerHour)   txt += 'Avg Stops/Hour:      ' + m.stopsPerHour + '\n';
-  if (m.avgMinsPerStop) txt += 'Avg Min Per Stop:    ' + m.avgMinsPerStop + ' min (median)\n';
-  if (m.returnVisits)   txt += 'Return Visits:       ' + m.returnVisits + ' stops to previously visited addresses\n';
-  txt += 'Stops With Notes:    ' + (m.stopsWithNotes || 0) + '\n';
-  if (m.firstStopTime)  txt += 'First Stop:          ' + m.firstStopTime.toLocaleTimeString('en-US',{hour:'numeric',minute:'2-digit'}) + '\n';
-  if (m.lastStopTime)   txt += 'Last Stop:           ' + m.lastStopTime.toLocaleTimeString('en-US',{hour:'numeric',minute:'2-digit'}) + '\n';
-  if (m.byType && Object.keys(m.byType).length) {
-    txt += 'By Type:\n';
-    Object.entries(m.byType).forEach(function(e){ txt += '  · ' + e[0] + ': ' + e[1].done + ' done / ' + e[1].total + ' total\n'; });
-  }
-  txt += '\n';
-
-  // ── STOP DETAIL LOG ───────────────────────────────────
-  if (m.allStops && m.allStops.length) {
-    txt += '[ STOP LOG ]\n' + thin;
-    txt += 'No.  Status  Time        Address                              Notes\n';
-    txt += '───  ──────  ──────────  ───────────────────────────────────  ─────────────────────\n';
-    m.allStops.forEach(function(s, i) {
-      var status  = s.done ? 'DONE  ' : 'OPEN  ';
-      var timeStr = s.completedAt ? new Date(s.completedAt).toLocaleTimeString('en-US',{hour:'2-digit',minute:'2-digit'}) : (s.addedAt ? new Date(s.addedAt).toLocaleTimeString('en-US',{hour:'2-digit',minute:'2-digit'}) : '—');
-      var addr    = (s.address || '').slice(0, 36).padEnd(36);
-      var notes   = (s.notes || '').replace(/\n/g,' ').slice(0,60);
-      txt += String(i+1).padStart(3) + '  ' + status + '  ' + timeStr.padEnd(10) + '  ' + addr + '  ' + notes + '\n';
-    });
-    txt += '\n';
-  }
-
-  // ── TEAM / MANAGER SECTION ────────────────────────────
-  txt += '[ TEAM & MANAGER METRICS ]\n' + thin;
-  if (m.avgShiftHrs)    txt += 'Avg Shift Length:    ' + m.avgShiftHrs + 'h\n';
-  if (m.overtimeShifts) txt += 'Overtime Shifts:     ' + m.overtimeShifts + ' (>8h worked)\n';
-  var bestDow = m.closeRateByDow ? m.closeRateByDow.reduce(function(b,r,i){ return (r!==null && (b.r===null||r>b.r)) ? {r:r,d:i} : b; },{r:null,d:null}) : {r:null,d:null};
-  if (bestDow.d !== null) txt += 'Best Day of Week:    ' + DOW[bestDow.d] + ' (' + bestDow.r + '% close rate)\n';
-  txt += 'Route Optimizations: ' + (m.optimizeRuns || 0) + '\n';
-  if (m.shiftLog && m.shiftLog.length) {
-    txt += '\nRecent Shift Log (last 10):\n';
-    m.shiftLog.slice(-10).forEach(function(s){
-      var wh = s.workMs ? (s.workMs/3600000).toFixed(2)+'h' : '—';
-      var bh = s.breakMs ? (s.breakMs/3600000).toFixed(2)+'h' : '—';
-      var ot = s.workMs && s.workMs > 8*3600000 ? ' ⚠ OT' : '';
-      txt += '  ' + (s.date||'') + '  Work: ' + wh + '  Break: ' + bh + '  Stops: ' + (s.stopsDone||0) + ot + '\n';
-    });
-  }
-  txt += '\n';
-
-  // ── GEOGRAPHIC / CEO SECTION ──────────────────────────
-  txt += '[ GEOGRAPHIC & EXECUTIVE ]\n' + thin;
-  txt += 'Unique Streets:      ' + (m.uniqueStreets || '—') + '\n';
-  if (m.topStreets && m.topStreets.length) {
-    txt += 'Top Streets:\n';
-    m.topStreets.forEach(function(e){ txt += '  · ' + e[1] + 'x  ' + e[0] + '\n'; });
-  }
-  if (m.byMonth && Object.keys(m.byMonth).length) {
-    txt += 'Monthly Volume (completed stops):\n';
-    Object.entries(m.byMonth).slice(-12).forEach(function(e){ txt += '  · ' + e[0] + ': ' + e[1] + '\n'; });
-  }
-  if (m.returnAddresses && m.returnAddresses.length) {
-    txt += 'Repeat Addresses:\n';
-    m.returnAddresses.slice(0,10).forEach(function(a){ txt += '  · ' + a + '\n'; });
-  }
-  txt += '\n';
-
-  txt += sep;
-  txt += 'Generated: ' + now.toLocaleString('en-US') + '  ·  STLCityRoute (stlcityroute.com)\n';
-  return txt;
-}
-
-function exportDataText() {
-  try {
-    const txt = _buildDataSummaryText();
-    const blob = new Blob([txt], { type: 'text/plain' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url; a.download = 'stlcityroute-summary.txt'; a.click();
-    setTimeout(() => URL.revokeObjectURL(url), 2000);
-    showToast('Text summary downloaded ✓');
-  } catch(e) {
-    navigator.clipboard?.writeText(_buildDataSummaryText()).then(() => showToast('Text copied to clipboard ✓')).catch(() => showToast('Export failed'));
-  }
-}
-
-
-function shareDataNative() {
-  const txt = _buildDataSummaryText();
-  if (navigator.share) {
-    navigator.share({ title: 'STLCityRoute Data', text: txt }).catch(() => {});
-  } else {
-    navigator.clipboard?.writeText(txt).then(() => showToast('Summary copied to clipboard ✓')).catch(() => showToast('Share unavailable'));
-  }
-}
-
-function copyDataToClipboard() {
-  const txt = _buildDataSummaryText();
-  navigator.clipboard?.writeText(txt).then(() => showToast('Data copied to clipboard ✓')).catch(() => {
-    _showDataModal(txt);
-  });
-}
-
-
-function exportDataCSV() {
-  try {
-    var m = computeMetrics(_dataRange);
-    var now = new Date();
-    var _inspName = (typeof getInspectorId==='function'?getInspectorId():'')||'';
-    var rows = ['#,Inspector,Address,Type,Status,AddedAt,CompletedAt,DurationMins,Lat,Lng,Notes'];
-    (m.allStops || []).forEach(function(s, _idx) {
-      var addedDt  = s.addedAt ? new Date(s.addedAt) : new Date(s.id||Date.now());
-      var date = addedDt.toLocaleDateString('en-US');
-      var time = addedDt.toLocaleTimeString('en-US',{hour:'numeric',minute:'2-digit'});
-      var addr = '"' + (s.address||'').replace(/"/g,"'") + '"';
-      var type = (s.type||'other').replace(/_/g,' ');
-      var status = s.done ? 'Completed' : 'Pending';
-      var notes = '"' + ((s.notes||'') + '').replace(/\n/g,' ').replace(/"/g,"'") + '"';
-      var completedAt = s.completedAt ? new Date(s.completedAt).toLocaleString('en-US') : '';
-      var lat = s.lat||''; var lng = s.lng||'';
-      var durMins = (s.completedAt && s.addedAt) ? ((new Date(s.completedAt).getTime()-new Date(s.addedAt).getTime())/60000).toFixed(1) : '';
-      rows.push([_idx+1, '"'+_inspName+'"', addr, type, status, addedDt.toLocaleString('en-US'), completedAt, durMins, lat, lng, notes].join(','));
-    });
-    rows.push('');
-    rows.push('SUMMARY');
-    rows.push('Total Stops,' + m.totalStops);
-    rows.push('Completed,' + m.completed);
-    rows.push('Pending,' + m.pending);
-    rows.push('Completion Rate,' + m.completionRate + '%');
-    if (m.stopsPerHour) rows.push('Stops Per Hour,' + m.stopsPerHour);
-    if (m.avgMinsPerStop) rows.push('Avg Min Per Stop,' + m.avgMinsPerStop);
-    rows.push('Return Visits,' + (m.returnVisits||0));
-    rows.push('Stops With Notes,' + (m.stopsWithNotes||0));
-    rows.push('Unique Streets,' + (m.uniqueStreets||0));
-    if (m.avgShiftHrs) rows.push('Avg Shift Hours,' + m.avgShiftHrs);
-    if (m.overtimeShifts) rows.push('Overtime Shifts,' + m.overtimeShifts);
-    if (m.firstStopTime) rows.push('First Stop,' + m.firstStopTime.toLocaleTimeString('en-US',{hour:'numeric',minute:'2-digit'}));
-    if (m.lastStopTime)  rows.push('Last Stop,'  + m.lastStopTime.toLocaleTimeString('en-US',{hour:'numeric',minute:'2-digit'}));
-    rows.push('Generated,' + now.toLocaleString('en-US'));
-    rows.push('');
-    rows.push('SHIFT LOG');
-    rows.push('Date,Clock In,Clock Out,Work Hours,Break Hours,Stops Done');
-    (m.shiftLog||[]).slice(-30).forEach(function(s){
-      var wh = s.workMs ? (s.workMs/3600000).toFixed(2) : '—';
-      var bh = s.breakMs ? (s.breakMs/3600000).toFixed(2) : '0';
-      rows.push([s.date, s.clockIn ? new Date(s.clockIn).toLocaleTimeString('en-US',{hour:'numeric',minute:'2-digit'}) : '—', s.clockOut ? new Date(s.clockOut).toLocaleTimeString('en-US',{hour:'numeric',minute:'2-digit'}) : '—', wh, bh, s.stopsDone||0].join(','));
-    });
-
-    // Transactions (within same range)
-    try {
-      var allTxns = loadTransactions();
-      var rangeTxns = allTxns.filter(function(t){ return _txnInRange(t, _dataRange); });
-      if (rangeTxns.length) {
-        rows.push('');
-        rows.push('TRANSACTIONS');
-        rows.push('Timestamp,Amount,Via,Stop Address,Note');
-        rangeTxns.slice().sort(function(a,b){ return new Date(a.timestamp).getTime()-new Date(b.timestamp).getTime(); }).forEach(function(t){
-          rows.push([
-            new Date(t.timestamp).toLocaleString('en-US'),
-            Number(t.amount).toFixed(2),
-            '"' + (t.via||'').replace(/"/g,"'") + '"',
-            '"' + (t.stopAddress||'').replace(/"/g,"'") + '"',
-            '"' + (t.note||'').replace(/"/g,"'").replace(/\n/g,' ') + '"'
-          ].join(','));
-        });
-        var txnTotal = rangeTxns.reduce(function(s,t){ return s + (Number(t.amount)||0); }, 0);
-        rows.push('Transactions Total,$' + txnTotal.toFixed(2));
-        rows.push('Transactions Count,' + rangeTxns.length);
-      }
-    } catch(_tErr) {}
-    var csv = rows.join('\n');
-    var filename = 'CityRoute_' + now.toISOString().slice(0,10) + '.csv';
-    // Try download → clipboard → show in modal
-    var downloaded = false;
-    try {
-      var blob = new Blob([csv], {type:'text/csv'});
-      var url = URL.createObjectURL(blob);
-      var a = document.createElement('a');
-      a.href = url; a.download = filename; a.style.display = 'none';
-      document.body.appendChild(a);
-      a.click();
-      setTimeout(function(){ URL.revokeObjectURL(url); document.body.removeChild(a); }, 2000);
-      downloaded = true;
-      showToast('CSV downloaded: ' + filename + ' ✓');
-    } catch(e2) {}
-    if (!downloaded) {
-      // Clipboard fallback
-      if (navigator.clipboard && navigator.clipboard.writeText) {
-        navigator.clipboard.writeText(csv).then(function(){
-          showToast('CSV copied to clipboard ✓ — paste into a spreadsheet or email');
-        }).catch(function(){ _showDataModal(csv); });
-      } else {
-        _showDataModal(csv);
-      }
-    }
-  } catch(e) {
-    showToast('Export error: ' + e.message);
-    console.error('exportDataCSV error:', e);
-  }
-}
 
 function _showDataModal(text) {
   // Show data in a scrollable modal for manual copy
@@ -31440,65 +31401,6 @@ function _showDataModal(text) {
   modal.appendChild(inner);
   document.body.appendChild(modal);
   setTimeout(function(){ ta.select(); }, 100);
-}
-
-// ── Share: text summary ───────────────────────────────────────────────────────
-function shareDataSummary(opts) {
-  opts = opts || {};
-  try {
-    var m = computeMetrics(_dataRange);
-    var now = new Date();
-    var inspName = LS.get('inspector-name') || LS.get('creds-id-name') || '';
-    var credsTitle = LS.get('creds-title') || '';
-
-    // Compose a title that reflects the cadence + scope
-    var cadence = opts.cadence;
-    var titleSuffix = '';
-    if (cadence === 'weekly') titleSuffix = ' (last 7 days)';
-    else if (cadence === 'monthly') titleSuffix = ' (last 30 days)';
-    else if (_dataRange === 'week') titleSuffix = ' (last 7 days)';
-    else if (_dataRange === 'month') titleSuffix = ' (last 30 days)';
-    else if (_dataRange === 'all') titleSuffix = ' (all time)';
-
-    var lines = ['=== STLCityRoute Field Summary' + titleSuffix + ' ==='];
-    lines.push(now.toLocaleDateString('en-US',{weekday:'long',month:'long',day:'numeric',year:'numeric'}));
-    if (inspName) lines.push(inspName + (credsTitle ? ', ' + credsTitle : ''));
-    lines.push('');
-    lines.push('Stops: ' + m.completed + ' completed / ' + m.pending + ' remaining (' + m.totalStops + ' total)');
-    lines.push('Close rate: ' + m.completionRate + '%');
-    if (m.stopsPerHour) lines.push('Pace: ' + m.stopsPerHour + ' stops/hr');
-    lines.push('');
-    var typeLabels = {service_request:'Service Requests',work_order:'Work Orders',inspection:'Inspections',other:'Other'};
-    Object.keys(m.byType || {}).forEach(function(k) {
-      var v = m.byType[k];
-      lines.push((typeLabels[k]||k) + ': ' + v.done + '/' + v.total + ' completed');
-    });
-    lines.push('');
-    lines.push('Generated by STLCityRoute');
-    var text = lines.join('\n');
-    var shareTitle = 'STLCityRoute Summary' + titleSuffix;
-    // Try native share → clipboard → modal
-    if (navigator.share) {
-      navigator.share({title: shareTitle, text: text}).catch(function(e) {
-        if (e.name !== 'AbortError') { _copyOrModal(text); }
-      });
-    } else {
-      _copyOrModal(text);
-    }
-  } catch(e) {
-    showToast('Share error: ' + e.message);
-    console.error('shareDataSummary error:', e);
-  }
-}
-
-function _copyOrModal(text) {
-  if (navigator.clipboard && navigator.clipboard.writeText) {
-    navigator.clipboard.writeText(text).then(function(){
-      showToast('Summary copied to clipboard ✓');
-    }).catch(function(){ _showDataModal(text); });
-  } else {
-    _showDataModal(text);
-  }
 }
 
 // ── Clear history ─────────────────────────────────────────────────────────────
@@ -31905,38 +31807,6 @@ function wizSaveRole() {
   </div>
 </div>
 
-<div id="area-period-report-modal" class="modal-overlay" style="display:none;z-index:9765" role="dialog" aria-modal="true" aria-labelledby="area-period-report-modal-title" data-backdrop-close data-fn="closeAreaPeriodReportModal">
-  <div class="modal-sheet" style="padding-bottom:24px;background:white;max-height:92dvh;overflow-y:auto">
-    <div class="modal-handle"></div>
-    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px">
-      <div id="area-period-report-modal-title" style="font-family:'Syne',sans-serif;font-weight:800;font-size:0.95rem;color:#444">📍 Area Report</div>
-      <button data-fn="closeAreaPeriodReportModal" style="background:none;border:none;font-size:1.4rem;color:#aaa;cursor:pointer;padding:0 4px;line-height:1">✕</button>
-    </div>
-    <div id="area-report-period-note" style="font-family:'Space Mono',monospace;font-size:0.58rem;color:#666;margin-bottom:10px;line-height:1.5">
-      <!-- filled by _renderAreaPeriodReportModal() with the active Period Reports selection -->
-    </div>
-
-    <!-- Area type pills -->
-    <div style="display:flex;gap:4px;margin-bottom:8px;flex-wrap:wrap">
-      <button data-fn="setAreaReportType" data-arg="ward" id="area-report-type-ward" class="period-kind-btn active-period">Ward</button>
-      <button data-fn="setAreaReportType" data-arg="neighborhood" id="area-report-type-neighborhood" class="period-kind-btn">Neighborhood</button>
-      <button data-fn="setAreaReportType" data-arg="policeDistrict" id="area-report-type-policeDistrict" class="period-kind-btn">Police</button>
-    </div>
-
-    <!-- My Neighborhoods shortlist — only shown for areaType=neighborhood -->
-    <div id="area-report-shortlist-row" style="display:none;flex-wrap:wrap;gap:5px;margin-bottom:8px"></div>
-
-    <!-- Area name picker — repopulated per area type -->
-    <div id="area-report-name-picker" style="margin-bottom:6px"></div>
-    <button data-fn="toggleAreaReportShortlistCurrent" id="area-report-shortlist-toggle" style="display:none;width:100%;padding:6px;margin-bottom:10px;background:none;border:1px dashed #bbb;color:#888;border-radius:6px;font-family:'Space Mono',monospace;font-size:0.56rem;cursor:pointer">☆ Save to My Neighborhoods</button>
-
-    <div id="area-report-preview" style="margin-top:6px"><!-- filled by renderAreaPeriodReport() --></div>
-
-    <div style="margin-top:14px;padding-top:10px;border-top:1px dashed #ddd">
-      <button data-fn="downloadAreaReportExportJSON" style="width:100%;padding:8px;background:none;border:1px solid #ccc;color:#555;border-radius:7px;font-family:'Space Mono',monospace;font-size:0.56rem;cursor:pointer">📤 Export JSON for report-generator (this period, all areas)</button>
-    </div>
-  </div>
-</div>
 
 <!-- ===== CUSTOM LAYER CREATOR MODAL ===== -->
 <div id="custom-layer-creator-modal" class="modal-overlay" style="display:none;z-index:9800" role="dialog" aria-modal="true" aria-labelledby="custom-layer-creator-modal-title" data-backdrop-close data-fn="closeCustomLayerCreator">
