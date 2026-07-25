@@ -2258,11 +2258,15 @@ header{
 <!-- ===== MAP SCREEN ===== -->
 <div class="screen" id="screen-map">
   <!--
-    Toolbar: four image buttons in a flex row, each with the branded
-    artwork as the button face (no surrounding chrome). The image fills
-    the button via background-image / background-size:100% 100%, the same
-    pattern used by the route tab's optimize/reset/navigate trio. Heights
-    match what looks right at the icon's natural ~2.18:1 aspect ratio.
+    Toolbar: five buttons in a flex row. Four are baked-artwork image
+    buttons (background-image fills the button, no surrounding chrome) —
+    the same pattern used by the route tab's optimize/reset/navigate
+    trio. The fifth (Survey) has no baked asset of its own, so it's an
+    emoji glyph on a plain background instead — it tints blue when a
+    survey is active (_renderMapSurveyButton, called alongside the other
+    survey status renders in _renderSurveyStrip) as its only state
+    indicator, since there's no room at 38px tall for the Route tab
+    button's live "neighborhood · elapsed" text face.
 
     Order (left → right):
       [optimize] - state-cycles through optimize → pinging-gps → optimizing
@@ -2273,6 +2277,9 @@ header{
       [refresh]  - re-fetches built-in layer features and redraws map
       [layers]   - opens map layers panel (built-in + custom toggles, plus
                    GIS link inside the panel)
+      [survey]   - opens the same Survey Mode modal as the Route tab's
+                   button (btn-survey-mode) — one survey, reachable from
+                   either tab, not two separate flows to keep in sync
   -->
   <div style="display:flex;gap:5px;margin-bottom:6px;align-items:stretch;height:38px">
     <button data-fn="optimizeRoute" id="map-btn-optimize" title="Optimize route order"
@@ -2283,6 +2290,8 @@ header{
       style="flex:1;min-width:0;border:none;background:transparent 100% 100% no-repeat;background-size:100% 100%;padding:0;cursor:pointer" aria-label="Refresh map"></button>
     <button id="map-btn-layers" data-fn="openMapLayersPanel" title="Show or hide map layers — built-in datasets and custom address lists"
       style="flex:1;min-width:0;border:none;background:transparent 100% 100% no-repeat;background-size:100% 100%;padding:0;cursor:pointer" aria-label="Map layers"></button>
+    <button id="map-btn-survey" data-fn="openSurveyModeModal" title="Survey Mode" aria-label="Survey Mode"
+      style="flex:1;min-width:0;border:none;background:transparent;border-radius:8px;padding:0;cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:1.25rem;line-height:1">🧭</button>
   </div>
   <div id="map-gps-status" style="display:none;font-size:0.62rem;color:var(--warn);font-family:'Syne',sans-serif;font-weight:700;margin-bottom:7px;text-align:center">📡 Getting location…</div>
   <div id="visual-route-map"></div>
@@ -2443,39 +2452,6 @@ header{
       <!-- Filled by renderDataTab() -->
     </div>
 
-    <!-- Today's activity timeline -->
-    <div style="background:white;border-radius:10px;padding:12px 14px;margin:0 2px 8px;box-shadow:0 1px 4px rgba(0,0,0,0.08)" id="data-timeline-wrap">
-      <div style="font-family:'Syne',sans-serif;font-weight:800;font-size:0.68rem;color:var(--forest);margin-bottom:8px">📍 Stop Activity</div>
-      <div id="data-timeline" style="font-family:'Space Mono',monospace;font-size:0.6rem;color:#666;line-height:1.8">
-        <!-- Filled by renderDataTab() -->
-      </div>
-    </div>
-
-    <!-- Stop type breakdown -->
-    <div style="background:white;border-radius:10px;padding:12px 14px;margin:0 2px 8px;box-shadow:0 1px 4px rgba(0,0,0,0.08)">
-      <div style="font-family:'Syne',sans-serif;font-weight:800;font-size:0.68rem;color:var(--forest);margin-bottom:8px">📋 By Stop Type</div>
-      <div id="data-by-type" style="font-family:'Space Mono',monospace;font-size:0.62rem;color:#555">
-        <!-- Filled by renderDataTab() -->
-      </div>
-    </div>
-
-    <!-- Transactions ledger -->
-    <div style="background:white;border-radius:10px;padding:12px 14px;margin:0 2px 8px;box-shadow:0 1px 4px rgba(0,0,0,0.08)">
-      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">
-        <div style="font-family:'Syne',sans-serif;font-weight:800;font-size:0.68rem;color:#1b5e20">💰 Transactions</div>
-        <div style="display:flex;gap:6px">
-          <button onclick="openPaymentModal(null)" style="background:#e8f8ec;border:1px solid #bcd6bf;border-radius:6px;padding:4px 8px;font-family:Syne,sans-serif;font-weight:700;font-size:0.5rem;color:#1b5e20;cursor:pointer">➕ LOG</button>
-          <button data-fn="exportTransactionsCSV" style="background:#e8f4fd;border:1px solid #9cbbd4;border-radius:6px;padding:4px 8px;font-family:Syne,sans-serif;font-weight:700;font-size:0.5rem;color:#1a5276;cursor:pointer">📥 CSV</button>
-        </div>
-      </div>
-      <div id="data-transactions-summary" style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:6px;margin-bottom:10px">
-        <!-- Filled by renderTransactionsPanel() -->
-      </div>
-      <div id="data-transactions-list" style="font-family:'Space Mono',monospace;font-size:0.6rem;color:#555;max-height:240px;overflow-y:auto">
-        <!-- Filled by renderTransactionsPanel() -->
-      </div>
-    </div>
-
     <!-- Period Reports — Drop AP.5b (2026-05-09). Replaces the old
          Session Log panel. Lets the user pick a period kind (Day / Week /
          Month / Year) and an anchor date; renders a full report with KPIs,
@@ -2565,6 +2541,33 @@ header{
         <!-- Filled by renderDataTab() -->
       </div>
     </div>
+
+    <!-- Transactions ledger — 2026-07-25: re-added as a collapsible panel,
+         collapsed by default, deliberately last on the page. It was
+         removed outright on 2026-07-24 (Silly's request at the time);
+         this brings it back per a follow-up request, but this time out of
+         the way unless actually opened. Reuses the .settings-panel
+         details/summary styling already established in the Settings modal
+         (chevron, rounded card) rather than inventing a second collapse
+         pattern — same visual language, different screen. The Payment
+         System itself (openPaymentModal, reached from the Info tab tile
+         and the per-stop "Pay" dropdown action) was never touched by any
+         of this; this panel is just a view onto the same ledger. -->
+    <details class="settings-panel" style="margin:0 2px 8px">
+      <summary>💰 Transactions</summary>
+      <div class="settings-panel-body">
+        <div style="display:flex;align-items:center;justify-content:flex-end;gap:6px;margin-bottom:8px">
+          <button onclick="openPaymentModal(null)" style="background:#e8f8ec;border:1px solid #bcd6bf;border-radius:6px;padding:4px 8px;font-family:Syne,sans-serif;font-weight:700;font-size:0.5rem;color:#1b5e20;cursor:pointer">➕ LOG</button>
+          <button data-fn="exportTransactionsCSV" style="background:#e8f4fd;border:1px solid #9cbbd4;border-radius:6px;padding:4px 8px;font-family:Syne,sans-serif;font-weight:700;font-size:0.5rem;color:#1a5276;cursor:pointer">📥 CSV</button>
+        </div>
+        <div id="data-transactions-summary" style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:6px;margin-bottom:10px">
+          <!-- Filled by renderTransactionsPanel() -->
+        </div>
+        <div id="data-transactions-list" style="font-family:'Space Mono',monospace;font-size:0.6rem;color:#555;max-height:240px;overflow-y:auto">
+          <!-- Filled by renderTransactionsPanel() -->
+        </div>
+      </div>
+    </details>
 
   </div>
   <a class="tab-footer-link" href="https://www.stlouis-mo.gov/government/departments/personnel/jobs/openings/index.cfm" target="_blank" rel="noopener">St. Louis City Employment Opportunities ↗</a>
@@ -6556,13 +6559,27 @@ function switchTab(name) {
       if ((_mapNeedsRefresh || !window._routeMap) && !_mapRefreshInProgress) {
         _mapNeedsRefresh = false;
         await refreshRouteMap();
-      } else {
-        // Clear any stale GPS marker — only fresh pings via GPS button should show it
-        if (mapGPSMarker && routeMap) {
-          routeMap.removeLayer(mapGPSMarker);
-          mapGPSMarker = null;
-        }
       }
+      // 2026-07-24: get a GPS fix on every Map tab arrival instead of just
+      // clearing the stale marker. Two paths depending on whether a survey
+      // is actively tracking:
+      //  - Survey active + we already have a live-tracked fix: plot it
+      //    immediately and recenter once. Calling pingGPSOnMap() here too
+      //    would be redundant (tracking is already live) and disruptive —
+      //    plotLocation's side effects (re-anchor the route origin,
+      //    refreshRouteMap) would fire on every single glance back at the
+      //    Map tab mid-survey, fighting the freeform-navigation use case.
+      //  - No survey active (or survey just started, no fix yet): fall
+      //    back to the normal one-shot ping pipeline, same as before.
+      try {
+        var _surveyActiveOnArrival = (typeof SurveySession !== 'undefined') && SurveySession.getActive();
+        if (_surveyActiveOnArrival && _surveyLiveLastPos) {
+          _updateLiveSurveyMarker(_surveyLiveLastPos.lat, _surveyLiveLastPos.lng);
+          if (routeMap) routeMap.setView([_surveyLiveLastPos.lat, _surveyLiveLastPos.lng], routeMap.getZoom() || 15, { animate: false });
+        } else if (typeof pingGPSOnMap === 'function' && !window._gpsPingInProgress) {
+          pingGPSOnMap();
+        }
+      } catch(_e) {}
       try { if (typeof _redrawBreadcrumbLayer === 'function') _redrawBreadcrumbLayer(); } catch(_e) {}
       try { if (typeof _redrawPhotoTrackerLayer === 'function') _redrawPhotoTrackerLayer(); } catch(_e) {}
       try { if (typeof SurveySession !== 'undefined' && SurveySession.getActive() && typeof _fitMapToActiveSurveyArea === 'function') _fitMapToActiveSurveyArea(); } catch(_e) {}
@@ -12941,6 +12958,33 @@ function closeGPSHelp() {
 
 let mapGPSMarker = null;
 
+// Live "you are here" marker driven by the survey GPS watch (see
+// _startBreadcrumbWatch further down) — deliberately separate from
+// pingGPSOnMap's plotLocation below. plotLocation is a one-shot,
+// user-triggered action that recenters the map, updates the route's
+// manual origin, and re-runs refreshRouteMap. Doing any of that on every
+// watchPosition tick while driving would fight the person's own
+// panning/zooming and needlessly re-run route optimization each time —
+// this one only moves a dot. Shares the same mapGPSMarker variable/icon
+// footprint so there's always exactly one "you are here" indicator,
+// whichever path last updated it; a flag on the marker itself
+// distinguishes "move the existing live dot" from "a one-shot ping just
+// replaced it" so the two paths don't fight over the same object.
+var _surveyLiveMarkerColor = '#c0392b'; // distinct from the one-shot ping's blue (#2980b9) — a glance tells you live tracking vs a manual ping
+var _surveyLiveLastPos = null; // {lat,lng,ts} — read by switchTab('map') to show the current position immediately on arrival instead of waiting on a fresh ping
+function _updateLiveSurveyMarker(lat, lng) {
+  if (typeof routeMap === 'undefined' || !routeMap || typeof L === 'undefined') return;
+  if (mapGPSMarker && mapGPSMarker._isLiveSurveyMarker) {
+    mapGPSMarker.setLatLng([lat, lng]);
+  } else {
+    if (mapGPSMarker) { try { routeMap.removeLayer(mapGPSMarker); } catch(_e) {} }
+    var youIcon = L.divIcon({className:'',html:'<div style="background:'+_surveyLiveMarkerColor+';border:3px solid white;border-radius:50%;width:18px;height:18px;box-shadow:0 0 0 4px '+_surveyLiveMarkerColor+'55"></div>',iconSize:[18,18],iconAnchor:[9,9]});
+    mapGPSMarker = L.marker([lat, lng], { icon: youIcon }).addTo(routeMap).bindPopup('<b>📍 Live position (Survey)</b>');
+    mapGPSMarker._isLiveSurveyMarker = true;
+  }
+}
+window._updateLiveSurveyMarker = _updateLiveSurveyMarker;
+
 // Set the map-tab GPS button face. Mirrors the optimize button pattern:
 //   'idle'    → GPS_ICON_URI (default, ready to be tapped)
 //   'pinging' → PINGING_GPS_ICON_URI (location lookup in progress)
@@ -18781,13 +18825,57 @@ var SurveySession = (function() {
   // sessions saved before this change keep working exactly as before.
   var AREA_TYPES = ['neighborhood', 'ward', 'policeDistrict'];
 
+  // 2026-07-24: a session can now cover MULTIPLE areas at once (any mix of
+  // types) or the whole city, not just one. Rather than reshape the
+  // session object — which would mean updating every existing caller that
+  // reads .neighborhoodName/.areaType as a simple display string (the
+  // route-tab button, the strip, the panel, AreaPeriodReport's session
+  // matching, CoverageReport, …) — a session keeps those exact fields as
+  // a DERIVED summary (see _applyDisplayFields) and adds a new .areas
+  // array (list of {areaType, areaNum, areaName}) plus .isCity alongside
+  // them. Anything that just wants a label to show keeps working
+  // unmodified; anything that needs the actual list of areas (map
+  // masking/boundary lookup) reads .areas directly.
+  function _normalizeAreaEntry(a) {
+    if (!a || !a.areaName) return null;
+    var type = (AREA_TYPES.indexOf(a.areaType) !== -1) ? a.areaType : 'neighborhood';
+    return { areaType: type, areaNum: (a.areaNum != null && isFinite(a.areaNum)) ? a.areaNum : null, areaName: a.areaName };
+  }
+
+  function _applyDisplayFields(session) {
+    if (session.isCity) {
+      session.neighborhoodName = 'Entire City';
+      session.areaType = 'city';
+      session.neighborhoodNum = null;
+    } else if (session.areas.length === 1) {
+      session.neighborhoodName = session.areas[0].areaName;
+      session.areaType = session.areas[0].areaType;
+      session.neighborhoodNum = session.areas[0].areaNum;
+    } else {
+      var names = session.areas.map(function(a) { return a.areaName; });
+      var preview = names.slice(0, 2).join(', ') + (names.length > 2 ? ', +' + (names.length - 2) + ' more' : '');
+      session.neighborhoodName = names.length + ' areas (' + preview + ')';
+      session.areaType = 'multi';
+      session.neighborhoodNum = null;
+    }
+  }
+
   function _readActive() {
     try {
       var raw = LS.get('survey-active');
       if (!raw) return null;
       var obj = JSON.parse(raw);
       if (!obj || !obj.neighborhoodName) return null;
-      if (AREA_TYPES.indexOf(obj.areaType) === -1) obj.areaType = 'neighborhood';
+      if (AREA_TYPES.indexOf(obj.areaType) === -1 && obj.areaType !== 'multi' && obj.areaType !== 'city') obj.areaType = 'neighborhood';
+      // Normalize pre-multi-area sessions (anything saved before this
+      // drop, or built via the legacy 3-arg start() below) into the new
+      // shape so every consumer can rely on .areas/.isCity always being
+      // present without its own migration-aware branch.
+      if (!Array.isArray(obj.areas)) {
+        if (obj.areaType === 'city') { obj.isCity = true; obj.areas = []; }
+        else { obj.isCity = false; obj.areas = [{ areaType: obj.areaType, areaNum: (obj.neighborhoodNum != null ? obj.neighborhoodNum : null), areaName: obj.neighborhoodName }]; }
+      }
+      if (obj.isCity == null) obj.isCity = (obj.areaType === 'city');
       return obj;
     } catch(_e) { return null; }
   }
@@ -18809,6 +18897,8 @@ var SurveySession = (function() {
       neighborhoodNum: session.neighborhoodNum,
       neighborhoodName: session.neighborhoodName,
       areaType: session.areaType || 'neighborhood',
+      areas: session.areas || null,
+      isCity: !!session.isCity,
       startedAt: session.startedAt,
       endedAt: new Date().toISOString()
     });
@@ -18818,18 +18908,39 @@ var SurveySession = (function() {
   // Starts a new session, closing/logging any prior active session first
   // (only one active session at a time — switching areas automatically
   // ends the old one rather than requiring an explicit End first).
-  // areaType: 'neighborhood' (default), 'ward', or 'policeDistrict'.
-  function start(areaType, areaNum, areaName) {
-    if (!areaName) return null;
-    if (AREA_TYPES.indexOf(areaType) === -1) areaType = 'neighborhood';
+  //
+  // Two call shapes:
+  //   start(areaType, areaNum, areaName)  — legacy, single area. Every
+  //     caller from before 2026-07-24 keeps working exactly as before.
+  //   start(areasArray)                   — new: an array of
+  //     {areaType, areaNum, areaName} objects for a multi-area survey, or
+  //     [{areaType:'city'}] as the Entire-City sentinel.
+  // Detecting which shape by whether the first argument is an array, so
+  // no existing single-area call site needs to change.
+  function start(areaTypeOrAreas, areaNum, areaName) {
+    var areas, isCity = false;
+    if (Array.isArray(areaTypeOrAreas)) {
+      if (areaTypeOrAreas.length === 1 && areaTypeOrAreas[0] && areaTypeOrAreas[0].areaType === 'city') {
+        isCity = true;
+        areas = [];
+      } else {
+        areas = areaTypeOrAreas.map(_normalizeAreaEntry).filter(Boolean);
+      }
+    } else {
+      var single = _normalizeAreaEntry({ areaType: areaTypeOrAreas, areaNum: areaNum, areaName: areaName });
+      if (!single) return null;
+      areas = [single];
+    }
+    if (!isCity && !areas.length) return null;
+
     var prior = _readActive();
     if (prior) _closeAndLog(prior);
     var session = {
-      neighborhoodNum: (areaNum != null && isFinite(areaNum)) ? areaNum : null,
-      neighborhoodName: areaName,
-      areaType: areaType,
+      areas: areas,
+      isCity: isCity,
       startedAt: new Date().toISOString()
     };
+    _applyDisplayFields(session);
     _writeActive(session);
     return session;
   }
@@ -18847,7 +18958,12 @@ var SurveySession = (function() {
   // Logged sessions for one area, most recent first. Matched by name AND
   // type together — without the type, a ward and a neighborhood that
   // happened to share a display name would bleed into each other's
-  // session history.
+  // session history. Multi-area/city sessions are logged with their own
+  // derived summary name/type ('multi'/'city') so they never collide with
+  // a real single area's history — a known, acceptable limitation is that
+  // a multi-area session covering (say) Ward 5 doesn't count toward Ward
+  // 5's own single-area session history here; its breadcrumb points still
+  // show up in Ward 5 reports via AreaPeriodReport's geographic clipping.
   function getLogFor(areaName, areaType) {
     if (!areaName) return [];
     if (AREA_TYPES.indexOf(areaType) === -1) areaType = 'neighborhood';
@@ -18858,16 +18974,37 @@ var SurveySession = (function() {
 
   function getAllLog() { return _readLog(); }
 
-  // Composite storage-key string for a session (or session-shaped object
-  // — anything with .neighborhoodName/.areaType), e.g.
-  // 'neighborhood:Franz Park' or 'ward:Ward 5'. This is what
-  // SurveyCoverage/breadcrumb/checklist storage actually key off of, NOT
-  // the bare display name — see SurveyCoverage's module comment for the
-  // backward-compat read fallback this enables.
+  // Composite storage-key string for a session, e.g. 'neighborhood:Franz
+  // Park' or 'ward:Ward 5' for a single-area session — or 'session:<ISO
+  // startedAt>' for a multi-area/Entire-City session, so its whole trail
+  // is recorded once as one continuous key rather than duplicated into N
+  // per-area keys. This is what SurveyCoverage's breadcrumb storage keys
+  // off of, NOT the bare display name — see SurveyCoverage's module
+  // comment for the backward-compat read fallback this enables. Every
+  // storage/report function that already calls SurveyCoverage with this
+  // key is untouched by the multi-area change — the key is just a string,
+  // and getAllTrails()/report clipping already work off any
+  // 'survey-breadcrumb:*' key by prefix.
+  //
+  // Also accepts legacy plain-shape objects ({neighborhoodName, areaType},
+  // no .areas/.isCity) — several callers (AreaPeriodReport's own
+  // session-count matcher, CoverageReport) build these ad-hoc to ask "the
+  // key for THIS specific single area," not necessarily the active
+  // session, and always get the classic single-area key.
   function areaKey(session) {
-    if (!session || !session.neighborhoodName) return null;
-    var type = (AREA_TYPES.indexOf(session.areaType) !== -1) ? session.areaType : 'neighborhood';
-    return type + ':' + session.neighborhoodName;
+    if (!session) return null;
+    if (!session.areas && !session.isCity) {
+      if (!session.neighborhoodName) return null;
+      var type0 = (AREA_TYPES.indexOf(session.areaType) !== -1) ? session.areaType : 'neighborhood';
+      return type0 + ':' + session.neighborhoodName;
+    }
+    if (session.isCity || (session.areas && session.areas.length > 1)) {
+      return session.startedAt ? ('session:' + session.startedAt) : null;
+    }
+    if (session.areas && session.areas.length === 1) {
+      return session.areas[0].areaType + ':' + session.areas[0].areaName;
+    }
+    return null;
   }
 
   return {
@@ -18999,20 +19136,38 @@ function _showSurveyPickerLoadError(sel) {
 window._showSurveyPickerLoadError = _showSurveyPickerLoadError;
 
 function startSurveyFromPicker() {
-  var sel = document.getElementById('survey-area-select');
-  if (!sel || !sel.value) { showToast('Pick an area first'); return; }
-  var opt = sel.options[sel.selectedIndex];
-  var name = opt.dataset.name || opt.textContent;
-  var num = sel.value ? parseInt(sel.value, 10) : null;
-  var type = _surveyPickerAreaType;
+  var areas;
+  if (_surveyPickerCityMode) {
+    areas = [{ areaType: 'city' }];
+  } else {
+    areas = _surveyPickerStaged.slice();
+    // The one-tap flow: whatever's currently sitting in the dropdown
+    // counts too, even if the person never tapped + Add — that's what
+    // keeps a single-area survey a single pick-and-go action exactly like
+    // before this drop, rather than requiring an extra "Add" tap every
+    // single time.
+    var sel = document.getElementById('survey-area-select');
+    if (sel && sel.value) {
+      var opt = sel.options[sel.selectedIndex];
+      var name = opt.dataset.name || opt.textContent;
+      var num = sel.value ? parseInt(sel.value, 10) : null;
+      var type = _surveyPickerAreaType;
+      var alreadyStaged = areas.some(function(a) { return a.areaType === type && a.areaName === name; });
+      if (!alreadyStaged) areas.push({ areaType: type, areaNum: (isFinite(num) ? num : null), areaName: name });
+    }
+    if (!areas.length) { showToast('Pick an area first'); return; }
+  }
   // 2026-07-18 fix: state mutation and re-render are unconditionally
   // paired via try/finally — see endActiveSurvey below for why. Same
   // class of bug could hide here (start "succeeds" in storage but the
   // strip never appears if e.g. _startBreadcrumbWatch throws), so it
   // gets the same treatment even though it wasn't the one reported.
   try {
-    SurveySession.start(type, num, name);
-    try { _recordRecentSurveyArea(type, num, name); } catch(_e) {}
+    var session = SurveySession.start(areas);
+    if (!session) { showToast('Pick an area first'); return; }
+    try {
+      (session.areas || []).forEach(function(a) { _recordRecentSurveyArea(a.areaType, a.areaNum, a.areaName); });
+    } catch(_e) {}
     // Fresh session starts with tracking un-paused, regardless of how a
     // prior session was left — otherwise a forgotten pause silently
     // carries over and the next day's survey collects no trail at all.
@@ -19020,7 +19175,7 @@ function startSurveyFromPicker() {
     try { LS.set('survey-resume-prompt-pending', '0'); } catch(_e) {}
     try { _hideSurveyResumeOverlay(); } catch(_e) {}
     try { _startBreadcrumbWatch(); } catch(_e) {}
-    try { showToast('🧭 Survey started: ' + name); } catch(_e) {}
+    try { showToast('🧭 Survey started: ' + session.neighborhoodName); } catch(_e) {}
     // New: fit the map to this area's boundary + gray-mask everything
     // outside it, as soon as a survey starts (not just on manual refresh).
     try { _fitMapToActiveSurveyArea(); } catch(_e) {}
@@ -19029,11 +19184,46 @@ function startSurveyFromPicker() {
     // comes in, which can be a while, making it look like the highlight
     // "didn't persist" even though it's sitting right there in storage.
     try { _redrawBreadcrumbLayer(); } catch(_e) {}
+    // Reset staging for next time — a fresh picker open shouldn't
+    // silently carry over whatever was staged for a previous session.
+    _surveyPickerStaged = [];
+    _surveyPickerCityMode = false;
   } finally {
     _renderSurveyPanel();
     _renderSurveyStrip();
   }
 }
+
+// Adds the area currently sitting in the dropdown to the staging list for
+// a multi-area survey, without starting anything yet. Deduped by
+// type+name — tapping + Add twice on the same pick is a harmless no-op,
+// not a duplicate chip.
+function addSurveyAreaToStaging() {
+  var sel = document.getElementById('survey-area-select');
+  var opt = sel && sel.options[sel.selectedIndex];
+  if (!opt || !opt.value) { showToast('Pick an area first'); return; }
+  var name = opt.dataset.name || opt.textContent;
+  var num = sel.value ? parseInt(sel.value, 10) : null;
+  var type = _surveyPickerAreaType;
+  var exists = _surveyPickerStaged.some(function(a) { return a.areaType === type && a.areaName === name; });
+  if (!exists) _surveyPickerStaged.push({ areaType: type, areaNum: (isFinite(num) ? num : null), areaName: name });
+  _renderSurveyPanel();
+}
+window.addSurveyAreaToStaging = addSurveyAreaToStaging;
+
+function removeSurveyAreaFromStaging(idx) {
+  var i = Number(idx); // data-arg always delivers a string
+  if (!isFinite(i)) return;
+  _surveyPickerStaged.splice(i, 1);
+  _renderSurveyPanel();
+}
+window.removeSurveyAreaFromStaging = removeSurveyAreaFromStaging;
+
+function toggleSurveyCityMode() {
+  _surveyPickerCityMode = !_surveyPickerCityMode;
+  _renderSurveyPanel();
+}
+window.toggleSurveyCityMode = toggleSurveyCityMode;
 
 // Ending a survey isn't destructive — the session gets logged either way,
 // and starting a new one for the same neighborhood is always available —
@@ -19081,6 +19271,16 @@ function endActiveSurvey() {
     _surveyAreaOutlineLayer = null;
     _currentSurveyAreaRings = null;
     _currentSurveyAreaRingsKey = null;
+    // Live tracking marker is scoped to an active survey too — once ended,
+    // there's no more "live" fix to show (a fresh one-shot ping on next
+    // Map tab visit will draw an ordinary GPS marker instead).
+    try {
+      if (typeof routeMap !== 'undefined' && routeMap && mapGPSMarker && mapGPSMarker._isLiveSurveyMarker) {
+        routeMap.removeLayer(mapGPSMarker);
+        mapGPSMarker = null;
+      }
+    } catch(_e) {}
+    _surveyLiveLastPos = null;
     try { showToast('🧭 Survey ended: ' + active.neighborhoodName); } catch(_e) {}
   } finally {
     _renderSurveyPanel();
@@ -19096,7 +19296,14 @@ function endActiveSurvey() {
 // remembering the last choice across app sessions — deliberately simple;
 // the type selector is one tap either way.
 var _surveyPickerAreaType = 'neighborhood';
-var AREA_TYPE_LABELS = { neighborhood: 'Neighborhood', ward: 'Ward', policeDistrict: 'Police District' };
+// 2026-07-24: areas the person has explicitly "+ Add"-ed for a multi-area
+// survey, plus the Entire-City toggle. Both reset to empty/false right
+// after a survey actually starts (see startSurveyFromPicker) — carrying
+// stale staged picks into the NEXT time the picker opens would be
+// confusing, not helpful.
+var _surveyPickerStaged = [];
+var _surveyPickerCityMode = false;
+var AREA_TYPE_LABELS = { neighborhood: 'Neighborhood', ward: 'Ward', policeDistrict: 'Police District', multi: 'Multi-Area', city: 'City-Wide' };
 
 // 2026-07-23: remembers the last 6 distinct areas started per area type
 // (neighborhood/ward/policeDistrict tracked separately — the picker is
@@ -19137,9 +19344,21 @@ function _renderSurveyPanel() {
   var el = document.getElementById('survey-panel-body');
   if (!el) return;
   var active = SurveySession.getActive();
+  var breadcrumbEnabled = _isBreadcrumbTrailEnabled();
+  var breadcrumbToggleHtml =
+    '<div style="background:#f4f0ff;border:1.5px solid #d8cdf0;border-radius:9px;padding:10px 12px;margin-bottom:10px;display:flex;align-items:center;gap:8px">' +
+      '<span style="flex:1;font-family:\'Space Mono\',monospace;font-size:0.58rem;color:#5b3a9c">🗺️ Breadcrumb trail: <b>' + (breadcrumbEnabled ? 'ON' : 'OFF') + '</b></span>' +
+      '<button data-fn="toggleBreadcrumbTrailEnabled" style="flex-shrink:0;padding:6px 10px;background:white;border:1.5px solid #b8a4e0;color:#5b3a9c;border-radius:6px;font-family:Syne,sans-serif;font-weight:800;font-size:0.58rem;cursor:pointer">' + (breadcrumbEnabled ? 'Turn Off' : 'Turn On') + '</button>' +
+    '</div>';
   if (active) {
     var areaKeyStr = SurveySession.areaKey(active);
-    var pastCount = SurveySession.getLogFor(active.neighborhoodName, active.areaType).length;
+    // Prior-session count only means something for a genuine single area —
+    // 'multi'/'city' summary names ("3 areas (…)", "Entire City") were
+    // never a real area on their own, so getLogFor would just come back
+    // empty (harmless) or, worse, coincidentally collide with something.
+    // Skip the lookup entirely rather than rely on that coincidence.
+    var pastCount = (active.areaType === 'multi' || active.areaType === 'city') ? 0 :
+      SurveySession.getLogFor(active.neighborhoodName, active.areaType).length;
     var trailLen = (typeof SurveyCoverage !== 'undefined') ? SurveyCoverage.getBreadcrumb(areaKeyStr).length : 0;
     var paused = _isSurveyTrackingPaused();
     var typeLabel = AREA_TYPE_LABELS[active.areaType] || 'Neighborhood';
@@ -19156,8 +19375,9 @@ function _renderSurveyPanel() {
         '</span>' +
         '<button data-fn="toggleSurveyTracking" style="flex-shrink:0;padding:6px 10px;background:white;border:1.5px solid #e8c878;color:#7a5000;border-radius:6px;font-family:Syne,sans-serif;font-weight:800;font-size:0.58rem;cursor:pointer">' + (paused ? '▶ Resume' : '⏸ Pause') + '</button>' +
       '</div>' +
+      breadcrumbToggleHtml +
       '<div style="background:#fafafa;border:1.5px solid #e5e7eb;border-radius:9px;padding:10px 12px;display:flex;align-items:center;gap:8px">' +
-        '<span style="flex:1;font-family:\'Space Mono\',monospace;font-size:0.56rem;color:#666">🗺️ ' + trailLen + ' point' + (trailLen===1?'':'s') + ' highlighted on the map for this area — persists across sessions until cleared.</span>' +
+        '<span style="flex:1;font-family:\'Space Mono\',monospace;font-size:0.56rem;color:#666">🗺️ ' + trailLen + ' point' + (trailLen===1?'':'s') + ' recorded' + (breadcrumbEnabled ? ' — persists across sessions until cleared.' : ' — trail display is currently off.') + '</span>' +
         '<button data-fn="clearSurveyPathUI" style="flex-shrink:0;padding:6px 10px;background:white;border:1.5px solid #c0392b;color:#c0392b;border-radius:6px;font-family:Syne,sans-serif;font-weight:800;font-size:0.56rem;cursor:pointer;white-space:nowrap">🧹 Clear Path</button>' +
       '</div>';
   } else {
@@ -19165,13 +19385,36 @@ function _renderSurveyPanel() {
       var isSel = t === _surveyPickerAreaType;
       return '<button data-fn="setSurveyAreaTypeUI" data-arg="' + t + '" style="flex:1;padding:8px 4px;background:' + (isSel ? '#1a4a9c' : '#fff') + ';color:' + (isSel ? '#fff' : '#444') + ';border:1.5px solid #1a4a9c;border-radius:6px;font-family:Syne,sans-serif;font-weight:800;font-size:0.56rem;cursor:pointer">' + escHtml(AREA_TYPE_LABELS[t]) + '</button>';
     }).join('');
+    // 2026-07-24: multi-area staging. Picking one area and tapping "Start
+    // Survey" straight away still works exactly like before this drop —
+    // startSurveyFromPicker() folds the current dropdown value in even if
+    // nothing was ever explicitly "+ Add"-ed. Tapping + Add first lets you
+    // stage several areas (any mix of types) before starting. Entire City
+    // is a separate toggle that bypasses picking individual areas.
+    var stagedChipsHtml = _surveyPickerStaged.length ?
+      '<div style="display:flex;flex-wrap:wrap;gap:5px;margin-bottom:8px">' +
+        _surveyPickerStaged.map(function(a, i) {
+          return '<span style="display:inline-flex;align-items:center;gap:5px;padding:4px 9px;background:#eef6ff;border:1px solid #b3d9f5;border-radius:12px;font-family:\'Space Mono\',monospace;font-size:0.56rem;color:#1a4a8c">' +
+            escHtml(a.areaName) +
+            '<button data-fn="removeSurveyAreaFromStaging" data-arg="' + i + '" title="Remove" style="border:none;background:none;color:#c0392b;font-weight:800;cursor:pointer;padding:0;line-height:1;font-size:0.68rem">✕</button>' +
+          '</span>';
+        }).join('') +
+      '</div>' : '';
     el.innerHTML =
-      '<div style="background:#fafafa;border:1.5px solid #e5e7eb;border-radius:9px;padding:10px 12px">' +
-        '<div style="display:flex;gap:5px;margin-bottom:8px">' + typeButtonsHtml + '</div>' +
-        '<select id="survey-area-select" style="width:100%;padding:8px;border:1px solid #ddd;border-radius:7px;font-family:\'Space Mono\',monospace;font-size:0.62rem;margin-bottom:8px;background:white"><option value="">Pick a ' + escHtml(AREA_TYPE_LABELS[_surveyPickerAreaType].toLowerCase()) + '…</option></select>' +
-        '<button data-fn="startSurveyFromPicker" style="width:100%;padding:9px;background:linear-gradient(135deg,#1a4a9c,#2563eb);color:white;border:none;border-radius:7px;font-family:Syne,sans-serif;font-weight:800;font-size:0.62rem;cursor:pointer">▶ Start Survey</button>' +
-      '</div>';
-    _populateSurveyAreaPicker();
+      breadcrumbToggleHtml +
+      '<button data-fn="toggleSurveyCityMode" style="width:100%;padding:9px;margin-bottom:10px;background:' + (_surveyPickerCityMode ? 'linear-gradient(135deg,#1a4a9c,#2563eb)' : '#fff') + ';color:' + (_surveyPickerCityMode ? '#fff' : '#1a4a9c') + ';border:1.5px solid #1a4a9c;border-radius:7px;font-family:Syne,sans-serif;font-weight:800;font-size:0.64rem;cursor:pointer">' + (_surveyPickerCityMode ? '✓ 🌆 Surveying Entire City' : '🌆 Survey Entire City') + '</button>' +
+      (!_surveyPickerCityMode ?
+        '<div style="background:#fafafa;border:1.5px solid #e5e7eb;border-radius:9px;padding:10px 12px">' +
+          '<div style="display:flex;gap:5px;margin-bottom:8px">' + typeButtonsHtml + '</div>' +
+          '<div style="display:flex;gap:6px;margin-bottom:8px">' +
+            '<select id="survey-area-select" style="flex:1;min-width:0;padding:8px;border:1px solid #ddd;border-radius:7px;font-family:\'Space Mono\',monospace;font-size:0.62rem;background:white"><option value="">Pick a ' + escHtml(AREA_TYPE_LABELS[_surveyPickerAreaType].toLowerCase()) + '…</option></select>' +
+            '<button data-fn="addSurveyAreaToStaging" title="Add another area to this survey" style="flex-shrink:0;padding:8px 12px;background:#fff;border:1.5px solid #1a4a9c;color:#1a4a9c;border-radius:7px;font-family:Syne,sans-serif;font-weight:800;font-size:0.62rem;cursor:pointer">+ Add</button>' +
+          '</div>' +
+          stagedChipsHtml +
+          (_surveyPickerStaged.length ? '<div style="font-family:\'Space Mono\',monospace;font-size:0.54rem;color:#888;margin-bottom:2px">Surveying ' + _surveyPickerStaged.length + ' area' + (_surveyPickerStaged.length===1?'':'s') + ' so far — pick another and tap + Add, or start now.</div>' : '') +
+        '</div>' : '') +
+      '<button data-fn="startSurveyFromPicker" style="width:100%;margin-top:10px;padding:9px;background:linear-gradient(135deg,#1a4a9c,#2563eb);color:white;border:none;border-radius:7px;font-family:Syne,sans-serif;font-weight:800;font-size:0.62rem;cursor:pointer">▶ Start Survey</button>';
+    if (!_surveyPickerCityMode) _populateSurveyAreaPicker();
   }
   // Report button is independent of active/inactive state — reachable any
   // time there's at least one area with logged history, since a past
@@ -19237,7 +19480,24 @@ function _renderSurveyStrip() {
   // strip above, so folded into the same render call rather than requiring
   // every call site to remember to update both independently.
   try { _renderSurveyRouteButton(); } catch(_e) {}
+  try { _renderMapSurveyButton(); } catch(_e) {}
 }
+
+// Map tab's compact Survey button — same modal/flow as the Route tab's
+// btn-survey-mode, just no room at 38px tall for that button's live
+// "neighborhood · elapsed" text face. Tints blue when a survey is active
+// as its only state indicator.
+function _renderMapSurveyButton() {
+  var btn = document.getElementById('map-btn-survey');
+  if (!btn) return;
+  var active = null;
+  try { active = SurveySession.getActive(); } catch(_e) {}
+  btn.style.background = active ? '#0137A3' : 'transparent';
+  var label = active ? ('Survey Mode — surveying ' + active.neighborhoodName) : 'Survey Mode';
+  btn.title = label;
+  btn.setAttribute('aria-label', label);
+}
+window._renderMapSurveyButton = _renderMapSurveyButton;
 
 // 2026-07-18: the Route-tab button that used to be "Navigate Route" is now
 // the Survey Mode entry point (btn-survey-mode / survey-route-btn-content).
@@ -19465,11 +19725,42 @@ window.SurveyCoverage = SurveyCoverage;
 // else in the file uses one-shot getCurrentPosition, so battery/lifecycle
 // discipline here matters more than usual: watch is cleared on End Survey,
 // on pause, and there is no "leave it running forever" path.
+//
+// 2026-07-24: the breadcrumb TRAIL itself (recording + the persistent
+// highlighted polyline) is now a separate, independently toggleable
+// feature (LS 'survey-breadcrumb-enabled', default ON so nobody's
+// existing behavior changes silently) from the watch/pause mechanism
+// above. Turning it off does NOT stop the watch or the live "you are
+// here" dot (_updateLiveSurveyMarker) — that's a distinct feature people
+// may still want (freeform navigation) even if they don't want a
+// persistent trail drawn/recorded. Pausing tracking (toggleSurveyTracking)
+// stops everything, including the live dot, since it stops the watch
+// itself; disabling the breadcrumb trail is narrower.
 var _surveyWatchId = null;
 
 function _isSurveyTrackingPaused() {
   try { return LS.get('survey-tracking-paused') === '1'; } catch(_e) { return false; }
 }
+
+function _isBreadcrumbTrailEnabled() {
+  try { return LS.get('survey-breadcrumb-enabled') !== '0'; } catch(_e) { return true; }
+}
+
+// Flips the breadcrumb trail feature on/off. Turning it off clears the
+// drawn highlight layer from the map immediately (not just stops adding
+// new points) — off should mean "no trail visible," not "trail frozen in
+// place." The underlying stored points are untouched either way; this is
+// a recording/display toggle, not a delete (clearSurveyPathUI is the
+// delete). Turning it back on redraws whatever's already stored,
+// including anything recorded before it was last turned off.
+function toggleBreadcrumbTrailEnabled() {
+  var enabled = _isBreadcrumbTrailEnabled();
+  try { LS.set('survey-breadcrumb-enabled', enabled ? '0' : '1'); } catch(_e) {}
+  showToast(enabled ? '🗺️ Breadcrumb trail off' : '🗺️ Breadcrumb trail on');
+  try { _redrawBreadcrumbLayer(); } catch(_e) {}
+  _renderSurveyPanel();
+}
+window.toggleBreadcrumbTrailEnabled = toggleBreadcrumbTrailEnabled;
 
 function _startBreadcrumbWatch() {
   if (_surveyWatchId != null) return; // already watching
@@ -19480,8 +19771,25 @@ function _startBreadcrumbWatch() {
     function(pos) {
       var cur = SurveySession.getActive();
       if (!cur) { _stopBreadcrumbWatch(); return; } // session ended mid-flight
-      var added = SurveyCoverage.addBreadcrumbPoint(SurveySession.areaKey(cur), pos.coords.latitude, pos.coords.longitude);
-      if (added) _redrawBreadcrumbLayer();
+      var lat = pos.coords.latitude, lng = pos.coords.longitude;
+      // 2026-07-24: this watch drives the live "you are here" dot
+      // (_updateLiveSurveyMarker, a separate lightweight path from the
+      // one-shot ping's plotLocation — see that function's own comment
+      // for why) unconditionally — that's what makes the map usable as a
+      // freeform navigation aid while driving, and it isn't gated by the
+      // breadcrumb trail toggle below. It also remembers the fix in
+      // _surveyLiveLastPos so switching back to the Map tab mid-survey
+      // shows the current position immediately rather than waiting on a
+      // fresh lookup.
+      _surveyLiveLastPos = { lat: lat, lng: lng, ts: Date.now() };
+      try { _updateLiveSurveyMarker(lat, lng); } catch(_e) {}
+      // Recording into the persistent breadcrumb trail is the part that's
+      // toggleable — skip it entirely while the feature is off, rather
+      // than recording silently in the background with nothing shown.
+      if (_isBreadcrumbTrailEnabled()) {
+        var added = SurveyCoverage.addBreadcrumbPoint(SurveySession.areaKey(cur), lat, lng);
+        if (added) _redrawBreadcrumbLayer();
+      }
     },
     function(_err) { /* silent — GPS drop-outs are routine in the field, no need to toast every one */ },
     { enableHighAccuracy: true, maximumAge: 10000, timeout: 20000 }
@@ -19634,6 +19942,10 @@ function _redrawBreadcrumbLayer() {
     _surveyBreadcrumbLayers.forEach(function(layer) { try { routeMap.removeLayer(layer); } catch(_e) {} });
     _surveyBreadcrumbLayers = [];
   }
+  // Breadcrumb trail is off — the layer's already cleared above, so
+  // there's nothing more to do. Stored trail data is untouched; turning
+  // this back on will pick it right back up.
+  if (!_isBreadcrumbTrailEnabled()) return;
   var active = SurveySession.getActive();
   if (!active) return;
   var areaKeyStr = SurveySession.areaKey(active);
@@ -19751,44 +20063,59 @@ function _geoJsonPolygonRingsLatLng(geom) {
   return rings;
 }
 
-// Finds the GeoJSON feature matching the active survey's area (by type +
-// name) from whichever GeoCache collection that type uses. Returns null
-// (not a thrown error) if offline with nothing cached yet, or if the name
-// doesn't match anything — callers treat that as "skip the visual, the
-// survey itself still works fine."
-async function _findActiveSurveyAreaFeature() {
-  var active = SurveySession.getActive();
-  if (!active || typeof GeoCache === 'undefined') return null;
+// Finds the GeoJSON feature for ONE area (by type + name) from whichever
+// GeoCache collection that type uses. Returns null (not a thrown error)
+// if offline with nothing cached yet, or if the name doesn't match
+// anything — callers treat that as "skip this area's boundary, the rest
+// still work fine."
+async function _findSurveyAreaFeature(area) {
+  if (!area || typeof GeoCache === 'undefined') return null;
   try {
-    if (active.areaType === 'ward') {
+    if (area.areaType === 'ward') {
       var fcW = await GeoCache.getWards();
       if (!fcW || !Array.isArray(fcW.features)) return null;
       return fcW.features.find(function(f) {
-        return typeof MapLayers !== 'undefined' && MapLayers.wardLabelFromProps(f.properties || {}) === active.neighborhoodName;
+        return typeof MapLayers !== 'undefined' && MapLayers.wardLabelFromProps(f.properties || {}) === area.areaName;
       }) || null;
     }
-    if (active.areaType === 'policeDistrict') {
+    if (area.areaType === 'policeDistrict') {
       var fcP = await GeoCache.getPoliceDistricts();
       if (!fcP || !Array.isArray(fcP.features)) return null;
       return fcP.features.find(function(f) {
-        return typeof MapLayers !== 'undefined' && MapLayers.policeDistrictLabelFromProps(f.properties || {}) === active.neighborhoodName;
+        return typeof MapLayers !== 'undefined' && MapLayers.policeDistrictLabelFromProps(f.properties || {}) === area.areaName;
       }) || null;
     }
     var fcN = await GeoCache.getNeighborhoods();
     if (!fcN || !Array.isArray(fcN.features)) return null;
     return fcN.features.find(function(f) {
-      return f.properties && f.properties.NHD_NAME === active.neighborhoodName;
+      return f.properties && f.properties.NHD_NAME === area.areaName;
     }) || null;
   } catch(_e) { return null; }
 }
 
-// Fits routeMap to the active survey area's boundary and draws a gray
-// mask over everything outside it. Always clears any prior mask/outline
-// first, whether or not a new one gets drawn — covers "survey just
-// ended," "switched to a different area," and "boundary lookup failed
-// this time" all in one place, so a stale mask never lingers. No-op
-// (after clearing) if no survey is active, the map isn't ready yet, or
-// the area's polygon can't be found.
+// Resolves boundary features for EVERY area in the active survey session
+// at once (Promise.all — independent lookups, no reason to serialize
+// them). An Entire-City session has no individual areas to resolve and
+// always returns [] — callers treat that the same as "no boundary
+// available," which is exactly right: nothing to mask, the whole city is
+// in scope.
+async function _findActiveSurveyAreaFeatures() {
+  var active = SurveySession.getActive();
+  if (!active || active.isCity || !active.areas || !active.areas.length) return [];
+  try {
+    var results = await Promise.all(active.areas.map(_findSurveyAreaFeature));
+    return results.filter(Boolean);
+  } catch(_e) { return []; }
+}
+
+// Fits routeMap to the active survey's boundary/boundaries and draws a
+// gray mask over everything outside them. Always clears any prior
+// mask/outline first, whether or not a new one gets drawn — covers
+// "survey just ended," "areas changed," and "boundary lookup failed this
+// time" all in one place, so a stale mask never lingers. No-op (after
+// clearing) if no survey is active, the map isn't ready yet, the survey
+// is Entire-City (nothing to mask), or none of the areas' polygons can
+// be found.
 async function _fitMapToActiveSurveyArea() {
   if (typeof routeMap === 'undefined' || !routeMap || typeof L === 'undefined') return;
   if (_surveyAreaMaskLayer) { try { routeMap.removeLayer(_surveyAreaMaskLayer); } catch(_e) {} _surveyAreaMaskLayer = null; }
@@ -19796,16 +20123,30 @@ async function _fitMapToActiveSurveyArea() {
   var active = SurveySession.getActive();
   if (!active) { _currentSurveyAreaRings = null; _currentSurveyAreaRingsKey = null; return; }
   var _preAwaitAreaKey = SurveySession.areaKey(active);
-  var feature = await _findActiveSurveyAreaFeature();
-  if (!feature || !feature.geometry) return;
-  // Recheck after the await: the survey may have ended or switched areas
-  // while _findActiveSurveyAreaFeature() was in flight. If so, bail out
-  // without drawing — otherwise this stale lookup redraws the gray mask
-  // (or the wrong area's mask) after the session already moved on.
+
+  // Entire-City: no boundary to mask against, everywhere is in scope.
+  // Still clear the ring cache so the breadcrumb layer stops clipping
+  // against whatever a PRIOR (single-area) survey's boundary was.
+  if (active.isCity) {
+    _currentSurveyAreaRings = null;
+    _currentSurveyAreaRingsKey = _preAwaitAreaKey;
+    try { _redrawBreadcrumbLayer(); } catch(_e) {}
+    return;
+  }
+
+  var features = await _findActiveSurveyAreaFeatures();
+  // Recheck after the await: the survey may have ended or its area(s)
+  // changed while the lookups were in flight. If so, bail out without
+  // drawing — otherwise this stale lookup redraws the gray mask (or the
+  // wrong area's mask) after the session already moved on.
   var _postAwaitActive = SurveySession.getActive();
   if (!_postAwaitActive || SurveySession.areaKey(_postAwaitActive) !== _preAwaitAreaKey) return;
+  if (!features.length) return;
 
-  var rings = _geoJsonPolygonRingsLatLng(feature.geometry);
+  var rings = [];
+  features.forEach(function(f) {
+    if (f && f.geometry) rings = rings.concat(_geoJsonPolygonRingsLatLng(f.geometry));
+  });
   if (!rings.length) return;
 
   // Cache the rings for the breadcrumb-clipping logic above, then
@@ -19813,14 +20154,18 @@ async function _fitMapToActiveSurveyArea() {
   // covers the case where the trail rendered once already (e.g. right at
   // survey start) before this async lookup resolved.
   _currentSurveyAreaRings = rings;
-  _currentSurveyAreaRingsKey = SurveySession.areaKey(active);
+  _currentSurveyAreaRingsKey = _preAwaitAreaKey;
   try { _redrawBreadcrumbLayer(); } catch(_e) {}
 
   // Gray mask: a giant rectangle covering the whole visible world with
-  // the area's ring(s) cut out as holes — Leaflet polygons support
-  // [outerRing, ...holes], so a world rectangle as the outer ring plus
-  // the area boundary as a "hole" punches a see-through window over
-  // exactly the surveyed area.
+  // EVERY selected area's ring(s) cut out as holes — Leaflet polygons
+  // support [outerRing, ...holes], and multiple holes in the same outer
+  // ring is natively supported, so concatenating every area's rings after
+  // the world ring punches a see-through window over all of them at once
+  // (single area or many, identically). The outline layer below draws
+  // with fillOpacity:0, so the same "extra rings = holes" convention
+  // draws every ring's boundary regardless — there's no fill for a hole
+  // to perforate, so single- vs. multi-area needs no special-casing here.
   var worldRing = [[-89.9,-179.9],[-89.9,179.9],[89.9,179.9],[89.9,-179.9]];
   var maskRings = [worldRing].concat(rings);
   try {
@@ -25340,6 +25685,17 @@ window.emailDebrief        = emailDebrief;
 var _ASK_DATA_LOOKBACK_DAYS = 90;
 var _ASK_DATA_STOP_CAP = 500;
 var _ASK_DATA_NOTES_TRUNC = 300;
+// 2026-07-25: caps for the additional data domains folded into the
+// snapshot below (photo tracker, survey sessions, transactions, shift
+// log) — same spirit as _ASK_DATA_STOP_CAP, keeping the payload bounded
+// regardless of how much history has accumulated. All share the same
+// _ASK_DATA_LOOKBACK_DAYS window as stops, for one consistent "how far
+// back does Ask Your Data see" answer rather than a different cutoff per
+// domain.
+var _ASK_DATA_PHOTO_LOCATION_CAP = 300;
+var _ASK_DATA_SURVEY_SESSION_CAP = 100;
+var _ASK_DATA_TXN_CAP = 300;
+var _ASK_DATA_SHIFT_CAP = 120;
 
 // ── Persistent Ask Your Data conversation store ─────────────────────────
 // MODULE: AskDataStore — persistent conversation history for Ask Your Data
@@ -25841,11 +26197,14 @@ function _updateAskDataSummary() {
   var line = document.getElementById('ask-data-summary-line');
   if (!line) return;
   var snapshot = _buildAskDataSnapshot();
-  var note = snapshot.totalCount + ' stop' + (snapshot.totalCount === 1 ? '' : 's') +
-    ' visible (last ' + _ASK_DATA_LOOKBACK_DAYS + ' days)';
-  if (snapshot.truncated) {
-    note += ' · truncated to ' + _ASK_DATA_STOP_CAP;
-  }
+  var note = snapshot.totalCount + ' stop' + (snapshot.totalCount === 1 ? '' : 's');
+  if (snapshot.truncated) note += ' (truncated to ' + _ASK_DATA_STOP_CAP + ')';
+  var extras = [];
+  if (snapshot.photoTracker.locations.length) extras.push(snapshot.photoTracker.locations.length + ' photo location' + (snapshot.photoTracker.locations.length === 1 ? '' : 's'));
+  if (snapshot.transactions.length) extras.push(snapshot.transactions.length + ' transaction' + (snapshot.transactions.length === 1 ? '' : 's'));
+  if (snapshot.survey.recentSessions.length || snapshot.survey.active) extras.push('survey history');
+  if (snapshot.shiftLog.length) extras.push(snapshot.shiftLog.length + ' shift' + (snapshot.shiftLog.length === 1 ? '' : 's'));
+  note += ' · ' + (extras.length ? extras.join(' · ') + ' · ' : '') + 'last ' + _ASK_DATA_LOOKBACK_DAYS + ' days';
   line.textContent = note;
 }
 
@@ -25895,6 +26254,9 @@ function _buildAskDataSnapshot() {
       type: s.type,
       neighborhood: s.neighborhood || null,
       ward: s.ward != null ? s.ward : null,
+      policeDistrict: s.policeDistrict || null,
+      lat: (typeof s.lat === 'number') ? s.lat : null,
+      lng: (typeof s.lng === 'number') ? s.lng : null,
       done: !!s.done,
       followup: !!s.followup,
       addedAt: s.addedAt || null,
@@ -25905,31 +26267,195 @@ function _buildAskDataSnapshot() {
     };
   });
 
+  // 2026-07-25: everything below this point is new — the snapshot used to
+  // be stops-only. Each domain gets the SAME cutoff/window as stops
+  // (_ASK_DATA_LOOKBACK_DAYS) so there's one consistent answer to "how far
+  // back can I ask about," and each is capped independently so one
+  // very-active domain (e.g. a long photo tracker history) can't crowd out
+  // the others in the payload. None of this touches how any of these
+  // modules store their own data — it's read-only summarization for the AI,
+  // same pattern as the stops slimming above.
+
+  // Current route order — the actual sequence stops are arranged in right
+  // now (post-optimization or manual reorder), not derivable from the stop
+  // objects themselves since order isn't a per-stop field.
+  var currentRouteOrder = [];
+  try { if (Array.isArray(routeOrder)) currentRouteOrder = routeOrder.slice(); } catch(_e) {}
+
+  // Photo Tracker (PhotoStamp-driven chronic activity) locations. Never
+  // dumps individual photo records — just counts/case-type tallies/date
+  // range per location within the lookback window, which is what's
+  // actually answerable in a text conversation. Locations with zero
+  // activity in the window are skipped entirely rather than listed as
+  // all-zero noise.
+  var photoTrackerLocations = [];
+  var photoTrackerTruncated = false;
+  try {
+    if (typeof PhotoTrackerIndex !== 'undefined') {
+      var allLocs = PhotoTrackerIndex.getAll();
+      photoTrackerTruncated = allLocs.length > _ASK_DATA_PHOTO_LOCATION_CAP;
+      allLocs.slice(0, _ASK_DATA_PHOTO_LOCATION_CAP).forEach(function(loc) {
+        var photosInWindow = (loc.photos || []).filter(function(p) {
+          var pt = p && p.ts ? new Date(p.ts).getTime() : NaN;
+          return isFinite(pt) && pt >= cutoff;
+        });
+        if (!photosInWindow.length) return;
+        var caseTally = {};
+        photosInWindow.forEach(function(p) {
+          var ct = (p && p.caseType) || 'unspecified';
+          caseTally[ct] = (caseTally[ct] || 0) + 1;
+        });
+        photoTrackerLocations.push({
+          key: loc.key,
+          address: loc.address || loc.displayLabel || null,
+          lat: (loc.gps && typeof loc.gps.lat === 'number') ? loc.gps.lat : null,
+          lng: (loc.gps && typeof loc.gps.lng === 'number') ? loc.gps.lng : null,
+          neighborhood: loc.neighborhoodName || null,
+          ward: loc.ward != null ? loc.ward : null,
+          policeDistrict: loc.policeDistrict || null,
+          photoCountInWindow: photosInWindow.length,
+          totalPhotosEver: (loc.photos || []).length,
+          caseTypeBreakdown: caseTally,
+          firstPhotoInWindow: photosInWindow[0].ts,
+          lastPhotoInWindow: photosInWindow[photosInWindow.length - 1].ts
+        });
+      });
+    }
+  } catch(_e) {}
+
+  // Survey Mode — the currently active session (if any) and the recent
+  // session history. Breadcrumb GPS trails are summarized as a point
+  // count, never as raw coordinate arrays (meaningless in a text
+  // conversation and would dominate the payload for a long-running
+  // survey).
+  var surveyActive = null;
+  var surveySessions = [];
+  try {
+    if (typeof SurveySession !== 'undefined') {
+      var act = SurveySession.getActive();
+      if (act) {
+        var activeKey = SurveySession.areaKey(act);
+        surveyActive = {
+          areaType: act.areaType,
+          name: act.neighborhoodName,
+          isCity: !!act.isCity,
+          areaCount: (act.areas || []).length,
+          startedAt: act.startedAt,
+          breadcrumbPointCount: (typeof SurveyCoverage !== 'undefined' && activeKey) ? SurveyCoverage.getBreadcrumb(activeKey).length : null
+        };
+      }
+      var recentSessions = SurveySession.getAllLog().filter(function(sess) {
+        var st = sess.startedAt ? new Date(sess.startedAt).getTime() : 0;
+        return st >= cutoff;
+      });
+      surveySessions = recentSessions.slice(-_ASK_DATA_SURVEY_SESSION_CAP).reverse().map(function(sess) {
+        var durMin = (sess.startedAt && sess.endedAt) ?
+          Math.round((new Date(sess.endedAt).getTime() - new Date(sess.startedAt).getTime()) / 60000) : null;
+        return {
+          areaType: sess.areaType, name: sess.neighborhoodName, isCity: !!sess.isCity,
+          startedAt: sess.startedAt, endedAt: sess.endedAt || null, durationMinutes: durMin
+        };
+      });
+    }
+  } catch(_e) {}
+
+  // Transactions (Payment System ledger) within the lookback window.
+  var transactionsInWindow = [];
+  try {
+    if (typeof loadTransactions === 'function') {
+      var allTxns = loadTransactions().filter(function(txn) {
+        var tt = txn && txn.timestamp ? new Date(txn.timestamp).getTime() : NaN;
+        return isFinite(tt) && tt >= cutoff;
+      });
+      transactionsInWindow = allTxns.slice(-_ASK_DATA_TXN_CAP).map(function(txn) {
+        return {
+          timestamp: txn.timestamp, amount: txn.amount, via: txn.via,
+          note: (txn.note || '').slice(0, 150),
+          stopId: (txn.stopId != null) ? txn.stopId : null,
+          stopAddress: txn.stopAddress || null
+        };
+      });
+    }
+  } catch(_e) {}
+
+  // Custom stop types — small, included in full (not just referenced by
+  // id) so the AI can interpret a `type` value it doesn't recognize from
+  // the four built-ins.
+  var stopTypes = [];
+  try {
+    if (typeof getAllStopTypes === 'function') {
+      stopTypes = getAllStopTypes().map(function(ty) { return { id: ty.id, label: ty.label }; });
+    }
+  } catch(_e) {}
+
+  // Shift log (clock in/out records) within the lookback window. Distinct
+  // from stop timestamps — this is dedicated shift-boundary data (work
+  // time, break time) that isn't derivable from the stop list alone.
+  var shiftLogEntries = [];
+  try {
+    var sl = safeParseLS('shift-log', []);
+    shiftLogEntries = (Array.isArray(sl) ? sl : []).filter(function(sh) {
+      var ct = sh && sh.clockIn ? new Date(sh.clockIn).getTime() : NaN;
+      return isFinite(ct) && ct >= cutoff;
+    }).slice(-_ASK_DATA_SHIFT_CAP).map(function(sh) {
+      return {
+        date: sh.date || null, clockIn: sh.clockIn || null, clockOut: sh.clockOut || null,
+        workMs: sh.workMs || 0, breakMs: sh.breakMs || 0,
+        stopsDone: sh.stopsDone || 0, avgDwellMs: (sh.avgDwellMs != null) ? sh.avgDwellMs : null
+      };
+    });
+  } catch(_e) {}
+
   return {
     totalCount: unique.length,
     rawPoolCount: pool.length,
     truncated: truncated,
-    stops: slim
+    stops: slim,
+    currentRouteOrder: currentRouteOrder,
+    photoTracker: { locations: photoTrackerLocations, truncated: photoTrackerTruncated },
+    survey: { active: surveyActive, recentSessions: surveySessions },
+    transactions: transactionsInWindow,
+    stopTypes: stopTypes,
+    shiftLog: shiftLogEntries
   };
 }
 
 // Schema doc the AI sees — describes each field's meaning so the model
-// understands how to query the snapshot.
+// understands how to query the snapshot. Kept in lockstep with
+// _buildAskDataSnapshot's actual shape above — if a field gets added or
+// renamed there, update the matching line here in the same edit.
 var _ASK_DATA_SCHEMA = (
-  "Each stop is an object with these fields:\n" +
+  "The snapshot has these top-level sections: stops, currentRouteOrder, photoTracker, survey, transactions, stopTypes, shiftLog.\n\n" +
+  "stops — array. Each stop:\n" +
   "  id: numeric identifier\n" +
   "  address: street address (no city/state)\n" +
-  "  type: one of 'inspection' | 'service_request' | 'work_order' | 'other'\n" +
+  "  type: one of 'inspection' | 'service_request' | 'work_order' | 'other', or a custom type id — see stopTypes for labels\n" +
   "  neighborhood: St. Louis neighborhood name, or null if not yet geocoded\n" +
   "  ward: city ward number (1-28), or null\n" +
+  "  policeDistrict: police district, or null\n" +
+  "  lat/lng: GPS coordinates, or null if never geocoded\n" +
   "  done: true if the stop was completed/closed; false if still pending\n" +
   "  followup: true if flagged for follow-up\n" +
   "  addedAt: ISO timestamp the stop was added to the route\n" +
   "  completedAt: ISO timestamp it was closed (null if still open)\n" +
   "  arrivedAt: ISO timestamp the inspector marked themselves on-site (null if never)\n" +
   "  notes: free-text completion / observation notes from the inspector\n" +
-  "  followupReason: optional reason text when followup=true"
+  "  followupReason: optional reason text when followup=true\n\n" +
+  "currentRouteOrder — array of stop ids in the CURRENT route sequence (the actual order they'd be visited in right now), not necessarily every stop in `stops`.\n\n" +
+  "photoTracker.locations — array, one entry per address/location with PhotoStamp activity in the current window (locations with none are omitted). Each:\n" +
+  "  address, lat/lng, neighborhood, ward, policeDistrict\n" +
+  "  photoCountInWindow: photos taken at this location within the window\n" +
+  "  totalPhotosEver: all-time count at this location, not window-limited\n" +
+  "  caseTypeBreakdown: object mapping case type -> count, within the window\n" +
+  "  firstPhotoInWindow / lastPhotoInWindow: ISO timestamps\n" +
+  "photoTracker.truncated: true if there were more locations than fit in this snapshot.\n\n" +
+  "survey.active — the currently running Survey Mode session, or null if none: {areaType, name, isCity, areaCount, startedAt, breadcrumbPointCount}. areaType is 'neighborhood'|'ward'|'policeDistrict'|'multi'|'city'; when 'multi' or 'city', `name` is a human summary like \"3 areas (...)\" or \"Entire City\" and areaCount tells you how many real areas it covers (0 for city-wide).\n" +
+  "survey.recentSessions — array of past sessions in the window, most recent first: {areaType, name, isCity, startedAt, endedAt, durationMinutes}.\n\n" +
+  "transactions — array of Payment System ledger entries in the window: {timestamp, amount, via, note, stopId, stopAddress}. `via` is the payment method as entered (cash, check, etc — free text).\n\n" +
+  "stopTypes — array of {id, label} for every stop type that exists, built-in and custom — use this to translate a stop's `type` id into a human label.\n\n" +
+  "shiftLog — array of clock in/out records in the window: {date, clockIn, clockOut, workMs, breakMs, stopsDone, avgDwellMs}. workMs/breakMs/avgDwellMs are milliseconds."
 );
+
 
 async function submitAskDataQuestion() {
   // In-flight guard — prevents rapid double-taps from spawning parallel
@@ -25999,15 +26525,16 @@ async function submitAskDataQuestion() {
   // user-message log clean (we can show the user's exact question in
   // the conversation thread without snapshot bloat).
   var systemPrompt =
-    "You are a data analyst helping a city field inspector query their own stop log. " +
-    "Answer ONLY from the JSON snapshot below. Do NOT invent stops, addresses, dates, or counts not present in the data. " +
+    "You are a data analyst helping a city field inspector query their own field data — stops, PhotoStamp/photo tracker activity, Survey Mode sessions, route order, payment transactions, and shift log. " +
+    "Answer ONLY from the JSON snapshot below. Do NOT invent stops, addresses, dates, amounts, or counts not present in the data. " +
     "If the snapshot does not contain enough information to answer, say so plainly.\n\n" +
     "SCHEMA:\n" + _ASK_DATA_SCHEMA + "\n\n" +
     "Respond with a JSON object in this shape (no preamble, no markdown fences):\n" +
     '  { "answer": "<conversational answer in 1-3 short paragraphs>", "stopIds": [<id>, <id>, ...] }\n' +
-    "stopIds is OPTIONAL — include the IDs of specific stops your answer references when relevant (max 20). Omit or use [] if the question is purely a count or aggregate that doesn't need drill-down.\n\n" +
-    "DATA SNAPSHOT (" + snapshot.totalCount + " stops" + (snapshot.truncated ? ", truncated to most recent " + _ASK_DATA_STOP_CAP : "") + "):\n" +
-    JSON.stringify(snapshot.stops);
+    "stopIds is OPTIONAL — include the IDs of specific stops your answer references when relevant (max 20). Omit or use [] if the question is purely a count or aggregate that doesn't need drill-down, or if it's about a non-stop domain (photos, survey, transactions, shifts).\n\n" +
+    "DATA SNAPSHOT — last " + _ASK_DATA_LOOKBACK_DAYS + " days (" + snapshot.totalCount + " stops" + (snapshot.truncated ? ", stops truncated to most recent " + _ASK_DATA_STOP_CAP : "") +
+      (snapshot.photoTracker.truncated ? "; photo tracker locations truncated to " + _ASK_DATA_PHOTO_LOCATION_CAP : "") + "):\n" +
+    JSON.stringify(snapshot);
 
   // Build messages array — include prior turns for conversational context.
   // The snapshot lives in `system` so each turn's user message is just
@@ -28705,6 +29232,15 @@ const CoverageReport = (function() {
     function consider(name, areaType) {
       if (!name) return;
       areaType = areaType || 'neighborhood';
+      // 2026-07-24: multi-area/Entire-City sessions log a derived summary
+      // name ("3 areas (…)", "Entire City"), not a real single area — this
+      // report's stop-matching (_collectStops below) only understands
+      // ward/neighborhood, so listing these would just be a picker entry
+      // that always shows zero. Their breadcrumb/photo data still counts
+      // toward the individual real areas they cover — that's handled by
+      // AreaPeriodReport's geographic clipping, a separate report built
+      // for exactly this case.
+      if (areaType === 'multi' || areaType === 'city') return;
       var key = areaType + ':' + name;
       if (seen[key]) return;
       seen[key] = true;
@@ -29553,22 +30089,50 @@ const AreaPeriodReport = (function() {
       var markersJson = JSON.stringify(mapMarkers.map(function(l) {
         return { lat: l.gps.lat, lng: l.gps.lng, label: l.displayLabel, count: l.countInPeriod, color: l.severityColor, severity: l.severityLabel };
       }));
+      // 2026-07-24 fix: this report is generated in the field and often
+      // opened/shared later with no connectivity — but #area-map depends
+      // on TWO separate network fetches (the leaflet.js CDN <script> tag
+      // in <head>, and the CARTO basemap tiles below), and neither one
+      // failing was ever handled. A failed CDN script load left `L`
+      // undefined and threw inside this IIFE (uncaught — nothing after
+      // it ran either); a failed tile fetch with `L` present just left
+      // the div showing its plain #eee background with, at best, a
+      // barely-visible 4%-opacity boundary outline. Both symptoms read
+      // as "blank map" to whoever opens the file. Fixed by checking
+      // up front and swapping in the .static-map-print SVG (already
+      // built for the print stylesheet — see _buildStaticSVG's own
+      // comment for why it has no basemap tiles at all) as a live
+      // fallback, not just a print-only one, plus a tileerror listener
+      // for the case where L loaded fine but the tiles themselves can't
+      // reach the network.
       html += '<script>' +
         '(function(){' +
+          'function useFallback(){' +
+            'var live = document.getElementById("area-map");' +
+            'var still = document.querySelector(".static-map-print");' +
+            'if (live) live.style.display = "none";' +
+            'if (still) still.style.display = "block";' +
+          '}' +
+          'if (typeof L === "undefined" || navigator.onLine === false) { useFallback(); return; }' +
           'var boundaryRings = ' + boundaryLatLngsJson + ';' +
           'var breadcrumb = ' + breadcrumbLatLngsJson + ';' +
           'var markers = ' + markersJson + ';' +
-          'var map = L.map("area-map", {zoomControl:true, attributionControl:true});' +
-          'L.tileLayer("https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png", {subdomains:"abcd", maxZoom:20}).addTo(map);' +
-          'var fitGroup = L.featureGroup();' +
-          'if (boundaryRings.length) { L.polygon(boundaryRings, {color:"#1a4a8c", weight:3, fillOpacity:0.04}).addTo(map).addTo(fitGroup); }' +
-          'if (breadcrumb.length > 1) { L.polyline(breadcrumb, {color:"#f5c518", weight:8, opacity:0.5, lineCap:"round"}).addTo(map).addTo(fitGroup); }' +
-          'markers.forEach(function(p){' +
-            'var m = L.circleMarker([p.lat, p.lng], {radius: 8 + Math.min(p.count,10), color: p.color, weight:2, fillColor: p.color, fillOpacity:0.55});' +
-            'm.bindPopup("<b>" + p.label.replace(/</g,"&lt;") + "</b><br>" + p.count + " photo(s) this period &middot; " + (p.severity||""));' +
-            'm.addTo(map).addTo(fitGroup);' +
-          '});' +
-          'try { var b = fitGroup.getBounds(); if (b.isValid()) map.fitBounds(b.pad(0.08)); else map.setView([38.6270,-90.1994], 12); } catch(_e) { map.setView([38.6270,-90.1994], 12); }' +
+          'try {' +
+            'var map = L.map("area-map", {zoomControl:true, attributionControl:true});' +
+            'var tiles = L.tileLayer("https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png", {subdomains:"abcd", maxZoom:20}).addTo(map);' +
+            'var tilesOk = false;' +
+            'tiles.on("tileload", function(){ tilesOk = true; });' +
+            'tiles.on("tileerror", function(){ if (!tilesOk) useFallback(); });' +
+            'var fitGroup = L.featureGroup();' +
+            'if (boundaryRings.length) { L.polygon(boundaryRings, {color:"#1a4a8c", weight:3, fillOpacity:0.04}).addTo(map).addTo(fitGroup); }' +
+            'if (breadcrumb.length > 1) { L.polyline(breadcrumb, {color:"#f5c518", weight:8, opacity:0.5, lineCap:"round"}).addTo(map).addTo(fitGroup); }' +
+            'markers.forEach(function(p){' +
+              'var m = L.circleMarker([p.lat, p.lng], {radius: 8 + Math.min(p.count,10), color: p.color, weight:2, fillColor: p.color, fillOpacity:0.55});' +
+              'm.bindPopup("<b>" + p.label.replace(/</g,"&lt;") + "</b><br>" + p.count + " photo(s) this period &middot; " + (p.severity||""));' +
+              'm.addTo(map).addTo(fitGroup);' +
+            '});' +
+            'try { var b = fitGroup.getBounds(); if (b.isValid()) map.fitBounds(b.pad(0.08)); else map.setView([38.6270,-90.1994], 12); } catch(_e) { map.setView([38.6270,-90.1994], 12); }' +
+          '} catch(_e) { useFallback(); }' +
         '})();' +
       '<\/script>';
     }
@@ -31077,10 +31641,10 @@ function renderWizardStep() {
     body.innerHTML =
       '<div style="padding:6px 0">' +
       '<div style="font-size:2rem;margin-bottom:8px;text-align:center">👋</div>' +
-      '<div style="font-family:\'Syne\',sans-serif;font-weight:800;font-size:1rem;color:var(--lime);margin-bottom:10px;text-align:center;line-height:1.35">You don\'t need to set anything up.</div>' +
-      '<div style="font-family:\'Space Mono\',monospace;font-size:0.72rem;color:rgba(255,255,255,0.88);line-height:1.65;margin-bottom:12px">This app works right now, today, as a simple powerful route planner — no account, no sign-in, nothing required.</div>' +
-      '<div style="font-family:\'Space Mono\',monospace;font-size:0.72rem;color:rgba(255,255,255,0.88);line-height:1.65;margin-bottom:12px">Just want to plan a route and follow it? <b style="color:var(--lime)">Skip every step.</b> Add your stops, tap Optimize, and go.</div>' +
-      '<div style="font-family:\'Space Mono\',monospace;font-size:0.72rem;color:rgba(255,255,255,0.88);line-height:1.65;margin-bottom:14px">Every other feature is completely optional. Want arrival tracking, metrics, shift records? Fill in your profile info and read the Help page. Features unlock automatically — but you can ignore them entirely and the app still works perfectly.</div>' +
+      '<div style="font-family:\'Syne\',sans-serif;font-weight:800;font-size:1rem;color:var(--lime);margin-bottom:10px;text-align:center;line-height:1.35">You don\'t need to fill out a profile.</div>' +
+      '<div style="font-family:\'Space Mono\',monospace;font-size:0.72rem;color:rgba(255,255,255,0.88);line-height:1.65;margin-bottom:12px">This app works right now, today, as a simple powerful route planner — no account, no sign-in required. There\'s one real setup step, though: adding it to your home screen and turning on location, so GPS and route optimization actually work. Takes under 2 minutes — we\'ll walk you through it right after this.</div>' +
+      '<div style="font-family:\'Space Mono\',monospace;font-size:0.72rem;color:rgba(255,255,255,0.88);line-height:1.65;margin-bottom:12px">Just want to plan a route and follow it? <b style="color:var(--lime)">Skip the profile steps below.</b> Add your stops, tap Optimize, and go. You\'ll still get a quick home-screen/GPS prompt right after — that one\'s the part that actually matters.</div>' +
+      '<div style="font-family:\'Space Mono\',monospace;font-size:0.72rem;color:rgba(255,255,255,0.88);line-height:1.65;margin-bottom:14px">Every other feature below is completely optional. Want arrival tracking, metrics, shift records? Fill in your profile info and read the Help page. Features unlock automatically — but you can ignore them entirely and the app still works perfectly.</div>' +
       '<div style="font-family:\'Syne\',sans-serif;font-weight:800;font-size:0.68rem;color:var(--lime);letter-spacing:0.5px;margin-bottom:8px;text-transform:uppercase">None of the steps below are required</div>' +
       '<div style="background:rgba(255,255,255,0.06);border-radius:10px;padding:12px;margin-bottom:4px">' +
         '<div style="margin-bottom:10px">' +
@@ -31096,13 +31660,15 @@ function renderWizardStep() {
           '<div style="font-family:\'Space Mono\',monospace;font-size:0.6rem;color:rgba(255,255,255,0.6);line-height:1.55;margin-top:2px">Unlocks: scan any address list photo and import it</div>' +
         '</div>' +
       '</div>' +
+      '<div style="font-family:\'Space Mono\',monospace;font-size:0.58rem;color:rgba(255,255,255,0.45);line-height:1.6;margin-top:8px">📡 The home-screen + GPS step right after this wizard isn\'t optional the way these three are — the map and route optimization need your location to work at all.</div>' +
       '</div>';
     footer.innerHTML =
       '<div style="display:flex;flex-direction:column;gap:8px;width:100%">' +
       '<button data-fn="wizardNext" style="padding:12px;background:var(--lime);color:var(--forest);border:none;border-radius:10px;font-family:\'Syne\',sans-serif;font-weight:800;font-size:0.8rem;cursor:pointer;width:100%">Next →</button>' +
-      '<button data-fn="wizardSkip" style="padding:11px;background:none;border:1.5px solid rgba(255,255,255,0.25);border-radius:10px;color:rgba(255,255,255,0.85);font-family:\'Syne\',sans-serif;font-weight:700;font-size:0.7rem;cursor:pointer;width:100%">Skip setup — I just want route planning</button>' +
+      '<button data-fn="wizardSkip" style="padding:11px;background:none;border:1.5px solid rgba(255,255,255,0.25);border-radius:10px;color:rgba(255,255,255,0.85);font-family:\'Syne\',sans-serif;font-weight:700;font-size:0.7rem;cursor:pointer;width:100%">Skip profile setup — I just want route planning</button>' +
       '<div style="font-family:\'Space Mono\',monospace;font-size:0.55rem;color:rgba(255,255,255,0.5);line-height:1.5;text-align:center;padding:4px 6px 0">Setting your position unlocks Roles, Ordinances, Summary pages and auto-fills your ID card. Not required.</div>' +
       '</div>';
+
 
   } else if (step === 'sector') {
     var savedSector = LS.get('selected-sector') || 'public';
@@ -31459,13 +32025,12 @@ function wizSaveRole() {
       <div style="display:flex;align-items:center;justify-content:space-between">
         <div id="misc-links-modal-title" style="font-family:'Syne',sans-serif;font-weight:800;font-size:0.95rem;color:var(--forest)">📋 Resources</div>
         <div style="display:flex;align-items:center;gap:8px">
-          <a href="https://patreon.com/user?u=210452278&utm_medium=unknown&utm_source=join_link&utm_campaign=creatorshare_fan&utm_content=copyLink" target="_blank" rel="noopener" style="display:flex;align-items:center;gap:4px;font-family:'Syne',sans-serif;font-weight:800;font-size:0.52rem;color:#c0392b;text-decoration:none;background:rgba(255,66,77,0.08);border:1px solid rgba(255,66,77,0.2);border-radius:7px;padding:4px 8px;white-space:nowrap" title="Support STLCityRoute on Patreon">❤ Patreon</a>
           <button onclick="closeMiscLinks()" style="background:none;border:none;font-size:1.4rem;color:#aaa;cursor:pointer;padding:0 4px;line-height:1">✕</button>
         </div>
       </div>
       <div style="font-size:0.54rem;color:#999;font-family:'Space Mono',monospace;margin-top:3px">Tap any link to open · Phone numbers dial directly</div>
       <div style="font-size:0.5rem;color:#bbb;font-family:'Space Mono',monospace;margin-top:4px;line-height:1.5;padding:5px 0 2px;border-top:1px solid #f5f5f5">
-        This app is funded by local government sponsorship — no pop-up ads or banners. Just the information you need, where you know to look.
+        This app is self-funded and offered as a free gift to the City of St. Louis — no ads, no sponsorship, no pop-ups. Just the information you need, where you know to look.
       </div>
     </div>
     <div id="misc-links-body" style="padding:12px 14px"></div>
