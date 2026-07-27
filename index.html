@@ -2434,14 +2434,28 @@ header{
         <button data-fn="setPeriodKind" data-arg="week"  id="period-kind-week"  class="period-kind-btn">Week</button>
         <button data-fn="setPeriodKind" data-arg="month" id="period-kind-month" class="period-kind-btn">Month</button>
         <button data-fn="setPeriodKind" data-arg="year"  id="period-kind-year"  class="period-kind-btn">Year</button>
+        <button data-fn="setPeriodKind" data-arg="custom" id="period-kind-custom" class="period-kind-btn">Custom</button>
       </div>
 
-      <!-- Navigator: ◀ Period label ▶ + Today button + status badge -->
-      <div style="display:flex;align-items:center;gap:6px;margin-bottom:10px;padding:8px 10px;background:#f5f5f1;border-radius:8px;flex-wrap:wrap">
+      <!-- Navigator: ◀ Period label ▶ + Today button + status badge.
+           2026-07-25: hidden (not removed) when Custom is the active
+           period kind — the date-range row below takes its place. Both
+           rows always exist in the DOM; _updatePeriodNavigatorUI toggles
+           which one shows, so nothing needs rebuilding on every switch. -->
+      <div id="period-nav-row" style="display:flex;align-items:center;gap:6px;margin-bottom:10px;padding:8px 10px;background:#f5f5f1;border-radius:8px;flex-wrap:wrap">
         <button data-fn="shiftPeriod" data-arg="-1" id="period-prev-btn" aria-label="Previous period" style="background:white;border:1px solid #ddd;border-radius:6px;padding:4px 10px;font-family:Syne,sans-serif;font-weight:800;font-size:0.7rem;color:#444;cursor:pointer;line-height:1">‹</button>
         <div id="period-current-label" style="flex:1;text-align:center;font-family:Syne,sans-serif;font-weight:800;font-size:0.72rem;color:var(--forest)">—</div>
         <button data-fn="shiftPeriod" data-arg="1" id="period-next-btn" aria-label="Next period" style="background:white;border:1px solid #ddd;border-radius:6px;padding:4px 10px;font-family:Syne,sans-serif;font-weight:800;font-size:0.7rem;color:#444;cursor:pointer;line-height:1">›</button>
         <button data-fn="resetPeriodToNow" id="period-today-btn" style="background:var(--moss);border:none;border-radius:6px;padding:4px 10px;font-family:Syne,sans-serif;font-weight:800;font-size:0.55rem;color:white;cursor:pointer;letter-spacing:0.4px">NOW</button>
+      </div>
+
+      <!-- Custom date range row — shown instead of the navigator above
+           when Custom is the active period kind. -->
+      <div id="period-custom-range-row" style="display:none;align-items:center;gap:6px;margin-bottom:10px;padding:8px 10px;background:#f5f5f1;border-radius:8px;flex-wrap:wrap">
+        <label style="font-family:Syne,sans-serif;font-weight:700;font-size:0.56rem;color:#666;white-space:nowrap">From</label>
+        <input type="date" id="period-custom-start" onchange="setPeriodCustomRange()" style="font-family:'Space Mono',monospace;font-size:0.62rem;border:1px solid #ddd;border-radius:6px;padding:4px 6px;color:#333;flex:1;min-width:110px">
+        <label style="font-family:Syne,sans-serif;font-weight:700;font-size:0.56rem;color:#666;white-space:nowrap">To</label>
+        <input type="date" id="period-custom-end" onchange="setPeriodCustomRange()" style="font-family:'Space Mono',monospace;font-size:0.62rem;border:1px solid #ddd;border-radius:6px;padding:4px 6px;color:#333;flex:1;min-width:110px">
       </div>
 
       <!-- Status badge row -->
@@ -2471,6 +2485,41 @@ header{
       </div>
       <button data-fn="toggleAreaReportShortlistCurrent" id="area-report-shortlist-toggle" style="display:none;width:100%;padding:6px;margin-bottom:10px;background:none;border:1px dashed #bbb;color:#888;border-radius:6px;font-family:'Space Mono',monospace;font-size:0.56rem;cursor:pointer">☆ Save to My Neighborhoods</button>
       <div style="font-family:'Space Mono',monospace;font-size:0.54rem;color:#aaa;margin-bottom:10px;line-height:1.5">Leave all three on "Any" for a whole-city report. Picking a district narrows Ward to wards inside it; picking a ward narrows Neighborhood to that ward's neighborhoods.</div>
+
+      <!-- Report Focus — determines the STRUCTURE an output button
+           produces (District → Ward → Neighborhood nesting, Ward →
+           Neighborhood, or flat Neighborhood-only), independent of the
+           ward/neighborhood/district filters above which determine the
+           DATA SCOPE. Ignored when the batch-mode checkbox below is
+           checked — batch mode takes priority. -->
+      <div style="background:#fafafa;border:1.5px solid #e5e7eb;border-radius:9px;padding:10px 12px;margin-bottom:10px">
+        <div style="font-family:'Syne',sans-serif;font-weight:800;font-size:0.6rem;color:var(--forest);margin-bottom:2px">Report Focus</div>
+        <div style="font-family:'Space Mono',monospace;font-size:0.52rem;color:#999;margin-bottom:8px;line-height:1.5">Who the report is structured for — District (police supervisor: district → per-ward → per-neighborhood), Ward (alderperson: per-ward → per-neighborhood), or Neighborhood (NIS: per-neighborhood only).</div>
+        <div style="display:flex;gap:4px;flex-wrap:wrap">
+          <button data-fn="setAreaReportFocus" data-arg="district" id="area-report-focus-district" class="period-kind-btn area-report-focus-btn">District</button>
+          <button data-fn="setAreaReportFocus" data-arg="ward" id="area-report-focus-ward" class="period-kind-btn area-report-focus-btn">Ward</button>
+          <button data-fn="setAreaReportFocus" data-arg="neighborhood" id="area-report-focus-neighborhood" class="period-kind-btn area-report-focus-btn active-period">Neighborhood</button>
+        </div>
+      </div>
+
+      <!-- Saved-neighborhoods batch mode — when on, output buttons
+           ignore the filters/Report Focus above and build one report per
+           "My Neighborhoods" entry instead. -->
+      <div style="background:#fafafa;border:1.5px solid #e5e7eb;border-radius:9px;padding:10px 12px;margin-bottom:10px">
+        <label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-family:'Syne',sans-serif;font-weight:800;font-size:0.6rem;color:var(--forest)">
+          <input type="checkbox" id="area-report-batch-toggle" onchange="toggleAreaReportBatchMode(this.checked)" style="width:16px;height:16px;cursor:pointer">
+          📦 Create saved neighborhood reports
+        </label>
+        <div style="font-family:'Space Mono',monospace;font-size:0.52rem;color:#999;margin:4px 0 0;line-height:1.5">Builds a report for every neighborhood in your ★ My Neighborhoods list, ignoring the filters and Report Focus above.</div>
+        <div id="area-report-batch-sub" style="display:none;margin-top:8px;padding-top:8px;border-top:1px dashed #ddd">
+          <div style="display:flex;gap:4px;flex-wrap:wrap">
+            <button data-fn="setAreaReportBatchSubmode" data-arg="combined" id="area-report-batch-combined-btn" class="period-kind-btn area-report-batch-submode-btn active-period" style="flex:1;min-width:110px">Single combined report</button>
+            <button data-fn="setAreaReportBatchSubmode" data-arg="separate" id="area-report-batch-separate-btn" class="period-kind-btn area-report-batch-submode-btn" style="flex:1;min-width:110px">Separate report per neighborhood</button>
+            <button data-fn="setAreaReportBatchSubmode" data-arg="nis" id="area-report-batch-nis-btn" class="period-kind-btn area-report-batch-submode-btn" style="flex:1;min-width:110px">NIS weekly report</button>
+          </div>
+          <div id="area-report-batch-nis-note" style="display:none;font-family:'Space Mono',monospace;font-size:0.52rem;color:#999;margin-top:6px;line-height:1.5">Instead of neighborhood reports, builds one full WARD report (with map) per ward your saved neighborhoods fall in — geared toward that ward's alderperson. Shows the whole ward, not just the neighborhoods you saved. Always separate files, one per ward.</div>
+        </div>
+      </div>
 
       <!-- Report body — filled by renderAreaPeriodReport() with KPIs and
            Copy/CSV/HTML/PDF/Share buttons, for whatever combination of
@@ -30040,6 +30089,78 @@ const AreaPeriodReport = (function() {
       '</svg>';
   }
 
+  // Shared live-map script builder — takes any report-SHAPED object
+  // (area.boundaryRings, photoTracker.locations, stops.list,
+  // coverage.breadcrumbPoints — a real AreaPeriodReport report, or a
+  // synthetic one from _mergeReportsForMap below) and the target map
+  // div's id; returns the full <script> tag as a string. Originally
+  // inline inside formatAsHTML only; factored out 2026-07-25 so
+  // formatMultiAsHTML's new map section (see that function's own
+  // comment) can reuse the exact same offline/tile-failure handling
+  // instead of a second copy to keep in sync.
+  function _buildLiveMapScriptHtml(mapReport, mapDivId) {
+    var mapMarkers = (mapReport.photoTracker.locations || []).filter(function(l) { return l.gps && typeof l.gps.lat === 'number'; });
+    var completedStopMarkers = (mapReport.stops.list || []).filter(function(s) { return s.done && typeof s.lat === 'number' && typeof s.lng === 'number'; });
+    var boundaryLatLngsJson = JSON.stringify(mapReport.area.boundaryRings || []);
+    var breadcrumbLatLngsJson = JSON.stringify((mapReport.coverage.breadcrumbPoints || []).map(function(p) { return [p[0], p[1]]; }));
+    var heatPointsJson = JSON.stringify(mapMarkers.map(function(l) {
+      return [l.gps.lat, l.gps.lng, Math.min(1, 0.3 + (l.countInPeriod || 1) * 0.08)];
+    }));
+    var markersJson = JSON.stringify(mapMarkers.map(function(l) {
+      return { lat: l.gps.lat, lng: l.gps.lng, label: l.displayLabel, count: l.countInPeriod, color: l.severityColor, severity: l.severityLabel };
+    }));
+    var completedJson = JSON.stringify(completedStopMarkers.map(function(s) {
+      return { lat: s.lat, lng: s.lng, address: s.address || '(no address)', completedAt: s.completedAt || null };
+    }));
+    var divIdJson = JSON.stringify(mapDivId);
+    // 2026-07-24 fix (still applies): this report is generated in the
+    // field and often opened/shared later with no connectivity — the map
+    // depends on network fetches (leaflet.js, leaflet-heat.js, and the
+    // CARTO basemap tiles), none of which are guaranteed. A failed
+    // leaflet.js load or offline tile fetch falls back to the
+    // .static-map-print SVG. leaflet-heat.js failing is non-fatal —
+    // L.heatLayer is checked before use, so a missing heat plugin just
+    // means no heat overlay, not a broken map.
+    return '<script>' +
+      '(function(){' +
+        'function useFallback(){' +
+          'var live = document.getElementById(' + divIdJson + ');' +
+          'var still = document.querySelector(".static-map-print");' +
+          'if (live) live.style.display = "none";' +
+          'if (still) still.style.display = "block";' +
+        '}' +
+        'if (typeof L === "undefined" || navigator.onLine === false) { useFallback(); return; }' +
+        'var boundaryRings = ' + boundaryLatLngsJson + ';' +
+        'var breadcrumb = ' + breadcrumbLatLngsJson + ';' +
+        'var heatPts = ' + heatPointsJson + ';' +
+        'var markers = ' + markersJson + ';' +
+        'var completed = ' + completedJson + ';' +
+        'try {' +
+          'var map = L.map(' + divIdJson + ', {zoomControl:true, attributionControl:true});' +
+          'var tiles = L.tileLayer("https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png", {subdomains:"abcd", maxZoom:20}).addTo(map);' +
+          'var tilesOk = false;' +
+          'tiles.on("tileload", function(){ tilesOk = true; });' +
+          'tiles.on("tileerror", function(){ if (!tilesOk) useFallback(); });' +
+          'var fitGroup = L.featureGroup();' +
+          'if (boundaryRings.length) { L.polygon(boundaryRings, {color:"#1a4a8c", weight:3, fillOpacity:0.04}).addTo(map).addTo(fitGroup); }' +
+          'if (breadcrumb.length > 1) { L.polyline(breadcrumb, {color:"#f5c518", weight:8, opacity:0.5, lineCap:"round"}).addTo(map).addTo(fitGroup); }' +
+          'if (heatPts.length && typeof L.heatLayer === "function") { L.heatLayer(heatPts, {radius:32, blur:24, maxZoom:17, gradient:{0.2:"#ffcf40",0.5:"#ff6a00",1.0:"#ff2b00"}}).addTo(map); }' +
+          'markers.forEach(function(p){' +
+            'var m = L.circleMarker([p.lat, p.lng], {radius: 5, color: p.color, weight:2, fillColor: p.color, fillOpacity:0.85});' +
+            'm.bindPopup("<b>" + p.label.replace(/</g,"&lt;") + "</b><br>" + p.count + " photo(s) this period &middot; " + (p.severity||""));' +
+            'm.addTo(map).addTo(fitGroup);' +
+          '});' +
+          'completed.forEach(function(s){' +
+            'var m = L.circleMarker([s.lat, s.lng], {radius: 6, color: "#2d7d3f", weight:2, fillColor: "#2d7d3f", fillOpacity:0.75});' +
+            'm.bindPopup("<b>✓ " + s.address.replace(/</g,"&lt;") + "</b>" + (s.completedAt ? "<br>" + new Date(s.completedAt).toLocaleString() : ""));' +
+            'm.addTo(map).addTo(fitGroup);' +
+          '});' +
+          'try { var b = fitGroup.getBounds(); if (b.isValid()) map.fitBounds(b.pad(0.08)); else map.setView([38.6270,-90.1994], 12); } catch(_e) { map.setView([38.6270,-90.1994], 12); }' +
+        '} catch(_e) { useFallback(); }' +
+      '})();' +
+    '<\/script>';
+  }
+
   function formatAsHTML(report) {
     var safe = function(x) {
       if (x == null) return '';
@@ -30160,63 +30281,7 @@ const AreaPeriodReport = (function() {
     html += '</div>';
 
     if (hasMapContent) {
-      var boundaryLatLngsJson = JSON.stringify(report.area.boundaryRings || []);
-      var breadcrumbLatLngsJson = JSON.stringify((cov.breadcrumbPoints || []).map(function(p) { return [p[0], p[1]]; }));
-      var heatPointsJson = JSON.stringify(mapMarkers.map(function(l) {
-        return [l.gps.lat, l.gps.lng, Math.min(1, 0.3 + (l.countInPeriod || 1) * 0.08)];
-      }));
-      var markersJson = JSON.stringify(mapMarkers.map(function(l) {
-        return { lat: l.gps.lat, lng: l.gps.lng, label: l.displayLabel, count: l.countInPeriod, color: l.severityColor, severity: l.severityLabel };
-      }));
-      var completedJson = JSON.stringify(completedStopMarkers.map(function(s) {
-        return { lat: s.lat, lng: s.lng, address: s.address || '(no address)', completedAt: s.completedAt || null };
-      }));
-      // 2026-07-24 fix (still applies): this report is generated in the
-      // field and often opened/shared later with no connectivity —
-      // #area-map depends on network fetches (leaflet.js, leaflet-heat.js,
-      // and the CARTO basemap tiles), none of which are guaranteed. A
-      // failed leaflet.js load or offline tile fetch falls back to the
-      // .static-map-print SVG, same as before. leaflet-heat.js failing is
-      // treated as non-fatal — L.heatLayer is checked before use, so a
-      // missing heat plugin just means no heat overlay, not a broken map.
-      html += '<script>' +
-        '(function(){' +
-          'function useFallback(){' +
-            'var live = document.getElementById("area-map");' +
-            'var still = document.querySelector(".static-map-print");' +
-            'if (live) live.style.display = "none";' +
-            'if (still) still.style.display = "block";' +
-          '}' +
-          'if (typeof L === "undefined" || navigator.onLine === false) { useFallback(); return; }' +
-          'var boundaryRings = ' + boundaryLatLngsJson + ';' +
-          'var breadcrumb = ' + breadcrumbLatLngsJson + ';' +
-          'var heatPts = ' + heatPointsJson + ';' +
-          'var markers = ' + markersJson + ';' +
-          'var completed = ' + completedJson + ';' +
-          'try {' +
-            'var map = L.map("area-map", {zoomControl:true, attributionControl:true});' +
-            'var tiles = L.tileLayer("https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png", {subdomains:"abcd", maxZoom:20}).addTo(map);' +
-            'var tilesOk = false;' +
-            'tiles.on("tileload", function(){ tilesOk = true; });' +
-            'tiles.on("tileerror", function(){ if (!tilesOk) useFallback(); });' +
-            'var fitGroup = L.featureGroup();' +
-            'if (boundaryRings.length) { L.polygon(boundaryRings, {color:"#1a4a8c", weight:3, fillOpacity:0.04}).addTo(map).addTo(fitGroup); }' +
-            'if (breadcrumb.length > 1) { L.polyline(breadcrumb, {color:"#f5c518", weight:8, opacity:0.5, lineCap:"round"}).addTo(map).addTo(fitGroup); }' +
-            'if (heatPts.length && typeof L.heatLayer === "function") { L.heatLayer(heatPts, {radius:32, blur:24, maxZoom:17, gradient:{0.2:"#ffcf40",0.5:"#ff6a00",1.0:"#ff2b00"}}).addTo(map); }' +
-            'markers.forEach(function(p){' +
-              'var m = L.circleMarker([p.lat, p.lng], {radius: 5, color: p.color, weight:2, fillColor: p.color, fillOpacity:0.85});' +
-              'm.bindPopup("<b>" + p.label.replace(/</g,"&lt;") + "</b><br>" + p.count + " photo(s) this period &middot; " + (p.severity||""));' +
-              'm.addTo(map).addTo(fitGroup);' +
-            '});' +
-            'completed.forEach(function(s){' +
-              'var m = L.circleMarker([s.lat, s.lng], {radius: 6, color: "#2d7d3f", weight:2, fillColor: "#2d7d3f", fillOpacity:0.75});' +
-              'm.bindPopup("<b>✓ " + s.address.replace(/</g,"&lt;") + "</b>" + (s.completedAt ? "<br>" + new Date(s.completedAt).toLocaleString() : ""));' +
-              'm.addTo(map).addTo(fitGroup);' +
-            '});' +
-            'try { var b = fitGroup.getBounds(); if (b.isValid()) map.fitBounds(b.pad(0.08)); else map.setView([38.6270,-90.1994], 12); } catch(_e) { map.setView([38.6270,-90.1994], 12); }' +
-          '} catch(_e) { useFallback(); }' +
-        '})();' +
-      '<\/script>';
+      html += _buildLiveMapScriptHtml(report, 'area-map');
     }
 
     html += '</body></html>';
@@ -30367,7 +30432,442 @@ const AreaPeriodReport = (function() {
     return doc.output('blob');
   }
 
-  // stop, with the report-generator tool doing its own per-ward grouping
+  // 2026-07-25: PDF for a combined/hierarchical multi-report (Report
+  // Focus, or saved-neighborhoods "single combined report" / NIS mode).
+  // Same jsPDF line/pagination engine as buildPdfBlob above, walked
+  // recursively through the tree with an indent per depth level, plus
+  // ONE overview map (via _mergeReportsForMap — see that function's own
+  // comment for why one map from the top-level reports is already
+  // complete, not a per-node compromise) rather than the per-node maps
+  // that would make a whole-district PDF impractically slow to build.
+  async function buildMultiPdfBlob(tree, meta) {
+    meta = meta || {};
+    var jsPDFCtor = await _ensureJsPDF();
+    var doc = new jsPDFCtor({ unit: 'mm', format: 'letter' });
+    var pageW = doc.internal.pageSize.getWidth();
+    var pageH = doc.internal.pageSize.getHeight();
+    var margin = 15;
+    var y = margin;
+    var lineH = 5.2;
+
+    function ensureRoom(neededMm) {
+      if (y + neededMm > pageH - margin) { doc.addPage(); y = margin; }
+    }
+    function line(text, opts) {
+      opts = opts || {};
+      var indent = opts.indent || 0;
+      doc.setFont('helvetica', opts.bold ? 'bold' : 'normal');
+      doc.setFontSize(opts.size || 10);
+      var c = opts.color || [30, 30, 30];
+      doc.setTextColor(c[0], c[1], c[2]);
+      var wrapped = doc.splitTextToSize(String(text), pageW - margin * 2 - indent);
+      wrapped.forEach(function(ln) {
+        ensureRoom(lineH);
+        doc.text(ln, margin + indent, y);
+        y += lineH;
+      });
+    }
+
+    line(meta.title || 'Multi-Area Report', { size: 18, bold: true, color: [26, 51, 32] });
+    line((meta.periodLabel || '') + '  ·  Generated ' + new Date().toLocaleString(), { size: 9, color: [130, 130, 130] });
+    y += 2;
+
+    var mapReport = _mergeReportsForMap(tree.map(function(n) { return n.report; }));
+    var mapMarkers = mapReport.photoTracker.locations.filter(function(l) { return l.gps && typeof l.gps.lat === 'number'; });
+    var completedStopMarkers = mapReport.stops.list.filter(function(s) { return s.done && typeof s.lat === 'number' && typeof s.lng === 'number'; });
+    var hasMapContent = (mapReport.area.boundaryRings && mapReport.area.boundaryRings.length) ||
+      mapReport.coverage.breadcrumbPointCount > 0 || mapMarkers.length > 0 || completedStopMarkers.length > 0;
+    if (hasMapContent) {
+      var svg = _buildStaticSVG(mapReport);
+      if (svg) {
+        try {
+          var pngDataUrl = await _svgToPngDataUrl(svg, 640, 640);
+          var imgSizeMm = Math.min(pageW - margin * 2, 150);
+          ensureRoom(imgSizeMm + 8);
+          doc.addImage(pngDataUrl, 'PNG', margin, y, imgSizeMm, imgSizeMm);
+          y += imgSizeMm + 3;
+          line('Orange heat = photo activity density · Green = completed stops · Yellow = survey path', { size: 7.5, color: [150, 150, 150] });
+          y += 2;
+        } catch(_e) {
+          line('(Map image could not be generated for this PDF.)', { size: 8, color: [180, 60, 60] });
+        }
+      }
+    }
+
+    function writeNode(node, depth) {
+      var indent = depth * 6;
+      var r = node.report;
+      y += (depth === 0 ? 3 : 2);
+      line(node.label, { size: Math.max(10, 15 - depth * 2), bold: true, color: [26, 51, 32], indent: indent });
+      if (r) {
+        line(r.stops.total + ' stops · ' + r.stops.completed + ' completed (' + r.stops.completionRate + '%) · ' +
+          r.photoTracker.locations.length + ' photo tracker location' + (r.photoTracker.locations.length === 1 ? '' : 's'),
+          { size: 9, color: [90, 90, 90], indent: indent });
+      }
+      if (node.children && node.children.length) {
+        node.children.forEach(function(child) { writeNode(child, depth + 1); });
+      } else if (r) {
+        if (r.photoTracker.locations.length) {
+          r.photoTracker.locations.forEach(function(loc) {
+            line('• ' + loc.displayLabel + ' — ' + loc.countInPeriod + ' photo' + (loc.countInPeriod === 1 ? '' : 's') +
+              (loc.severityLabel ? ' · ' + loc.severityLabel : ''), { size: 8, indent: indent + 4 });
+          });
+        }
+        r.stops.list.slice().sort(function(a, b) {
+          var ta = a.completedAt ? new Date(a.completedAt).getTime() : (a.addedAt ? new Date(a.addedAt).getTime() : 0);
+          var tb = b.completedAt ? new Date(b.completedAt).getTime() : (b.addedAt ? new Date(b.addedAt).getTime() : 0);
+          return ta - tb;
+        }).forEach(function(s) {
+          var mark = s.done ? '✓' : (s.followup ? '⚑' : '○');
+          line(mark + ' ' + (s.address || '(no address)'), { size: 8, indent: indent + 4 });
+        });
+      }
+    }
+    tree.forEach(function(node) { writeNode(node, 0); });
+
+    return doc.output('blob');
+  }
+
+  // ── Multi-scope reports (saved-neighborhoods batch + Report Focus) ───
+  // 2026-07-25: builds and combines several single-scope reports — each
+  // via the exact same buildReport() above, no parallel data-collection
+  // path to keep in sync — into one request. Two distinct UI features
+  // reuse this:
+  //   - Saved-neighborhoods batch mode: a flat list, one entry per saved
+  //     neighborhood name (buildScopedReports called directly).
+  //   - Report Focus (District/Ward/Neighborhood radios): a NESTED tree
+  //     built by buildFocusedScopeTree from the geography hierarchy
+  //     (_computeAreaHierarchy) plus whatever ward/neighborhood/
+  //     policeDistrict filters are currently active in the picker.
+
+  // Builds one report per {label, ward, neighborhood, policeDistrict}
+  // scope descriptor, in parallel (Promise.all — independent lookups, no
+  // reason to serialize). Returns [{label, report}, ...] in the same
+  // order as the input.
+  async function buildScopedReports(scopes, startMs, endMs) {
+    var results = await Promise.all(scopes.map(function(sc) {
+      return buildReport({
+        startMs: startMs, endMs: endMs,
+        ward: sc.ward || null, neighborhood: sc.neighborhood || null, policeDistrict: sc.policeDistrict || null
+      });
+    }));
+    return scopes.map(function(sc, i) { return { label: sc.label || results[i].area.label, report: results[i] }; });
+  }
+
+  // Report Focus tree builder. Given the CURRENT ward/neighborhood/
+  // policeDistrict filter state and a focus level, builds the nested
+  // scope description a hierarchical report walks:
+  //   focus 'district' → one node per district in scope, each with child
+  //     ward nodes (every ward that resolves to that district), each
+  //     with child neighborhood nodes (every neighborhood in that ward).
+  //   focus 'ward' → one node per ward in scope, each with child
+  //     neighborhood nodes — no district level above it.
+  //   focus 'neighborhood' → one flat node per neighborhood in scope, no
+  //     children (neighborhood is the finest level there is, matches
+  //     "per-neighborhood breakdowns of the entire neighborhood").
+  // "In scope" respects whatever of the three filters is already set: an
+  // explicit filter at a level narrows that level to just the one
+  // picked; no filter at a level means every value at that level (within
+  // whatever coarser filter IS set) is included. A whole-city District
+  // focus with nothing picked walks every district → every ward → every
+  // neighborhood — the most expensive case, since it's effectively one
+  // buildReport() call per neighborhood in the city (~80). Each call is
+  // local array filtering, not a network fetch, so this is slow-ish but
+  // not actually risky; not artificially capped.
+  async function buildFocusedScopeTree(focus, filters) {
+    filters = filters || {};
+    var hierarchy = { wardToDistrict: {}, neighborhoodToWard: {} };
+    try { hierarchy = await _computeAreaHierarchy(); } catch(_e) {}
+
+    function districtsInScope() {
+      if (filters.policeDistrict) return [filters.policeDistrict];
+      var set = {};
+      Object.keys(hierarchy.wardToDistrict).forEach(function(w) {
+        var d = hierarchy.wardToDistrict[w];
+        if (d) set[d] = true;
+      });
+      return Object.keys(set).sort();
+    }
+    function wardsInScope(districtName) {
+      if (filters.ward) return [filters.ward];
+      var wards = Object.keys(hierarchy.wardToDistrict).filter(function(w) {
+        return !districtName || hierarchy.wardToDistrict[w] === districtName;
+      });
+      return wards.sort(function(a, b) { return parseInt(a, 10) - parseInt(b, 10); });
+    }
+    function neighborhoodsInScope(wardNum) {
+      if (filters.neighborhood) return [filters.neighborhood];
+      var names = Object.keys(hierarchy.neighborhoodToWard).filter(function(n) {
+        return !wardNum || hierarchy.neighborhoodToWard[n] === wardNum;
+      });
+      return names.sort();
+    }
+
+    if (focus === 'neighborhood') {
+      var wardsForNbhd = filters.ward ? [filters.ward] : (filters.policeDistrict ? wardsInScope(filters.policeDistrict) : [null]);
+      var names = [], seen = {};
+      wardsForNbhd.forEach(function(w) {
+        neighborhoodsInScope(w).forEach(function(n) { if (!seen[n]) { seen[n] = true; names.push(n); } });
+      });
+      return names.map(function(n) {
+        return { level: 'neighborhood', label: n, ward: filters.ward || null, neighborhood: n, policeDistrict: filters.policeDistrict || null, children: [] };
+      });
+    }
+
+    if (focus === 'ward') {
+      var districtsForWard = filters.policeDistrict ? [filters.policeDistrict] : districtsInScope();
+      var wardNodes = [], seenW = {};
+      districtsForWard.forEach(function(d) {
+        wardsInScope(d).forEach(function(w) {
+          if (seenW[w]) return;
+          seenW[w] = true;
+          var kids = neighborhoodsInScope(w).map(function(n) {
+            return { level: 'neighborhood', label: n, ward: w, neighborhood: n, policeDistrict: filters.policeDistrict || null, children: [] };
+          });
+          wardNodes.push({ level: 'ward', label: 'Ward ' + w, ward: w, neighborhood: null, policeDistrict: filters.policeDistrict || null, children: kids });
+        });
+      });
+      return wardNodes;
+    }
+
+    // focus === 'district'
+    return districtsInScope().map(function(d) {
+      var wardKids = wardsInScope(d).map(function(w) {
+        var nbhdKids = neighborhoodsInScope(w).map(function(n) {
+          return { level: 'neighborhood', label: n, ward: w, neighborhood: n, policeDistrict: d, children: [] };
+        });
+        return { level: 'ward', label: 'Ward ' + w, ward: w, neighborhood: null, policeDistrict: d, children: nbhdKids };
+      });
+      return { level: 'district', label: d, ward: null, neighborhood: null, policeDistrict: d, children: wardKids };
+    });
+  }
+
+  // Attaches a .report to every node of a scope tree in place (mutates
+  // and returns the same tree) — one buildReport() call per node,
+  // parallelized per depth level via Promise.all rather than one giant
+  // flat Promise.all, so a huge whole-city tree doesn't fire hundreds of
+  // concurrent async calls all at once.
+  async function _hydrateScopeTree(nodes, startMs, endMs) {
+    await Promise.all(nodes.map(async function(node) {
+      node.report = await buildReport({ startMs: startMs, endMs: endMs, ward: node.ward, neighborhood: node.neighborhood, policeDistrict: node.policeDistrict });
+      if (node.children && node.children.length) await _hydrateScopeTree(node.children, startMs, endMs);
+    }));
+    return nodes;
+  }
+
+  // 2026-07-25: "NIS weekly report" — the saved-neighborhoods batch
+  // mode's third sub-option. An NIS's saved list is whatever
+  // neighborhoods THEY personally cover, but the deliverable here is
+  // meant for the ALDERPERSON of each affected ward, who wants their
+  // whole ward's picture — not an arbitrary slice determined by which
+  // neighborhoods one NIS happens to track. So this derives the set of
+  // wards that contain at least one saved neighborhood, then builds a
+  // FULL Ward-focus tree (every neighborhood in that ward, via the same
+  // buildFocusedScopeTree('ward', {ward}) any other Ward Focus report
+  // uses) for each one — reusing existing machinery rather than a
+  // parallel "partial ward" concept. Returns one tree per affected ward,
+  // each already hydrated (report attached to every node) and ready for
+  // the multi-formatters, since NIS mode always produces one deliverable
+  // per ward (there's no "combine multiple wards into one document"
+  // mode — that would mean handing one alderperson a report full of a
+  // different ward's data).
+  async function buildNISWeeklyWardTrees(savedNeighborhoodNames, startMs, endMs) {
+    var hierarchy = { wardToDistrict: {}, neighborhoodToWard: {} };
+    try { hierarchy = await _computeAreaHierarchy(); } catch(_e) {}
+    var wardSet = {};
+    savedNeighborhoodNames.forEach(function(name) {
+      var w = hierarchy.neighborhoodToWard[name];
+      if (w) wardSet[w] = true;
+    });
+    var wards = Object.keys(wardSet).sort(function(a, b) { return parseInt(a, 10) - parseInt(b, 10); });
+    var results = [];
+    for (var i = 0; i < wards.length; i++) {
+      var w = wards[i];
+      var rawTree = await buildFocusedScopeTree('ward', { ward: w });
+      var hydrated = await _hydrateScopeTree(rawTree, startMs, endMs);
+      // buildFocusedScopeTree('ward', {ward: w}) always returns exactly
+      // one node (the ward filter narrows it to one, deduped internally
+      // — see that function's own comment) — hydrated[0] is that node.
+      results.push({ ward: w, label: 'Ward ' + w, tree: hydrated });
+    }
+    return results;
+  }
+
+  // ── Formatters for a hydrated tree (flat list or nested) ────────────
+  // A flat list (saved-neighborhoods batch) is just a tree with no node
+  // having children — same walk handles both shapes.
+  function _multiTextNode(node, depth) {
+    var indent = '  '.repeat(depth);
+    var r = node.report;
+    var bar = '─'.repeat(Math.max(4, 44 - depth * 3));
+    var lines = [indent + bar + ' ' + node.label.toUpperCase() + ' ' + bar];
+    if (r) {
+      lines.push(indent + r.stops.total + ' stops · ' + r.stops.completed + ' completed (' + r.stops.completionRate + '%) · ' +
+        r.photoTracker.locations.length + ' photo tracker location' + (r.photoTracker.locations.length === 1 ? '' : 's') +
+        (r.coverage.sessionCount ? ' · ' + r.coverage.sessionCount + ' survey session' + (r.coverage.sessionCount === 1 ? '' : 's') : ''));
+    }
+    if (node.children && node.children.length) {
+      node.children.forEach(function(child) { lines.push(''); lines.push(_multiTextNode(child, depth + 1)); });
+    } else if (r) {
+      // Leaf level — full stop/photo detail, reusing the single-report
+      // text formatter's body (everything after its own title line,
+      // which we don't need since the section header above already
+      // names this node).
+      var full = formatAsText(r);
+      var firstBreak = full.indexOf('\n');
+      lines.push(indent + (firstBreak === -1 ? full : full.slice(firstBreak + 1)).split('\n').join('\n' + indent));
+    }
+    return lines.join('\n');
+  }
+  function formatMultiAsText(tree, meta) {
+    meta = meta || {};
+    var header = '=== ' + (meta.title || 'Multi-Area Report') + ' ===\n' +
+      (meta.periodLabel || '') + ' · Generated ' + new Date().toLocaleString() + '\n';
+    return header + '\n' + tree.map(function(node) { return _multiTextNode(node, 0); }).join('\n\n');
+  }
+
+  // CSV is flattened rather than nested — one summary row per node at
+  // every level, with a Level column distinguishing District/Ward/
+  // Neighborhood rows. A spreadsheet doesn't have a natural "nesting"
+  // representation the way text/HTML headers do; a flat table with a
+  // level+parent-label column is what someone would actually pivot or
+  // filter on anyway.
+  function _multiCsvRows(node, parentLabel, rows) {
+    var r = node.report;
+    rows.push([
+      node.level, node.label, parentLabel || '',
+      r ? r.stops.total : '', r ? r.stops.completed : '', r ? r.stops.completionRate : '',
+      r ? r.photoTracker.locations.length : '', r ? r.coverage.sessionCount : ''
+    ].map(function(v) { return '"' + String(v).replace(/"/g, '""') + '"'; }).join(','));
+    (node.children || []).forEach(function(child) { _multiCsvRows(child, node.label, rows); });
+  }
+  function formatMultiAsCSV(tree, meta) {
+    meta = meta || {};
+    var rows = ['"# ' + (meta.title || 'Multi-Area Report') + ' — ' + (meta.periodLabel || '') + '"',
+      'Level,Area,Parent Area,Total Stops,Completed,Completion Rate %,Photo Tracker Locations,Survey Sessions'];
+    tree.forEach(function(node) { _multiCsvRows(node, '', rows); });
+    return rows.join('\n');
+  }
+
+  function _multiHtmlNode(node, depth, safe) {
+    var r = node.report;
+    var hTag = 'h' + Math.min(6, depth + 2);
+    var html = '<' + hTag + '>' + safe(node.label) + '</' + hTag + '>';
+    if (r) {
+      html += '<div class="multi-kpi">' + r.stops.total + ' stops · ' + r.stops.completed + ' completed (' + r.stops.completionRate + '%) · ' +
+        r.photoTracker.locations.length + ' photo tracker location' + (r.photoTracker.locations.length === 1 ? '' : 's') +
+        (r.coverage.sessionCount ? ' · ' + r.coverage.sessionCount + ' survey session' + (r.coverage.sessionCount === 1 ? '' : 's') : '') + '</div>';
+    }
+    if (node.children && node.children.length) {
+      html += '<div class="multi-children">' + node.children.map(function(child) { return _multiHtmlNode(child, depth + 1, safe); }).join('') + '</div>';
+    } else if (r && r.stops.list.length) {
+      html += '<table class="multi-stops"><tbody>' + r.stops.list.slice().sort(function(a, b) {
+        var ta = a.completedAt ? new Date(a.completedAt).getTime() : (a.addedAt ? new Date(a.addedAt).getTime() : 0);
+        var tb = b.completedAt ? new Date(b.completedAt).getTime() : (b.addedAt ? new Date(b.addedAt).getTime() : 0);
+        return ta - tb;
+      }).map(function(s) {
+        var mark = s.done ? '✓' : (s.followup ? '⚑' : '○');
+        return '<tr><td class="mark">' + mark + '</td><td>' + safe(s.address || '(no address)') + '</td></tr>';
+      }).join('') + '</tbody></table>';
+    }
+    return html;
+  }
+  // 2026-07-25: merges the map-relevant fields (boundary, photo tracker
+  // locations, stops, breadcrumb points) from an array of ALREADY-BUILT
+  // reports into one synthetic report-shaped object, reusable directly
+  // with _buildStaticSVG/_buildLiveMapScriptHtml — the whole reason those
+  // two only need report.area.boundaryRings/photoTracker.locations/
+  // stops.list/coverage.breadcrumbPoints and never look at report.area's
+  // OTHER fields (label, ward, etc.), which a merged multi-area object
+  // wouldn't sensibly have one value for anyway.
+  //
+  // Takes the TOP-LEVEL node reports only, not every node in a tree —
+  // each node's own report is already an AND-filtered SUPERSET of its
+  // children's (a ward's report already includes every stop/photo with
+  // that ward regardless of neighborhood; a specific neighborhood's
+  // report is the same data narrowed further), so merging children too
+  // would just duplicate what the parent already covers. This is also
+  // why generating one map per node was never necessary to solve the
+  // "no map in hierarchical reports" limitation — one map from the root
+  // reports already shows everything.
+  function _mergeReportsForMap(reports) {
+    var boundaryRings = [], photoLocations = [], stopsList = [], breadcrumbPoints = [];
+    reports.forEach(function(r) {
+      if (!r) return;
+      if (r.area && r.area.boundaryRings) boundaryRings = boundaryRings.concat(r.area.boundaryRings);
+      if (r.photoTracker && r.photoTracker.locations) photoLocations = photoLocations.concat(r.photoTracker.locations);
+      if (r.stops && r.stops.list) stopsList = stopsList.concat(r.stops.list);
+      if (r.coverage && r.coverage.breadcrumbPoints) breadcrumbPoints = breadcrumbPoints.concat(r.coverage.breadcrumbPoints);
+    });
+    return {
+      area: { boundaryRings: boundaryRings },
+      photoTracker: { locations: photoLocations },
+      stops: { list: stopsList },
+      coverage: { breadcrumbPoints: breadcrumbPoints, breadcrumbPointCount: breadcrumbPoints.length }
+    };
+  }
+
+  function formatMultiAsHTML(tree, meta) {
+    meta = meta || {};
+    var safe = function(x) { if (x == null) return ''; return String(x).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;'); };
+    var body = tree.map(function(node) { return _multiHtmlNode(node, 0, safe); }).join('');
+
+    // 2026-07-25: combined overview map — resolves the earlier "combined
+    // District/Ward-focus documents don't include a map" limitation.
+    // Built once from the top-level nodes' reports (see
+    // _mergeReportsForMap's own comment for why that's already complete,
+    // not partial), using the exact same heatmap/completed-stops/
+    // offline-fallback machinery as the single-scope report — one
+    // drawing routine, now three consumers instead of two.
+    var mapReport = _mergeReportsForMap(tree.map(function(n) { return n.report; }));
+    var mapMarkers = mapReport.photoTracker.locations.filter(function(l) { return l.gps && typeof l.gps.lat === 'number'; });
+    var completedStopMarkers = mapReport.stops.list.filter(function(s) { return s.done && typeof s.lat === 'number' && typeof s.lng === 'number'; });
+    var hasMapContent = (mapReport.area.boundaryRings && mapReport.area.boundaryRings.length) ||
+      mapReport.coverage.breadcrumbPointCount > 0 || mapMarkers.length > 0 || completedStopMarkers.length > 0;
+    var staticSVG = hasMapContent ? _buildStaticSVG(mapReport) : null;
+
+    var mapSection = '';
+    if (hasMapContent) {
+      mapSection = '<h2>Map</h2><div id="multi-area-map"></div>' +
+        '<div class="map-legend">' +
+          (mapMarkers.length ? '<span><i style="background:#ff6a00"></i>Photo activity (heat = density)</span>' : '') +
+          (completedStopMarkers.length ? '<span><i style="background:#2d7d3f"></i>Completed stops</span>' : '') +
+          (mapReport.coverage.breadcrumbPointCount ? '<span><i style="background:#f5c518"></i>Survey path</span>' : '') +
+        '</div>' +
+        (staticSVG ? '<div class="static-map-print">' + staticSVG + '</div>' : '');
+    }
+
+    return '<!doctype html><html><head><meta charset="utf-8"><title>' + safe(meta.title || 'Multi-Area Report') + '</title>' +
+      '<meta name="viewport" content="width=device-width, initial-scale=1">' +
+      (hasMapContent ? '<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css">' +
+        '<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"><\/script>' +
+        '<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet.heat/0.2.0/leaflet-heat.js"><\/script>' : '') +
+      '<style>' +
+        'body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;color:#222;margin:0;padding:24px;background:#fafaf6;line-height:1.5}' +
+        '.report{max-width:820px;margin:0 auto;background:white;padding:32px 36px;border-radius:14px;box-shadow:0 2px 12px rgba(0,0,0,0.06)}' +
+        'h1{font-size:24px;color:#1a3320;border-bottom:2px solid #1a3320;padding-bottom:8px}' +
+        'h2{font-size:19px;color:#1a4a8c;margin-top:28px}' +
+        'h3{font-size:15px;color:#444;margin-top:16px}' +
+        '.multi-kpi{font-size:13px;color:#555;background:#f1f8e9;border-radius:8px;padding:8px 12px;margin:6px 0 10px}' +
+        '.multi-children{margin-left:14px;border-left:2px solid #eee;padding-left:16px}' +
+        'table.multi-stops{border-collapse:collapse;width:100%;font-size:12px;margin-bottom:10px}' +
+        'table.multi-stops td{padding:3px 8px;border-bottom:1px solid #f0f0f0}' +
+        'table.multi-stops td.mark{width:20px;text-align:center}' +
+        '#multi-area-map{height:420px;border-radius:10px;margin-top:6px;background:#eee}' +
+        '.map-legend{display:flex;gap:14px;flex-wrap:wrap;margin-top:8px;font-size:11px;color:#666}' +
+        '.map-legend span{display:inline-flex;align-items:center;gap:5px}' +
+        '.map-legend i{width:10px;height:10px;border-radius:50%;display:inline-block}' +
+        '.static-map-print{display:none}' +
+        '@media print{body{background:white;padding:0}.report{box-shadow:none;padding:18mm 16mm;max-width:none}#multi-area-map{display:none}.static-map-print{display:block}}' +
+      '</style></head><body><div class="report">' +
+      '<h1>' + safe(meta.title || 'Multi-Area Report') + '</h1>' +
+      '<div style="color:#888;font-size:12px;margin-bottom:14px">' + safe(meta.periodLabel || '') + ' · Generated ' + new Date().toLocaleString() + '</div>' +
+      mapSection + body + '</div>' +
+      (hasMapContent ? _buildLiveMapScriptHtml(mapReport, 'multi-area-map') : '') +
+      '</body></html>';
+  }
+
+
   // on the receiving end. Scoping this to one area would mean running it
   // once per ward/neighborhood just to reassemble the same city-wide
   // file the spec asks for — the opposite of what it wants. Period-only
@@ -30448,6 +30948,15 @@ const AreaPeriodReport = (function() {
     formatAsText: formatAsText,
     formatAsHTML: formatAsHTML,
     buildPdfBlob: buildPdfBlob,
+    buildMultiPdfBlob: buildMultiPdfBlob,
+    _mergeReportsForMap: _mergeReportsForMap,
+    buildScopedReports: buildScopedReports,
+    buildFocusedScopeTree: buildFocusedScopeTree,
+    buildNISWeeklyWardTrees: buildNISWeeklyWardTrees,
+    _hydrateScopeTree: _hydrateScopeTree,
+    formatMultiAsText: formatMultiAsText,
+    formatMultiAsCSV: formatMultiAsCSV,
+    formatMultiAsHTML: formatMultiAsHTML,
     buildExport: buildExport,
     formatAsExportJSON: formatAsExportJSON,
     staticMapSVG: _buildStaticSVG,
@@ -30720,6 +31229,14 @@ function applyCustomRange() {
 // state machine for the Data-tab panel.
 var _periodKind = 'day';
 var _periodAnchor = new Date();
+// 2026-07-25: custom date range — ISO date strings ('YYYY-MM-DD') or null.
+// Kept separate from _periodAnchor rather than overloading it, since a
+// range needs two endpoints and periodBoundsFor's single-anchor model
+// doesn't fit a custom range cleanly — renderAreaPeriodReport computes
+// bounds directly from these two when _periodKind === 'custom' instead
+// of calling PeriodReports.periodBoundsFor at all.
+var _customRangeStart = null;
+var _customRangeEnd = null;
 
 // Pull saved kind/anchor on first init so re-opening the Data tab returns
 // to whatever the user was looking at. Kept in sessionStorage (not LS)
@@ -30729,11 +31246,15 @@ var _periodAnchor = new Date();
   try {
     var savedKind = sessionStorage.getItem('period-report-kind');
     var savedAnchor = sessionStorage.getItem('period-report-anchor');
-    if (savedKind && /^(day|week|month|year)$/.test(savedKind)) _periodKind = savedKind;
+    if (savedKind && /^(day|week|month|year|custom)$/.test(savedKind)) _periodKind = savedKind;
     if (savedAnchor) {
       var d = new Date(savedAnchor);
       if (!isNaN(d.getTime())) _periodAnchor = d;
     }
+    var savedStart = sessionStorage.getItem('period-report-custom-start');
+    var savedEnd = sessionStorage.getItem('period-report-custom-end');
+    if (savedStart) _customRangeStart = savedStart;
+    if (savedEnd) _customRangeEnd = savedEnd;
   } catch(_) {}
 })();
 
@@ -30741,11 +31262,32 @@ function _savePeriodState() {
   try {
     sessionStorage.setItem('period-report-kind', _periodKind);
     sessionStorage.setItem('period-report-anchor', _periodAnchor.toISOString());
+    sessionStorage.setItem('period-report-custom-start', _customRangeStart || '');
+    sessionStorage.setItem('period-report-custom-end', _customRangeEnd || '');
   } catch(_) {}
 }
 
+// Shows the ◀ label ▶ / NOW navigator for day/week/month/year, or the
+// From/To date inputs for custom — never both, never neither. Also seeds
+// the date inputs with whatever's currently stored so reopening the tab
+// (or switching back to Custom after visiting another kind) doesn't show
+// blank fields the person already filled in once.
+function _updatePeriodNavigatorUI() {
+  var navRow = document.getElementById('period-nav-row');
+  var customRow = document.getElementById('period-custom-range-row');
+  var isCustom = (_periodKind === 'custom');
+  if (navRow) navRow.style.display = isCustom ? 'none' : 'flex';
+  if (customRow) customRow.style.display = isCustom ? 'flex' : 'none';
+  if (isCustom) {
+    var startEl = document.getElementById('period-custom-start');
+    var endEl = document.getElementById('period-custom-end');
+    if (startEl && _customRangeStart) startEl.value = _customRangeStart;
+    if (endEl && _customRangeEnd) endEl.value = _customRangeEnd;
+  }
+}
+
 function setPeriodKind(kind) {
-  if (!/^(day|week|month|year)$/.test(kind)) return;
+  if (!/^(day|week|month|year|custom)$/.test(kind)) return;
   _periodKind = kind;
   // When switching to a coarser period, clamp the anchor to be "now-ish"
   // so we don't end up looking at e.g. "the week containing some random
@@ -30757,11 +31299,12 @@ function setPeriodKind(kind) {
   var btn = document.getElementById('period-kind-' + kind);
   if (btn) btn.classList.add('active-period');
   _savePeriodState();
-  renderPeriodReport();
+  _updatePeriodNavigatorUI();
+  renderAreaPeriodReport();
 }
 
 function shiftPeriod(dirStr) {
-  if (typeof PeriodReports === 'undefined') return;
+  if (typeof PeriodReports === 'undefined' || _periodKind === 'custom') return;
   var dir = parseInt(dirStr, 10);
   if (!dir) return;
   // Clamp future navigation: don't let the user navigate past the current
@@ -30777,14 +31320,33 @@ function shiftPeriod(dirStr) {
   }
   _periodAnchor = nextAnchor;
   _savePeriodState();
-  renderPeriodReport();
+  renderAreaPeriodReport();
 }
 
 function resetPeriodToNow() {
+  if (_periodKind === 'custom') return; // NOW is hidden for custom anyway (see _updatePeriodNavigatorUI), but guard directly too
   _periodAnchor = new Date();
   _savePeriodState();
-  renderPeriodReport();
+  renderAreaPeriodReport();
 }
+
+// Reads the two date inputs, validates, and re-renders. Swaps start/end
+// automatically if they're picked backwards rather than rejecting — a
+// person picking "To" before "From" almost always just means the range,
+// not an error to correct.
+function setPeriodCustomRange() {
+  var startEl = document.getElementById('period-custom-start');
+  var endEl = document.getElementById('period-custom-end');
+  var start = startEl ? startEl.value : '';
+  var end = endEl ? endEl.value : '';
+  if (!start || !end) return; // wait for both — a half-picked range isn't renderable
+  if (start > end) { var tmp = start; start = end; end = tmp; if (startEl) startEl.value = start; if (endEl) endEl.value = end; }
+  _customRangeStart = start;
+  _customRangeEnd = end;
+  _savePeriodState();
+  renderAreaPeriodReport();
+}
+window.setPeriodCustomRange = setPeriodCustomRange;
 
 function togglePeriodReportSettings() {
   var panel = document.getElementById('period-settings-panel');
@@ -30804,7 +31366,7 @@ function togglePeriodReportSettings() {
 function setPeriodWeekStart(val) {
   if (typeof PeriodReports === 'undefined') return;
   if (PeriodReports.setWeekStart(val)) {
-    renderPeriodReport();
+    renderAreaPeriodReport();
     showToast('Week start updated');
   }
 }
@@ -31138,6 +31700,8 @@ async function _renderAreaPeriodReportModal() {
   var districtPicker = document.getElementById('area-report-district-picker');
   if (!wardPicker || !nbhdPicker || !districtPicker) return;
 
+  try { if (typeof _updatePeriodNavigatorUI === 'function') _updatePeriodNavigatorUI(); } catch(_e) {}
+
   var hierarchy = { wardToDistrict: {}, neighborhoodToWard: {} };
   try { hierarchy = await _computeAreaHierarchy(); } catch(_e) {}
 
@@ -31196,19 +31760,86 @@ async function _renderAreaPeriodReportModal() {
 }
 window._renderAreaPeriodReportModal = _renderAreaPeriodReportModal;
 
+// Bounds for whatever period is currently selected — either the normal
+// PeriodReports.periodBoundsFor(kind, anchor) path, or (2026-07-25) a
+// directly-computed range when _periodKind === 'custom', since a two-
+// endpoint range doesn't fit periodBoundsFor's single-anchor model.
+// Same returned shape either way ({startMs, endMs, label, isCurrent,
+// isFuture}) plus an `incomplete` flag custom-only, true when either
+// date hasn't been picked yet.
+function _currentPeriodBounds() {
+  if (_periodKind === 'custom') {
+    if (!_customRangeStart || !_customRangeEnd) {
+      return { startMs: null, endMs: null, label: 'Pick a start and end date', isCurrent: false, isFuture: false, incomplete: true };
+    }
+    var s = new Date(_customRangeStart + 'T00:00:00');
+    var e = new Date(_customRangeEnd + 'T00:00:00');
+    e.setDate(e.getDate() + 1); // endMs exclusive, matching periodBoundsFor's own convention
+    var now = Date.now();
+    var label = (_customRangeStart === _customRangeEnd) ?
+      s.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) :
+      s.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) + ' – ' +
+        new Date(_customRangeEnd + 'T00:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+    return { startMs: s.getTime(), endMs: e.getTime(), label: label, isCurrent: now >= s.getTime() && now < e.getTime(), isFuture: now < s.getTime() };
+  }
+  return PeriodReports.periodBoundsFor(_periodKind, _periodAnchor);
+}
+
 // The only async render in the report UI layer — AreaPeriodReport.buildReport
 // itself is async (polygon fetch for breadcrumb clipping). Shows a
 // lightweight loading state so a slow/offline GeoCache fetch doesn't look
-// like a frozen modal. No "pick something first" guard anymore — empty
-// selectors are a valid state (whole city), always renders.
+// like a frozen modal. No "pick something first" guard for the area
+// filters — empty selectors are a valid state (whole city), always
+// renders — but a custom range with a missing endpoint IS incomplete and
+// shows a prompt instead of attempting a report.
+//
+// 2026-07-25: also now owns the period pill highlight, label text, status
+// badge, and Next-button disable state — these used to live in
+// renderPeriodReport (the pre-merge Period Reports panel's own render
+// function), which is retired now that this function is what every
+// period-changing control actually calls. Consolidating them here means
+// there's exactly one function that "the period changed" needs to notify.
 var _areaReportRenderToken = 0;
 async function renderAreaPeriodReport() {
   var preview = document.getElementById('area-report-preview');
   if (!preview || typeof AreaPeriodReport === 'undefined' || typeof PeriodReports === 'undefined') return;
+
+  document.querySelectorAll('.period-kind-btn').forEach(function(b) { b.classList.remove('active-period'); });
+  var pillBtn = document.getElementById('period-kind-' + _periodKind);
+  if (pillBtn) pillBtn.classList.add('active-period');
+
+  var bounds = _currentPeriodBounds();
+
+  var labelEl = document.getElementById('period-current-label');
+  if (labelEl) labelEl.textContent = bounds.label;
+
+  var statusEl = document.getElementById('period-status-row');
+  if (statusEl) {
+    if (bounds.incomplete) {
+      statusEl.innerHTML = '';
+    } else if (bounds.isCurrent) {
+      statusEl.innerHTML = '<span style="background:#fff8c5;color:#7a5000;padding:3px 9px;border-radius:10px;font-family:\'Space Mono\',monospace;font-size:0.5rem;font-weight:700;letter-spacing:0.5px">● IN PROGRESS</span>';
+    } else if (bounds.isFuture) {
+      statusEl.innerHTML = '<span style="background:#eee;color:#888;padding:3px 9px;border-radius:10px;font-family:\'Space Mono\',monospace;font-size:0.5rem;font-weight:700;letter-spacing:0.5px">FUTURE</span>';
+    } else {
+      statusEl.innerHTML = '<span style="background:#e8f5e9;color:#2d5a3d;padding:3px 9px;border-radius:10px;font-family:\'Space Mono\',monospace;font-size:0.5rem;font-weight:700;letter-spacing:0.5px">✓ COMPLETED</span>';
+    }
+  }
+
+  var nextBtn = document.getElementById('period-next-btn');
+  if (nextBtn) {
+    nextBtn.style.opacity = bounds.isCurrent ? '0.4' : '';
+    nextBtn.style.cursor = bounds.isCurrent ? 'not-allowed' : 'pointer';
+  }
+
+  if (bounds.incomplete) {
+    preview.innerHTML = '<div style="font-family:\'Space Mono\',monospace;font-size:0.6rem;color:#999;padding:12px 2px;text-align:center">Pick a start and end date above to build this report.</div>';
+    return;
+  }
+
   var myToken = ++_areaReportRenderToken;
   preview.innerHTML = '<div style="font-family:\'Space Mono\',monospace;font-size:0.6rem;color:#999;padding:12px 2px;text-align:center">Building report…</div>';
 
-  var bounds = PeriodReports.periodBoundsFor(_periodKind, _periodAnchor);
   var report;
   try {
     report = await AreaPeriodReport.buildReport({
@@ -31247,9 +31878,141 @@ async function renderAreaPeriodReport() {
 }
 window.renderAreaPeriodReport = renderAreaPeriodReport;
 
-function copyAreaPeriodReport() {
-  if (!_lastAreaPeriodReport || typeof AreaPeriodReport === 'undefined') return;
-  var text = AreaPeriodReport.formatAsText(_lastAreaPeriodReport);
+// 2026-07-25: Report Focus + saved-neighborhoods batch mode state.
+// _areaReportFocus determines the STRUCTURE of what an output button
+// produces (District → Ward → Neighborhood nesting, Ward → Neighborhood,
+// or flat Neighborhood-only) — orthogonal to the ward/neighborhood/
+// district FILTERS above, which determine the DATA SCOPE. Batch mode is
+// a separate, higher-priority mode: when on, output buttons ignore both
+// the filters and the Report Focus and instead build one report per
+// saved ("My Neighborhoods") entry.
+var _areaReportFocus = 'neighborhood';
+var _areaReportBatchMode = false;
+// 'combined' = one document with all saved neighborhoods as sections,
+// 'separate' = one file per saved neighborhood (each a full rich
+// single-scope report), 'nis' = one full WARD report per ward the saved
+// neighborhoods fall in — see buildNISWeeklyWardTrees's own comment.
+var _areaReportBatchSubmode = 'combined';
+
+function setAreaReportFocus(val) {
+  if (!/^(district|ward|neighborhood)$/.test(val)) return;
+  _areaReportFocus = val;
+  document.querySelectorAll('.area-report-focus-btn').forEach(function(b) { b.classList.remove('active-period'); });
+  var btn = document.getElementById('area-report-focus-' + val);
+  if (btn) btn.classList.add('active-period');
+}
+window.setAreaReportFocus = setAreaReportFocus;
+
+function toggleAreaReportBatchMode(checked) {
+  _areaReportBatchMode = !!checked;
+  var sub = document.getElementById('area-report-batch-sub');
+  if (sub) sub.style.display = _areaReportBatchMode ? 'block' : 'none';
+}
+window.toggleAreaReportBatchMode = toggleAreaReportBatchMode;
+
+function setAreaReportBatchSubmode(mode) {
+  if (!/^(combined|separate|nis)$/.test(mode)) return;
+  _areaReportBatchSubmode = mode;
+  document.querySelectorAll('.area-report-batch-submode-btn').forEach(function(b) { b.classList.remove('active-period'); });
+  var btn = document.getElementById('area-report-batch-' + mode + '-btn');
+  if (btn) btn.classList.add('active-period');
+  var note = document.getElementById('area-report-batch-nis-note');
+  if (note) note.style.display = (mode === 'nis') ? 'block' : 'none';
+}
+window.setAreaReportBatchSubmode = setAreaReportBatchSubmode;
+
+// Decides what an output button tap should actually build, in priority
+// order: batch mode (if on and there's a saved list) → Report Focus
+// (hierarchical, unless it collapses to a single flat scope, in which
+// case the already-built single report — with its full interactive map
+// — is reused rather than rebuilt through the simpler multi-formatter
+// path) → nothing (incomplete custom range).
+//
+// Returns one of:
+//   { mode: 'single', report }                — reuse existing rich formatters (map/heatmap/PDF)
+//   { mode: 'batch-separate', reports: [{label, report}] } — each also a full rich single report
+//   { mode: 'multi', tree, title, periodLabel } — combined hierarchical document, simpler formatters (no map)
+//   null                                       — nothing to build yet (incomplete custom range, or empty saved list)
+async function _resolveOutputPlan() {
+  var bounds = _currentPeriodBounds();
+  if (bounds.incomplete) { showToast('Pick a start and end date first'); return null; }
+
+  if (_areaReportBatchMode) {
+    var shortlist = _areaReportShortlist();
+    if (!shortlist.length) {
+      showToast('No saved neighborhoods yet — tap ☆ next to Neighborhood to save one first');
+      return null;
+    }
+
+    if (_areaReportBatchSubmode === 'nis') {
+      var wardTrees = await AreaPeriodReport.buildNISWeeklyWardTrees(shortlist, bounds.startMs, bounds.endMs);
+      if (!wardTrees.length) {
+        showToast('Could not determine which wards your saved neighborhoods are in — try again once online');
+        return null;
+      }
+      // Always one deliverable per ward — combining several different
+      // alderpeople's wards into one document would defeat the point of
+      // a per-ward, per-alderperson report.
+      return { mode: 'nis-separate', wardTrees: wardTrees, periodLabel: bounds.label };
+    }
+
+    var scopes = shortlist.map(function(name) { return { label: name, neighborhood: name }; });
+    var scoped = await AreaPeriodReport.buildScopedReports(scopes, bounds.startMs, bounds.endMs);
+    if (_areaReportBatchSubmode === 'separate') {
+      return { mode: 'batch-separate', reports: scoped };
+    }
+    var tree = scoped.map(function(s) { return { level: 'neighborhood', label: s.label, report: s.report, children: [] }; });
+    return { mode: 'multi', tree: tree, title: 'Saved Neighborhoods (' + tree.length + ')', periodLabel: bounds.label };
+  }
+
+  var filters = { ward: _areaReportWard || null, neighborhood: _areaReportNeighborhood || null, policeDistrict: _areaReportPoliceDistrict || null };
+  var rawTree = await AreaPeriodReport.buildFocusedScopeTree(_areaReportFocus, filters);
+  if (rawTree.length === 1 && !rawTree[0].children.length) {
+    return { mode: 'single', report: _lastAreaPeriodReport };
+  }
+  var hydrated = await AreaPeriodReport._hydrateScopeTree(rawTree, bounds.startMs, bounds.endMs);
+  var focusTitle = { district: 'District', ward: 'Ward', neighborhood: 'Neighborhood' }[_areaReportFocus] + ' Focus Report';
+  return { mode: 'multi', tree: hydrated, title: focusTitle, periodLabel: bounds.label };
+}
+
+function _multiSlug(title, periodLabel) {
+  var name = (title + '_' + periodLabel).replace(/[^a-zA-Z0-9]+/g, '_').replace(/^_+|_+$/g, '');
+  return 'CityRoute_' + name;
+}
+
+// Fires N sequential downloads with a short stagger between each — most
+// browsers handle a burst of same-tick download triggers unreliably
+// (some silently drop all but the first), but tolerate them fine spaced
+// a few hundred ms apart within the same user-gesture-initiated call.
+function _downloadSequentially(items) {
+  items.forEach(function(item, i) {
+    setTimeout(function() { _periodDownload(item.content, item.ext, item.mime, item.name); }, i * 400);
+  });
+}
+
+async function copyAreaPeriodReport() {
+  if (typeof AreaPeriodReport === 'undefined') return;
+  var plan = await _resolveOutputPlan();
+  if (!plan) return;
+  var text;
+  if (plan.mode === 'single') {
+    if (!plan.report) return;
+    text = AreaPeriodReport.formatAsText(plan.report);
+  } else if (plan.mode === 'batch-separate') {
+    // Copy has no concept of "separate files" — falls back to combining
+    // all the saved neighborhoods' text into one clipboard payload
+    // regardless of the Separate toggle, since there's nothing to
+    // download individually here.
+    text = plan.reports.map(function(s) { return AreaPeriodReport.formatAsText(s.report); }).join('\n\n\n');
+  } else if (plan.mode === 'nis-separate') {
+    // Same reasoning as batch-separate: Copy combines every ward's
+    // report into one clipboard payload, clearly divided.
+    text = plan.wardTrees.map(function(wt) {
+      return AreaPeriodReport.formatMultiAsText(wt.tree, { title: wt.label + ' — NIS Weekly Report', periodLabel: plan.periodLabel });
+    }).join('\n\n\n');
+  } else {
+    text = AreaPeriodReport.formatMultiAsText(plan.tree, { title: plan.title, periodLabel: plan.periodLabel });
+  }
   if (navigator.clipboard && navigator.clipboard.writeText) {
     navigator.clipboard.writeText(text).then(function() {
       showToast('📋 Copied to clipboard ✓');
@@ -31266,13 +32029,51 @@ function _areaReportSlug() {
   var name = (r.area.label + '_' + r.period.label).replace(/[^a-zA-Z0-9]+/g, '_').replace(/^_+|_+$/g, '');
   return 'CityRoute_' + name;
 }
-function downloadAreaPeriodReportCSV() {
-  if (!_lastAreaPeriodReport || typeof AreaPeriodReport === 'undefined') return;
-  _periodDownload(AreaPeriodReport.formatAsCSV(_lastAreaPeriodReport), 'csv', 'text/csv', _areaReportSlug());
+
+async function downloadAreaPeriodReportCSV() {
+  if (typeof AreaPeriodReport === 'undefined') return;
+  var plan = await _resolveOutputPlan();
+  if (!plan) return;
+  if (plan.mode === 'single') {
+    if (!plan.report) return;
+    _periodDownload(AreaPeriodReport.formatAsCSV(plan.report), 'csv', 'text/csv', _areaReportSlug());
+  } else if (plan.mode === 'batch-separate') {
+    _downloadSequentially(plan.reports.map(function(s) {
+      return { content: AreaPeriodReport.formatAsCSV(s.report), ext: 'csv', mime: 'text/csv', name: _multiSlug(s.label, s.report.period.label) };
+    }));
+  } else if (plan.mode === 'nis-separate') {
+    _downloadSequentially(plan.wardTrees.map(function(wt) {
+      return { content: AreaPeriodReport.formatMultiAsCSV(wt.tree, { title: wt.label + ' NIS Weekly', periodLabel: plan.periodLabel }), ext: 'csv', mime: 'text/csv', name: _multiSlug(wt.label + '_NIS_Weekly', plan.periodLabel) };
+    }));
+  } else {
+    _periodDownload(AreaPeriodReport.formatMultiAsCSV(plan.tree, { title: plan.title, periodLabel: plan.periodLabel }), 'csv', 'text/csv', _multiSlug(plan.title, plan.periodLabel));
+  }
 }
-function downloadAreaPeriodReportHTML() {
-  if (!_lastAreaPeriodReport || typeof AreaPeriodReport === 'undefined') return;
-  _periodDownload(AreaPeriodReport.formatAsHTML(_lastAreaPeriodReport), 'html', 'text/html', _areaReportSlug());
+
+async function downloadAreaPeriodReportHTML() {
+  if (typeof AreaPeriodReport === 'undefined') return;
+  var plan = await _resolveOutputPlan();
+  if (!plan) return;
+  if (plan.mode === 'single') {
+    if (!plan.report) return;
+    _periodDownload(AreaPeriodReport.formatAsHTML(plan.report), 'html', 'text/html', _areaReportSlug());
+  } else if (plan.mode === 'batch-separate') {
+    _downloadSequentially(plan.reports.map(function(s) {
+      return { content: AreaPeriodReport.formatAsHTML(s.report), ext: 'html', mime: 'text/html', name: _multiSlug(s.label, s.report.period.label) };
+    }));
+  } else if (plan.mode === 'nis-separate') {
+    // One HTML file per ward, each including the combined overview map
+    // (formatMultiAsHTML — see that function's own comment for the
+    // 2026-07-25 map addition) since NIS reports explicitly need one.
+    _downloadSequentially(plan.wardTrees.map(function(wt) {
+      return { content: AreaPeriodReport.formatMultiAsHTML(wt.tree, { title: wt.label + ' — NIS Weekly Report', periodLabel: plan.periodLabel }), ext: 'html', mime: 'text/html', name: _multiSlug(wt.label + '_NIS_Weekly', plan.periodLabel) };
+    }));
+  } else {
+    // Combined/hierarchical HTML includes its own overview map — see
+    // formatMultiAsHTML's own comment for how (one map built from the
+    // top-level nodes' already-complete data, not one per node).
+    _periodDownload(AreaPeriodReport.formatMultiAsHTML(plan.tree, { title: plan.title, periodLabel: plan.periodLabel }), 'html', 'text/html', _multiSlug(plan.title, plan.periodLabel));
+  }
 }
 window.downloadAreaPeriodReportCSV  = downloadAreaPeriodReportCSV;
 window.downloadAreaPeriodReportHTML = downloadAreaPeriodReportHTML;
@@ -31284,13 +32085,33 @@ window.downloadAreaPeriodReportHTML = downloadAreaPeriodReportHTML;
 // since this is genuinely async work (CDN fetch + image rasterization),
 // unlike the synchronous CSV/HTML downloads next to it.
 async function downloadAreaPeriodReportPDF() {
-  if (!_lastAreaPeriodReport || typeof AreaPeriodReport === 'undefined') return;
+  if (typeof AreaPeriodReport === 'undefined') return;
   var btn = document.getElementById('area-report-pdf-btn');
   var origLabel = btn ? btn.textContent : '';
   if (btn) { btn.disabled = true; btn.style.opacity = '0.6'; btn.textContent = '⏳ Building PDF…'; }
   try {
-    var blob = await AreaPeriodReport.buildPdfBlob(_lastAreaPeriodReport);
-    _periodDownload(blob, 'pdf', 'application/pdf', _areaReportSlug());
+    var plan = await _resolveOutputPlan();
+    if (!plan) return;
+    if (plan.mode === 'single') {
+      if (!plan.report) return;
+      var blob = await AreaPeriodReport.buildPdfBlob(plan.report);
+      _periodDownload(blob, 'pdf', 'application/pdf', _areaReportSlug());
+    } else if (plan.mode === 'batch-separate') {
+      for (var i = 0; i < plan.reports.length; i++) {
+        var s = plan.reports[i];
+        var b = await AreaPeriodReport.buildPdfBlob(s.report);
+        _periodDownload(b, 'pdf', 'application/pdf', _multiSlug(s.label, s.report.period.label));
+      }
+    } else if (plan.mode === 'nis-separate') {
+      for (var j = 0; j < plan.wardTrees.length; j++) {
+        var wt = plan.wardTrees[j];
+        var wb = await AreaPeriodReport.buildMultiPdfBlob(wt.tree, { title: wt.label + ' — NIS Weekly Report', periodLabel: plan.periodLabel });
+        _periodDownload(wb, 'pdf', 'application/pdf', _multiSlug(wt.label + '_NIS_Weekly', plan.periodLabel));
+      }
+    } else {
+      var mb = await AreaPeriodReport.buildMultiPdfBlob(plan.tree, { title: plan.title, periodLabel: plan.periodLabel });
+      _periodDownload(mb, 'pdf', 'application/pdf', _multiSlug(plan.title, plan.periodLabel));
+    }
   } catch(e) {
     showToast('⚠ Could not build PDF: ' + (e && e.message || 'unknown error'));
   } finally {
@@ -31318,19 +32139,41 @@ function _renderAreaReportShareRow() {
 }
 
 async function shareAreaPeriodReport() {
-  if (!_lastAreaPeriodReport || typeof AreaPeriodReport === 'undefined') return;
+  if (typeof AreaPeriodReport === 'undefined') return;
   if (!(navigator.share && navigator.canShare)) {
     showToast('Sharing isn\'t available in this browser — use a download button instead');
     return;
   }
+  var plan = await _resolveOutputPlan();
+  if (!plan) return;
   try {
-    var htmlText = AreaPeriodReport.formatAsHTML(_lastAreaPeriodReport);
-    var file = new File([htmlText], _areaReportSlug() + '.html', { type: 'text/html' });
-    if (!navigator.canShare({ files: [file] })) {
+    var files, title, text;
+    if (plan.mode === 'single') {
+      if (!plan.report) return;
+      files = [new File([AreaPeriodReport.formatAsHTML(plan.report)], _areaReportSlug() + '.html', { type: 'text/html' })];
+      title = plan.report.area.label; text = plan.report.period.label + ' report';
+    } else if (plan.mode === 'batch-separate') {
+      // Web Share supports multiple files in one call — shares the whole
+      // batch through a single share-sheet invocation rather than N
+      // separate ones.
+      files = plan.reports.map(function(s) {
+        return new File([AreaPeriodReport.formatAsHTML(s.report)], _multiSlug(s.label, s.report.period.label) + '.html', { type: 'text/html' });
+      });
+      title = 'Saved Neighborhoods'; text = plan.reports.length + ' neighborhood reports';
+    } else if (plan.mode === 'nis-separate') {
+      files = plan.wardTrees.map(function(wt) {
+        return new File([AreaPeriodReport.formatMultiAsHTML(wt.tree, { title: wt.label + ' — NIS Weekly Report', periodLabel: plan.periodLabel })], _multiSlug(wt.label + '_NIS_Weekly', plan.periodLabel) + '.html', { type: 'text/html' });
+      });
+      title = 'NIS Weekly Reports'; text = plan.wardTrees.length + ' ward report' + (plan.wardTrees.length === 1 ? '' : 's');
+    } else {
+      files = [new File([AreaPeriodReport.formatMultiAsHTML(plan.tree, { title: plan.title, periodLabel: plan.periodLabel })], _multiSlug(plan.title, plan.periodLabel) + '.html', { type: 'text/html' })];
+      title = plan.title; text = plan.periodLabel;
+    }
+    if (!navigator.canShare({ files: files })) {
       showToast('This device can\'t share files directly — use a download button instead');
       return;
     }
-    await navigator.share({ files: [file], title: _lastAreaPeriodReport.area.label, text: _lastAreaPeriodReport.period.label + ' report' });
+    await navigator.share({ files: files, title: title, text: text });
   } catch(e) {
     if (e && e.name === 'AbortError') return; // person just backed out of the share sheet — not an error
     showToast('⚠ Could not share: ' + (e && e.message || 'unknown error'));
