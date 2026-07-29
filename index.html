@@ -520,6 +520,14 @@ header{
 .ai-header-btn:active{transform:scale(0.9)}
 .resources-header-btn{width:40px;height:40px;border-radius:50%;border:1.5px solid rgba(126,200,80,0.45);background:linear-gradient(135deg,#0f2e1a,#1a5c34);color:var(--lime);font-size:1rem;padding:0;cursor:pointer;flex-shrink:0;display:flex;align-items:center;justify-content:center;filter:drop-shadow(0 2px 3px rgba(0,0,0,0.22));transition:transform 0.15s}
 .resources-header-btn:active{transform:scale(0.9)}
+/* PDF Docs header button (Drop AQ, 2026-07-28) — opens the C&D photo
+   documentation / PDF conversion tool. Round emoji-style button (same
+   pattern as resources-header-btn) rather than a new baked PNG icon, so no
+   new base64 asset had to be generated. Sits immediately to the right of
+   photostamp — see the header-title-row comment block for the updated
+   worst-case-width math this button changes. */
+.pdfdocs-header-btn{width:36px;height:36px;border-radius:50%;border:1.5px solid rgba(126,200,80,0.45);background:linear-gradient(135deg,#0f2e1a,#1a5c34);color:var(--lime);font-size:0.95rem;padding:0;cursor:pointer;flex-shrink:0;display:flex;align-items:center;justify-content:center;filter:drop-shadow(0 2px 3px rgba(0,0,0,0.22));transition:transform 0.15s}
+.pdfdocs-header-btn:active{transform:scale(0.9)}
 .settings-panel{border:1px solid #e4e4e4;border-radius:10px;margin-bottom:8px;background:#fafaf8;overflow:hidden}
 .settings-panel>summary{cursor:pointer;padding:11px 14px;font-family:'Syne',sans-serif;font-weight:800;font-size:0.72rem;color:var(--forest);list-style:none;display:flex;align-items:center;justify-content:space-between;user-select:none;letter-spacing:0.3px}
 .settings-panel>summary::-webkit-details-marker{display:none}
@@ -923,6 +931,73 @@ header{
 }
 .leaflet-tooltip.photo-setup-street-label::before {
   display: none !important;
+}
+
+/* ============================================================================
+   DESKTOP BROWSER (Drop AR, 2026-07-28)
+   The main #app column is already capped at max-width:480px and centered
+   (see the #app rule near the top of this stylesheet) — that part already
+   worked fine on desktop. What didn't:
+   1. The two full-screen "tool" modals (Prepare Photo, PDF Docs) override
+      the normal .modal-sheet max-width with an inline max-width:none so
+      they can go edge-to-edge on a phone. On a wide desktop window that
+      same inline style stretched them across the entire browser viewport
+      — very wide, awkward form layout. Capped below on wide viewports,
+      overriding the inline style with !important (the only way to win
+      against an inline style without touching the many call sites that
+      set it).
+   2. No :hover states anywhere — only :active (tap). Harmless on a phone,
+      a little flat with a mouse. Added a general-purpose hover pass here
+      rather than hand-editing every button; scoped to (hover:hover) and
+      (pointer:fine) so touchscreens with a stray mouse driver don't get
+      stuck-hover states.
+   Deliberately NOT touched: overall app layout, font sizes, touch-target
+   sizing — those are fine as-is and changing them risks looking templated
+   rather than intentional for what's still primarily a field tool.
+   ============================================================================ */
+/* Drop AT (2026-07-28): distinct-app chrome. When a tool has taken over
+   fullscreen (desktop only — see _enterToolFullscreen), give its screens
+   a background tint that reads as "a different app" rather than a modal
+   floating over the routing app. PhotoStamp keeps its existing warm
+   amber accent (#8c4a00) but gets a matching warm page background;
+   PDF Docs gets a cool slate tint matching its existing #28323f/#3c4a5c
+   accents. Scoped strictly to the fullscreen state so the normal
+   in-app modal look on phones is untouched. */
+body.tool-fullscreen-photostamp #photo-setup-modal .modal-sheet,
+body.tool-fullscreen-photostamp #photo-preview-modal .modal-sheet {
+  background: #fdf9f0;
+}
+body.tool-fullscreen-pdfdocs #cnd-pdf-modal .modal-sheet {
+  background: #f3f6fa;
+}
+
+@media (min-width: 700px) {
+  #photo-setup-modal .modal-sheet,
+  #photo-preview-modal .modal-sheet,
+  #cnd-pdf-modal .modal-sheet {
+    max-width: 640px !important;
+    margin: 0 auto;
+    border-radius: 16px !important;
+    height: 92dvh !important;
+    max-height: 92dvh !important;
+    margin-top: 4dvh;
+    box-shadow: 0 12px 60px rgba(0,0,0,0.45);
+  }
+}
+@media (hover: hover) and (pointer: fine) {
+  .photostamp-header-btn:hover,
+  .clock-header-btn:hover,
+  .break-header-btn:hover,
+  .ai-header-btn:hover { transform: scale(1.08); }
+  .resources-header-btn:hover,
+  .pdfdocs-header-btn:hover {
+    transform: scale(1.08);
+    border-color: rgba(126,200,80,0.8);
+  }
+  .tab-btn:hover:not(.active) { background: rgba(255,255,255,0.08); }
+  .btn-add:hover { filter: brightness(1.08); }
+  .btn-sm:hover { filter: brightness(1.08); }
+  .cndpdf-tab:hover:not(.active) { background: #e0ddd2 !important; }
 }
 </style>
 </head>
@@ -1329,6 +1404,9 @@ header{
           When you get a new phone, restore the file to bring all your stops, settings, ID card,
           custom map layers, and history with you.
         </div>
+        <div style="font-size:0.56rem;color:#3c6b4c;font-family:'Space Mono',monospace;margin-bottom:10px;line-height:1.7;background:#f0f7f0;border:1px solid #cfe6c6;border-radius:8px;padding:8px 10px">
+          💻 <b>Getting reports onto the desktop version?</b> This works — export here on your phone (on a phone this offers your share sheet — AirDrop/email/Files — as a shortcut), then open STLCityRoute on the desktop and Import → <b>merge into current profile</b> in this same panel. Your stops, transactions, survey sessions, and photo log data come over. Do it again any time you want the desktop copy caught up — or set up <b>🔄 Google Drive Sync</b> below to skip the manual file step entirely.
+        </div>
         <div style="display:flex;gap:6px;margin-bottom:10px">
           <button data-fn="exportProfile" style="flex:1;padding:10px;border:none;border-radius:9px;background:linear-gradient(135deg,var(--moss),var(--leaf));color:white;font-family:'Syne',sans-serif;font-weight:800;font-size:0.66rem;cursor:pointer">💾 EXPORT PROFILE</button>
           <button onclick="document.getElementById('profile-import-input').click()" style="flex:1;padding:10px;border:1.5px solid var(--moss);border-radius:9px;background:white;color:var(--moss);font-family:'Syne',sans-serif;font-weight:800;font-size:0.66rem;cursor:pointer">📥 IMPORT PROFILE</button>
@@ -1337,6 +1415,31 @@ header{
         <div style="font-size:0.5rem;color:#999;font-family:'Space Mono',monospace;line-height:1.7">
           <b>Included:</b> stops, route order, settings, ID photo, custom stop types, recipients, custom map layers (geocoded addresses), photo log filenames, daily metrics history.<br>
           <b>Excluded:</b> photo bytes (kept on your phone storage), encrypted API key (re-enter on the new device), session-only flags.
+        </div>
+      </div>
+    </details>
+
+    <details class="settings-panel" id="settings-drive-sync-panel">
+      <summary>🔄 Google Drive Sync</summary>
+      <div class="settings-panel-body">
+        <div style="font-size:0.56rem;color:#666;font-family:'Space Mono',monospace;margin-bottom:10px;line-height:1.7">
+          Keeps your stops, transactions, photo tracker entries, and survey history in sync across your own devices automatically — no server of ours involved. Your data goes straight from this device to <b>your own Google Drive</b> (a hidden folder only this app can see), encrypted on-device before it ever leaves. Pulls happen when you open the app or tap Sync Now; there's no always-on background sync while the app is closed.
+        </div>
+        <div id="drive-sync-status" style="font-size:0.58rem;color:#555;font-family:'Space Mono',monospace;background:#f8f8f6;border-radius:8px;padding:9px 11px;margin-bottom:10px;line-height:1.7">
+          Checking…
+        </div>
+        <div style="display:flex;gap:6px;margin-bottom:8px">
+          <button id="drive-sync-connect-btn" data-fn="connectDriveSync" style="flex:1;padding:10px;border:none;border-radius:9px;background:linear-gradient(135deg,#1a4a8c,#2980b9);color:white;font-family:'Syne',sans-serif;font-weight:800;font-size:0.66rem;cursor:pointer">🔗 CONNECT GOOGLE DRIVE</button>
+          <button id="drive-sync-disconnect-btn" data-fn="disconnectDriveSync" style="flex:1;padding:10px;border:1.5px solid #c0392b;border-radius:9px;background:white;color:#c0392b;font-family:'Syne',sans-serif;font-weight:800;font-size:0.66rem;cursor:pointer;display:none">DISCONNECT</button>
+        </div>
+        <div style="display:flex;gap:6px;margin-bottom:10px">
+          <button id="drive-sync-passphrase-btn" data-fn="enterDriveSyncPin" style="flex:1;padding:10px;border:1.5px solid #1a4a8c;border-radius:9px;background:white;color:#1a4a8c;font-family:'Syne',sans-serif;font-weight:800;font-size:0.66rem;cursor:pointer">🔒 Enter PIN</button>
+          <button id="drive-sync-now-btn" data-fn="syncDriveNow" style="flex:1;padding:10px;border:none;border-radius:9px;background:linear-gradient(135deg,var(--moss),var(--leaf));color:white;font-family:'Syne',sans-serif;font-weight:800;font-size:0.66rem;cursor:pointer" disabled>🔄 SYNC NOW</button>
+        </div>
+        <div style="font-size:0.5rem;color:#999;font-family:'Space Mono',monospace;line-height:1.7">
+          <b>Setup (once, on each device):</b> Connect Google Drive, then enter your <b>app PIN</b> — the same 4-digit PIN you use to unlock AI features. No separate passphrase to remember; same PIN on every device you sync.<br><br>
+          <b>What syncs:</b> the same data Profile Backup's merge covers — stops, archives, transactions, custom types, map layers, photo tracker, survey sessions. Identity, ID photo, API key, and preferences stay device-local, same as a merge import.<br><br>
+          <b>Not live in the traditional sense:</b> this pulls when the app opens and whenever you tap Sync Now — there's no push notification or background sync while the app is fully closed (phone browsers don't reliably support that). For a field tool you open throughout the day, this is close enough to feel live in practice.
         </div>
       </div>
     </details>
@@ -1782,8 +1885,8 @@ header{
 <div id="pin-entry-modal" class="modal-overlay" style="display:none;z-index:10003" role="dialog" aria-modal="true" aria-labelledby="pin-entry-modal-title" data-backdrop-close data-fn="cancelPinEntry">
   <div class="modal-sheet" style="padding-bottom:24px;max-width:380px">
     <div class="modal-handle"></div>
-    <div class="modal-title" id="pin-entry-modal-title">🔒 Unlock API Key</div>
-    <div style="font-size:0.62rem;color:#666;font-family:'Space Mono',monospace;text-align:center;margin-bottom:14px;line-height:1.6">Enter your PIN to unlock photo scanning.</div>
+    <div class="modal-title" id="pin-entry-modal-title">🔒 Enter App PIN</div>
+    <div style="font-size:0.62rem;color:#666;font-family:'Space Mono',monospace;text-align:center;margin-bottom:14px;line-height:1.6">Enter your 4-digit app PIN — the same one unlocks AI features and Google Drive Sync.</div>
     <input type="password" id="pin-entry-input" autocomplete="off" inputmode="numeric" placeholder="PIN"
       style="width:100%;padding:12px;border:1.5px solid #ddd;border-radius:10px;font-family:'Space Mono',monospace;font-size:1rem;text-align:center;letter-spacing:6px;margin-bottom:14px;box-sizing:border-box">
     <div style="display:flex;gap:8px">
@@ -1792,6 +1895,7 @@ header{
     </div>
   </div>
 </div>
+
 
 <!-- ===== TEXT LABEL MODAL (replaces a prompt() inside the photo annotator) ==== -->
 <!-- Used by the annotator's text tool. Shows when the user taps with the      -->
@@ -1902,26 +2006,35 @@ header{
   <!--
     Row 1: Logo + right cluster.
     Right cluster: state-driven. Default order (state='out' or 'break'):
-      [clock-cluster] [ai-btn] [photostamp]   (left → right)
+      [clock-cluster] [ai-btn] [photostamp] [pdf-docs]   (left → right)
     When state='in' (working), the break-btn slides in to the LEFT of the
     clock-cluster:
-      [break-btn] [clock-cluster] [ai-btn] [photostamp]
+      [break-btn] [clock-cluster] [ai-btn] [photostamp] [pdf-docs]
     The clock-btn inside clock-cluster swaps icon by state — CLOCK_IN when
     out, CLOCK_OUT when in, BACK_FROM_BREAK when paused. break-btn is only
     shown in state='in' (you can't go on break if you're already on one).
 
-    DOM order is [break-btn] [clock-cluster] [ai-btn] [photostamp]. When
-    break-btn is hidden (display:none) the row collapses correctly without
-    leaving an empty slot.
+    DOM order is [break-btn] [clock-cluster] [ai-btn] [photostamp] [pdf-docs].
+    When break-btn is hidden (display:none) the row collapses correctly
+    without leaving an empty slot.
 
     Per-button hiding rules:
       - clock-cluster: hidden when pref-header-clock-visible=0
       - break-btn:     hidden when clock pref off OR state≠'in'
       - ai-btn:        hidden when a valid Anthropic key is saved
-      - photostamp:    always visible (always rightmost)
+      - photostamp:    always visible
+      - pdf-docs:      always visible (always rightmost) — Drop AQ, 2026-07-28
 
-    All slots are 36×36 with 6px gap. Worst-case width (all four visible,
-    state='in' + no key): 4*36 + 3*6 = 162px. Logo reserves 175px.
+    All slots are 36×36 with 6px gap. Worst-case width (all five visible,
+    state='in' + no key): 5*36 + 4*6 = 204px. Logo reserves 175px — this is
+    now UNDER-reserved by 29px in the worst case. On most phones the ai-btn
+    and break-btn aren't both showing at once in practice (ai-btn hides
+    once a key is saved; break-btn only shows mid-shift), so day-to-day
+    width is usually 2-3 slots, but the true worst case should be verified
+    on a narrow device (e.g. iPhone SE, 320px wide) — not verified on a
+    device as of this drop. If it crowds the logo, the fix is either
+    bumping the logo's max-width reservation to "calc(100% - 210px)" or
+    moving pdf-docs into the Resources panel instead of the header.
   -->
   <div class="header-title-row" style="flex-direction:row;align-items:center;gap:6px;padding:6px 14px 6px">
     <img src="" id="header-logo" alt="STLCityRoute" style="height:36px;width:auto;max-width:calc(100% - 175px);object-fit:contain;flex-shrink:1">
@@ -1932,6 +2045,13 @@ header{
       </div>
       <button id="ai-btn" data-fn="openSuperchargeModal" class="ai-header-btn" title="Supercharge with AI" aria-label="Supercharge with AI" style="display:none"></button>
       <button onclick="openStampedCameraForStop(null)" title="Photostamp" class="photostamp-header-btn" aria-label="Photostamp"></button>
+      <button data-fn="openCndPdfModal" title="PDF Docs — C&amp;D photo documentation" class="pdfdocs-header-btn" aria-label="PDF Docs">📄</button>
+      <!-- Desktop-only manual fullscreen toggle (Drop AT, 2026-07-28).
+           Starts hidden (display:none) and is only revealed via JS when
+           _isLikelyDesktop() is true, at boot — see the init block that
+           also gates ai-btn/break-btn — so it never affects the mobile
+           header-width math flagged in Drop AQ. -->
+      <button id="fullscreen-btn" data-fn="toggleAppFullscreen" title="Toggle fullscreen" aria-label="Toggle fullscreen" style="display:none;background:#fff;border:1px solid #ccc;border-radius:6px;width:30px;height:30px;font-size:0.9rem;cursor:pointer;flex-shrink:0">⛶</button>
     </div>
   </div>
 </header>
@@ -2434,28 +2554,14 @@ header{
         <button data-fn="setPeriodKind" data-arg="week"  id="period-kind-week"  class="period-kind-btn">Week</button>
         <button data-fn="setPeriodKind" data-arg="month" id="period-kind-month" class="period-kind-btn">Month</button>
         <button data-fn="setPeriodKind" data-arg="year"  id="period-kind-year"  class="period-kind-btn">Year</button>
-        <button data-fn="setPeriodKind" data-arg="custom" id="period-kind-custom" class="period-kind-btn">Custom</button>
       </div>
 
-      <!-- Navigator: ◀ Period label ▶ + Today button + status badge.
-           2026-07-25: hidden (not removed) when Custom is the active
-           period kind — the date-range row below takes its place. Both
-           rows always exist in the DOM; _updatePeriodNavigatorUI toggles
-           which one shows, so nothing needs rebuilding on every switch. -->
-      <div id="period-nav-row" style="display:flex;align-items:center;gap:6px;margin-bottom:10px;padding:8px 10px;background:#f5f5f1;border-radius:8px;flex-wrap:wrap">
+      <!-- Navigator: ◀ Period label ▶ + Today button + status badge -->
+      <div style="display:flex;align-items:center;gap:6px;margin-bottom:10px;padding:8px 10px;background:#f5f5f1;border-radius:8px;flex-wrap:wrap">
         <button data-fn="shiftPeriod" data-arg="-1" id="period-prev-btn" aria-label="Previous period" style="background:white;border:1px solid #ddd;border-radius:6px;padding:4px 10px;font-family:Syne,sans-serif;font-weight:800;font-size:0.7rem;color:#444;cursor:pointer;line-height:1">‹</button>
         <div id="period-current-label" style="flex:1;text-align:center;font-family:Syne,sans-serif;font-weight:800;font-size:0.72rem;color:var(--forest)">—</div>
         <button data-fn="shiftPeriod" data-arg="1" id="period-next-btn" aria-label="Next period" style="background:white;border:1px solid #ddd;border-radius:6px;padding:4px 10px;font-family:Syne,sans-serif;font-weight:800;font-size:0.7rem;color:#444;cursor:pointer;line-height:1">›</button>
         <button data-fn="resetPeriodToNow" id="period-today-btn" style="background:var(--moss);border:none;border-radius:6px;padding:4px 10px;font-family:Syne,sans-serif;font-weight:800;font-size:0.55rem;color:white;cursor:pointer;letter-spacing:0.4px">NOW</button>
-      </div>
-
-      <!-- Custom date range row — shown instead of the navigator above
-           when Custom is the active period kind. -->
-      <div id="period-custom-range-row" style="display:none;align-items:center;gap:6px;margin-bottom:10px;padding:8px 10px;background:#f5f5f1;border-radius:8px;flex-wrap:wrap">
-        <label style="font-family:Syne,sans-serif;font-weight:700;font-size:0.56rem;color:#666;white-space:nowrap">From</label>
-        <input type="date" id="period-custom-start" onchange="setPeriodCustomRange()" style="font-family:'Space Mono',monospace;font-size:0.62rem;border:1px solid #ddd;border-radius:6px;padding:4px 6px;color:#333;flex:1;min-width:110px">
-        <label style="font-family:Syne,sans-serif;font-weight:700;font-size:0.56rem;color:#666;white-space:nowrap">To</label>
-        <input type="date" id="period-custom-end" onchange="setPeriodCustomRange()" style="font-family:'Space Mono',monospace;font-size:0.62rem;border:1px solid #ddd;border-radius:6px;padding:4px 6px;color:#333;flex:1;min-width:110px">
       </div>
 
       <!-- Status badge row -->
@@ -2485,41 +2591,6 @@ header{
       </div>
       <button data-fn="toggleAreaReportShortlistCurrent" id="area-report-shortlist-toggle" style="display:none;width:100%;padding:6px;margin-bottom:10px;background:none;border:1px dashed #bbb;color:#888;border-radius:6px;font-family:'Space Mono',monospace;font-size:0.56rem;cursor:pointer">☆ Save to My Neighborhoods</button>
       <div style="font-family:'Space Mono',monospace;font-size:0.54rem;color:#aaa;margin-bottom:10px;line-height:1.5">Leave all three on "Any" for a whole-city report. Picking a district narrows Ward to wards inside it; picking a ward narrows Neighborhood to that ward's neighborhoods.</div>
-
-      <!-- Report Focus — determines the STRUCTURE an output button
-           produces (District → Ward → Neighborhood nesting, Ward →
-           Neighborhood, or flat Neighborhood-only), independent of the
-           ward/neighborhood/district filters above which determine the
-           DATA SCOPE. Ignored when the batch-mode checkbox below is
-           checked — batch mode takes priority. -->
-      <div style="background:#fafafa;border:1.5px solid #e5e7eb;border-radius:9px;padding:10px 12px;margin-bottom:10px">
-        <div style="font-family:'Syne',sans-serif;font-weight:800;font-size:0.6rem;color:var(--forest);margin-bottom:2px">Report Focus</div>
-        <div style="font-family:'Space Mono',monospace;font-size:0.52rem;color:#999;margin-bottom:8px;line-height:1.5">Who the report is structured for — District (police supervisor: district → per-ward → per-neighborhood), Ward (alderperson: per-ward → per-neighborhood), or Neighborhood (NIS: per-neighborhood only).</div>
-        <div style="display:flex;gap:4px;flex-wrap:wrap">
-          <button data-fn="setAreaReportFocus" data-arg="district" id="area-report-focus-district" class="period-kind-btn area-report-focus-btn">District</button>
-          <button data-fn="setAreaReportFocus" data-arg="ward" id="area-report-focus-ward" class="period-kind-btn area-report-focus-btn">Ward</button>
-          <button data-fn="setAreaReportFocus" data-arg="neighborhood" id="area-report-focus-neighborhood" class="period-kind-btn area-report-focus-btn active-period">Neighborhood</button>
-        </div>
-      </div>
-
-      <!-- Saved-neighborhoods batch mode — when on, output buttons
-           ignore the filters/Report Focus above and build one report per
-           "My Neighborhoods" entry instead. -->
-      <div style="background:#fafafa;border:1.5px solid #e5e7eb;border-radius:9px;padding:10px 12px;margin-bottom:10px">
-        <label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-family:'Syne',sans-serif;font-weight:800;font-size:0.6rem;color:var(--forest)">
-          <input type="checkbox" id="area-report-batch-toggle" onchange="toggleAreaReportBatchMode(this.checked)" style="width:16px;height:16px;cursor:pointer">
-          📦 Create saved neighborhood reports
-        </label>
-        <div style="font-family:'Space Mono',monospace;font-size:0.52rem;color:#999;margin:4px 0 0;line-height:1.5">Builds a report for every neighborhood in your ★ My Neighborhoods list, ignoring the filters and Report Focus above.</div>
-        <div id="area-report-batch-sub" style="display:none;margin-top:8px;padding-top:8px;border-top:1px dashed #ddd">
-          <div style="display:flex;gap:4px;flex-wrap:wrap">
-            <button data-fn="setAreaReportBatchSubmode" data-arg="combined" id="area-report-batch-combined-btn" class="period-kind-btn area-report-batch-submode-btn active-period" style="flex:1;min-width:110px">Single combined report</button>
-            <button data-fn="setAreaReportBatchSubmode" data-arg="separate" id="area-report-batch-separate-btn" class="period-kind-btn area-report-batch-submode-btn" style="flex:1;min-width:110px">Separate report per neighborhood</button>
-            <button data-fn="setAreaReportBatchSubmode" data-arg="nis" id="area-report-batch-nis-btn" class="period-kind-btn area-report-batch-submode-btn" style="flex:1;min-width:110px">NIS weekly report</button>
-          </div>
-          <div id="area-report-batch-nis-note" style="display:none;font-family:'Space Mono',monospace;font-size:0.52rem;color:#999;margin-top:6px;line-height:1.5">Instead of neighborhood reports, builds one full WARD report (with map) per ward your saved neighborhoods fall in — geared toward that ward's alderperson. Shows the whole ward, not just the neighborhoods you saved. Always separate files, one per ward.</div>
-        </div>
-      </div>
 
       <!-- Report body — filled by renderAreaPeriodReport() with KPIs and
            Copy/CSV/HTML/PDF/Share buttons, for whatever combination of
@@ -3097,7 +3168,7 @@ header{
       <div id="photo-setup-modal-title" style="font-family:'Syne',sans-serif;font-weight:800;font-size:0.9rem;color:#8c4a00">📷 Prepare Photo</div>
       <div style="display:flex;align-items:center;gap:6px;flex-shrink:0">
         <button data-fn="openPhotoSettings" style="background:#fff4e0;border:1px solid #ead3b0;border-radius:6px;padding:4px 10px;font-family:Syne,sans-serif;font-weight:700;font-size:0.58rem;color:#8c4a00;cursor:pointer">⚙ Stamp</button>
-        <button data-fn="closePhotoSetup" title="Exit" aria-label="Exit Prepare Photo" style="background:#fff;border:1px solid #ccc;border-radius:6px;padding:4px 10px;font-family:Syne,sans-serif;font-weight:700;font-size:0.58rem;color:#666;cursor:pointer">✕ Exit</button>
+        <button data-fn="cancelPhotoSetup" title="Exit" aria-label="Exit Prepare Photo" style="background:#fff;border:1px solid #ccc;border-radius:6px;padding:4px 10px;font-family:Syne,sans-serif;font-weight:700;font-size:0.58rem;color:#666;cursor:pointer">✕ Exit</button>
       </div>
     </div>
     <div style="font-family:'Space Mono',monospace;font-size:0.58rem;color:#666;margin-bottom:12px;line-height:1.5">Set the details that will be stamped onto this photo. You can edit them again after the shot.<br><span style="color:#8c4a00"><b>Tip:</b> tap <b>Pick Existing</b> and select multiple photos to stamp all of them with the same address.</span></div>
@@ -3135,7 +3206,7 @@ header{
     </div>
 
     <div style="display:flex;gap:8px;flex-wrap:wrap">
-      <button data-fn="closePhotoSetup" style="flex:1 1 70px;padding:11px;background:none;border:1.5px solid #ccc;border-radius:10px;color:#666;font-family:Syne,sans-serif;font-weight:700;font-size:0.72rem;cursor:pointer">Cancel</button>
+      <button data-fn="cancelPhotoSetup" style="flex:1 1 70px;padding:11px;background:none;border:1.5px solid #ccc;border-radius:10px;color:#666;font-family:Syne,sans-serif;font-weight:700;font-size:0.72rem;cursor:pointer">Cancel</button>
       <button data-fn="photoSetupContinue" data-arg="library" style="flex:1.3 1 120px;padding:11px;background:linear-gradient(135deg,#4a2d5a,#6b3a7a);border:none;border-radius:10px;color:white;font-family:Syne,sans-serif;font-weight:800;font-size:0.72rem;cursor:pointer" title="Pick one or more photos from your gallery; all will be stamped with the address above">🖼 Pick Existing (1+) →</button>
       <button data-fn="photoSetupContinue" data-arg="camera" style="flex:1.4 1 120px;padding:11px;background:linear-gradient(135deg,#8c4a00,#b56a10);border:none;border-radius:10px;color:white;font-family:Syne,sans-serif;font-weight:800;font-size:0.75rem;cursor:pointer">📷 Open Camera →</button>
     </div>
@@ -3160,12 +3231,22 @@ header{
 </div>
 
 <!-- PHOTO PREVIEW MODAL — with editable stamp fields -->
-<div id="photo-preview-modal" class="modal-overlay" style="display:none;z-index:10000" role="dialog" aria-modal="true" aria-labelledby="photo-preview-modal-title" data-backdrop-close data-fn="closePhotoPreview">
-  <div class="modal-sheet" style="padding-bottom:24px;background:white;max-height:92dvh;overflow-y:auto">
+<div id="photo-preview-modal" class="modal-overlay" style="display:none;z-index:10000;padding:0;align-items:stretch;justify-content:stretch" role="dialog" aria-modal="true" aria-labelledby="photo-preview-modal-title" data-backdrop-close data-fn="closePhotoPreview">
+  <!-- Drop AT (2026-07-28): full-screen, matching photo-setup-modal and
+       photo-processing-overlay. Previously this was a capped bottom sheet
+       while the two screens on either side of it (setup, processing) were
+       already full-screen — the snap down to a rounded card with the
+       routing map visible behind it, right after every single capture,
+       was the "buggy behavior after the photo is taken" — a layout jump,
+       not an actual bug, but it read as one every time. -->
+  <div class="modal-sheet" style="padding:18px 18px 24px;background:white;width:100%;max-width:none;height:100dvh;max-height:100dvh;border-radius:0;overflow-y:auto">
     <div class="modal-handle"></div>
-    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px;gap:6px">
       <div id="photo-preview-modal-title" style="font-family:'Syne',sans-serif;font-weight:800;font-size:0.9rem;color:#8c4a00">📷 Stamped Photo</div>
-      <button data-fn="openPhotoSettings" style="background:#fff4e0;border:1px solid #ead3b0;border-radius:6px;padding:4px 10px;font-family:Syne,sans-serif;font-weight:700;font-size:0.58rem;color:#8c4a00;cursor:pointer">⚙ Stamp</button>
+      <div style="display:flex;align-items:center;gap:6px;flex-shrink:0">
+        <button data-fn="openPhotoSettings" style="background:#fff4e0;border:1px solid #ead3b0;border-radius:6px;padding:4px 10px;font-family:Syne,sans-serif;font-weight:700;font-size:0.58rem;color:#8c4a00;cursor:pointer">⚙ Stamp</button>
+        <button data-fn="exitPhotoStamp" title="Exit" aria-label="Exit PhotoStamp" style="background:#fff;border:1px solid #ccc;border-radius:6px;padding:4px 10px;font-family:Syne,sans-serif;font-weight:700;font-size:0.58rem;color:#666;cursor:pointer">✕ Exit</button>
+      </div>
     </div>
 
     <!-- Session strip — shows shot count + locked address -->
@@ -4808,6 +4889,24 @@ const ProfileBackup = (function() {
       if (ct) { var arr = JSON.parse(ct); if (Array.isArray(arr) && arr.length) appended.push(arr.length + ' custom stop type' + (arr.length === 1 ? '' : 's')); }
     } catch(_) {}
     if (Array.isArray(blob.customMapLayers) && blob.customMapLayers.length) appended.push(blob.customMapLayers.length + ' custom map layer' + (blob.customMapLayers.length === 1 ? '' : 's'));
+    // Drop AR (2026-07-28): photo tracker + survey log preview counts —
+    // these two now actually merge (see applyImportMerge above); previously
+    // they were silently left alone, which is why this preview never
+    // mentioned them.
+    try {
+      var incomingIdx = ls['chronic-index'];
+      if (incomingIdx) {
+        var idxArr = JSON.parse(incomingIdx);
+        if (Array.isArray(idxArr) && idxArr.length) appended.push(idxArr.length + ' photo tracker location' + (idxArr.length === 1 ? '' : 's'));
+      }
+    } catch(_) {}
+    try {
+      var incomingSlog = ls['survey-log'];
+      if (incomingSlog) {
+        var slogArr = JSON.parse(incomingSlog);
+        if (Array.isArray(slogArr) && slogArr.length) appended.push(slogArr.length + ' completed survey session' + (slogArr.length === 1 ? '' : 's'));
+      }
+    } catch(_) {}
     if (appended.length) lines.push('Will append: ' + appended.join(', '));
 
     // What will be skipped because the current profile already has it
@@ -4869,6 +4968,9 @@ const ProfileBackup = (function() {
       customTypesRenamed:   0,
       mapLayersAppended:    0,
       mapLayersRenamed:     0,
+      photoTrackerLocationsAppended: 0,
+      photoTrackerPhotosAppended:    0,
+      surveySessionsAppended:        0,
       keysSkipped:          [],
       schema:               blob.schema,
       exportedAt:           blob.exportedAt,
@@ -5014,12 +5116,134 @@ const ProfileBackup = (function() {
       }
     } catch(e) { console.warn('[merge] custom map layers error:', e); }
 
+    // ─── Photo Tracker index: APPEND per-location, photo-level dedupe ─────
+    // Drop AR (2026-07-28). Previously entirely unhandled by merge mode —
+    // 'chronic-index' (the array of location keys) and each per-location
+    // 'chronic-loc:<key>' record fell through to "leave alone" like any
+    // other unlisted key, so none of this made it across on a merge import.
+    // That mattered because this is exactly the data the Reports panel's
+    // Photo Tracker report reads — the main reason someone would want to
+    // bring data from a phone onto the desktop for printing/export. Mirrors
+    // PhotoTrackerIndex's own MAX_EVENTS_PER_LOCATION cap (500) rather than
+    // reaching into that module's private closure for the constant.
+    try {
+      var incomingChronicIndexRaw = ls['chronic-index'];
+      if (incomingChronicIndexRaw) {
+        var incomingChronicIndex = JSON.parse(incomingChronicIndexRaw);
+        if (Array.isArray(incomingChronicIndex) && incomingChronicIndex.length) {
+          var curChronicIndexRaw = LS.get('chronic-index');
+          var curChronicIndex = curChronicIndexRaw ? JSON.parse(curChronicIndexRaw) : [];
+          if (!Array.isArray(curChronicIndex)) curChronicIndex = [];
+          var curChronicIndexSet = {};
+          for (var pk = 0; pk < curChronicIndex.length; pk++) curChronicIndexSet[curChronicIndex[pk]] = true;
+
+          for (var qk = 0; qk < incomingChronicIndex.length; qk++) {
+            var locKey = incomingChronicIndex[qk];
+            if (typeof locKey !== 'string') continue;
+            var incomingEntryRaw = ls['chronic-loc:' + locKey];
+            if (!incomingEntryRaw) continue; // index referenced it but no entry shipped — skip
+            var incomingEntry;
+            try { incomingEntry = JSON.parse(incomingEntryRaw); } catch(_pe) { continue; }
+            if (!incomingEntry || !Array.isArray(incomingEntry.photos)) continue;
+
+            if (!curChronicIndexSet[locKey]) {
+              // Location doesn't exist locally yet — copy the whole entry.
+              if (LS.set('chronic-loc:' + locKey, JSON.stringify(incomingEntry))) {
+                curChronicIndex.push(locKey);
+                curChronicIndexSet[locKey] = true;
+                stats.photoTrackerLocationsAppended++;
+                stats.photoTrackerPhotosAppended += incomingEntry.photos.length;
+              }
+            } else {
+              // Location exists on both — merge photo arrays, dedupe by
+              // ts+stopId (the closest thing to a unique id these entries
+              // carry), keep freshest metadata, cap at 500 like the module
+              // does internally.
+              var curEntryRaw = LS.get('chronic-loc:' + locKey);
+              var curEntry;
+              try { curEntry = curEntryRaw ? JSON.parse(curEntryRaw) : null; } catch(_pe2) { curEntry = null; }
+              if (!curEntry || !Array.isArray(curEntry.photos)) continue;
+              var seenPhoto = {};
+              for (var pp = 0; pp < curEntry.photos.length; pp++) {
+                var cp = curEntry.photos[pp];
+                seenPhoto[(cp && cp.ts) + '|' + (cp && cp.stopId)] = true;
+              }
+              var addedHere = 0;
+              for (var qp = 0; qp < incomingEntry.photos.length; qp++) {
+                var ip = incomingEntry.photos[qp];
+                var pKey = (ip && ip.ts) + '|' + (ip && ip.stopId);
+                if (seenPhoto[pKey]) continue;
+                curEntry.photos.push(ip);
+                seenPhoto[pKey] = true;
+                addedHere++;
+              }
+              if (addedHere) {
+                curEntry.photos.sort(function(a, b) { return (a.ts || '').localeCompare(b.ts || ''); });
+                if (curEntry.photos.length > 500) curEntry.photos = curEntry.photos.slice(-500);
+                // Fill in any metadata this device's copy is missing.
+                if (!curEntry.address && incomingEntry.address) curEntry.address = incomingEntry.address;
+                if (!curEntry.gps && incomingEntry.gps) curEntry.gps = incomingEntry.gps;
+                if (!curEntry.neighborhoodName && incomingEntry.neighborhoodName) curEntry.neighborhoodName = incomingEntry.neighborhoodName;
+                if (!curEntry.ward && incomingEntry.ward) curEntry.ward = incomingEntry.ward;
+                if (!curEntry.policeDistrict && incomingEntry.policeDistrict) curEntry.policeDistrict = incomingEntry.policeDistrict;
+                if (LS.set('chronic-loc:' + locKey, JSON.stringify(curEntry))) {
+                  stats.photoTrackerPhotosAppended += addedHere;
+                }
+              }
+            }
+          }
+          if (!LS.set('chronic-index', JSON.stringify(curChronicIndex))) console.warn('[merge] chronic-index write failed (storage full?)');
+        }
+      }
+    } catch(e) { console.warn('[merge] photo tracker error:', e); }
+
+    // ─── Survey log: APPEND completed sessions, dedupe by start+end time ──
+    // Same rationale as Photo Tracker above — 'survey-log' feeds the
+    // Reports panel's coverage reporting and was previously unhandled by
+    // merge. The in-progress 'survey-active' session is deliberately left
+    // out of this — that's per-device session state, not history, and
+    // merging it in would risk corrupting whichever device has a survey
+    // actually running right now.
+    try {
+      var incomingSurveyLogRaw = ls['survey-log'];
+      if (incomingSurveyLogRaw) {
+        var incomingSurveyLog = JSON.parse(incomingSurveyLogRaw);
+        if (Array.isArray(incomingSurveyLog) && incomingSurveyLog.length) {
+          var curSurveyLogRaw = LS.get('survey-log');
+          var curSurveyLog = curSurveyLogRaw ? JSON.parse(curSurveyLogRaw) : [];
+          if (!Array.isArray(curSurveyLog)) curSurveyLog = [];
+          var seenSession = {};
+          for (var sv = 0; sv < curSurveyLog.length; sv++) {
+            var cs = curSurveyLog[sv];
+            seenSession[(cs && cs.startedAt) + '|' + (cs && cs.endedAt)] = true;
+          }
+          for (var iv = 0; iv < incomingSurveyLog.length; iv++) {
+            var is_ = incomingSurveyLog[iv];
+            if (!is_) continue;
+            var sKey = (is_.startedAt) + '|' + (is_.endedAt);
+            if (seenSession[sKey]) continue;
+            curSurveyLog.push(is_);
+            seenSession[sKey] = true;
+            stats.surveySessionsAppended++;
+          }
+          if (stats.surveySessionsAppended) {
+            curSurveyLog.sort(function(a, b) { return (a.startedAt || '').localeCompare(b.startedAt || ''); });
+            // Same 200-entry cap the module's own _writeLog applies.
+            if (curSurveyLog.length > 200) curSurveyLog = curSurveyLog.slice(-200);
+            if (!LS.set('survey-log', JSON.stringify(curSurveyLog))) console.warn('[merge] survey-log write failed (storage full?)');
+          }
+        }
+      }
+    } catch(e) { console.warn('[merge] survey log error:', e); }
+
     // ─── Skip-if-set keys: only write if current is empty ─────────────────
     Object.keys(ls).forEach(function(k) {
       if (EXCLUDE_EXACT[k]) return;
       // Already-handled-above keys: skip
       if (k === 'inspector-data' || k === 'stops-archive' ||
-          k === 'transactions-ledger' || k === 'custom-stop-types') return;
+          k === 'transactions-ledger' || k === 'custom-stop-types' ||
+          k === 'chronic-index' || k === 'survey-log' ||
+          k.indexOf('chronic-loc:') === 0) return;
       if (_isSkipIfSetKey(k)) {
         var cur = LS.get(k);
         if (cur != null && cur !== '') {
@@ -5099,6 +5323,393 @@ const ProfileBackup = (function() {
   };
 })();
 window.ProfileBackup = ProfileBackup;
+
+// ============================================================================
+// SECTION: Google Drive Sync (Drop AS, 2026-07-28)
+// Transport layer only — all the actual merge logic is ProfileBackup's,
+// reused as-is. Flow: pull (download → decrypt → ProfileBackup.applyImportMerge)
+// then push (ProfileBackup.buildExport → encrypt → upload). Because merge is
+// additive/idempotent (see Drop AR), repeated sync passes converge toward
+// the union of all devices' data rather than needing true conflict
+// resolution — worst case of a race between two simultaneous pushes is a
+// one-cycle delay before everything's visible everywhere, never data loss.
+//
+// Storage: Drive's "appDataFolder" special space — a per-app hidden folder
+// invisible in the user's normal Drive UI (they can't browse or
+// accidentally delete it, but also can't manually inspect it — fine, since
+// its contents are ciphertext anyway). One file, always encrypted before
+// upload using the same AES-GCM/PBKDF2 blob format as the API key
+// (_encryptKey/_decryptKey, defined later in this script but hoisted).
+//
+// Auth: Google Identity Services token flow (client-side only, no
+// server-side token exchange, no client secret). Access tokens are
+// short-lived (~1hr) and kept in memory only — never persisted. Silent
+// refresh is attempted via prompt:'' on boot/auto-sync; if the browser
+// blocks that (or the user's Google session has fully expired) the
+// person just needs to tap Connect again — not a hard failure.
+// ============================================================================
+var DriveSync = (function() {
+  var _accessToken = null;
+  var _tokenExpiresAt = 0;   // epoch ms
+  var _tokenClient = null;
+  var _gisLoadPromise = null;
+  var _fileIdCache = null;   // Drive fileId for the sync file, once known
+  var _pendingResolve = null, _pendingReject = null;
+
+  function isConfigured() {
+    return typeof GOOGLE_DRIVE_CLIENT_ID === 'string' &&
+      GOOGLE_DRIVE_CLIENT_ID.indexOf('PASTE_YOUR') !== 0 &&
+      GOOGLE_DRIVE_CLIENT_ID.length > 10;
+  }
+  function isConnected() {
+    return LS.get('drive-sync-connected') === '1';
+  }
+
+  // ---- passphrase: sessionStorage ONLY, mirrors the API-key PIN model.
+  // Survives reloads within the same tab session; forgotten when the tab
+  // closes. Never written to localStorage/IndexedDB/Drive. ----
+  // Drop AU (2026-07-28): the sync passphrase IS the same 4-digit PIN used
+  // to unlock AI features — one shared secret instead of two. getPassphrase
+  // falls back to the shared PIN cache ('shared-app-pin', populated by
+  // _promptForPin() whenever the user types it, for either purpose) so
+  // that whichever feature the user unlocks first in a session silently
+  // covers the other. setPassphrase/clearPassphrase still write/clear
+  // DriveSync's own key only — disconnecting Drive must never blow away
+  // an already-unlocked AI session, and vice versa.
+  function hasPassphrase() { return !!(sessionStorage.getItem('drive-sync-passphrase') || sessionStorage.getItem('shared-app-pin')); }
+  function getPassphrase() { return sessionStorage.getItem('drive-sync-passphrase') || sessionStorage.getItem('shared-app-pin') || null; }
+  function setPassphrase(p) { if (p) sessionStorage.setItem('drive-sync-passphrase', p); }
+  function clearPassphrase() { sessionStorage.removeItem('drive-sync-passphrase'); }
+
+  // ---- lazy-load Google Identity Services ----
+  function _ensureGis() {
+    if (_gisLoadPromise) return _gisLoadPromise;
+    _gisLoadPromise = new Promise(function(resolve, reject) {
+      if (window.google && window.google.accounts && window.google.accounts.oauth2) { resolve(); return; }
+      var s = document.createElement('script');
+      s.src = 'https://accounts.google.com/gsi/client';
+      s.async = true;
+      s.onload = function() {
+        if (window.google && window.google.accounts && window.google.accounts.oauth2) resolve();
+        else reject(new Error('Google Identity Services loaded but did not initialize'));
+      };
+      s.onerror = function() { reject(new Error('Could not load Google Identity Services — check your connection')); };
+      document.head.appendChild(s);
+    });
+    return _gisLoadPromise;
+  }
+
+  // GIS's initTokenClient takes ONE callback at init time, shared by every
+  // later requestAccessToken() call — so per-call resolve/reject is wired
+  // through module-level _pendingResolve/_pendingReject rather than a
+  // fresh callback each time.
+  function _initTokenClientIfNeeded() {
+    if (_tokenClient) return;
+    _tokenClient = window.google.accounts.oauth2.initTokenClient({
+      client_id: GOOGLE_DRIVE_CLIENT_ID,
+      scope: DRIVE_SYNC_SCOPE,
+      callback: function(resp) {
+        if (resp && resp.access_token) {
+          _accessToken = resp.access_token;
+          _tokenExpiresAt = Date.now() + ((resp.expires_in || 3600) * 1000) - 60000; // 60s safety margin
+          if (_pendingResolve) { var r = _pendingResolve; _pendingResolve = _pendingReject = null; r(_accessToken); }
+        } else {
+          if (_pendingReject) { var j = _pendingReject; _pendingResolve = _pendingReject = null; j(new Error((resp && resp.error) || 'No access token received')); }
+        }
+      },
+      error_callback: function(err) {
+        if (_pendingReject) { var j = _pendingReject; _pendingResolve = _pendingReject = null; j(new Error((err && err.type) || 'Google sign-in was cancelled or failed')); }
+      }
+    });
+  }
+
+  function _requestToken(promptMode) {
+    return _ensureGis().then(function() {
+      _initTokenClientIfNeeded();
+      return new Promise(function(resolve, reject) {
+        _pendingResolve = resolve;
+        _pendingReject = reject;
+        _tokenClient.requestAccessToken({ prompt: promptMode });
+      });
+    });
+  }
+
+  // Explicit, user-initiated connect — always shows Google's consent screen.
+  function connect() {
+    if (!isConfigured()) return Promise.reject(new Error('Google Drive sync is not set up yet (developer setup step pending) — see Settings.'));
+    return _requestToken('consent').then(function(token) {
+      LS.set('drive-sync-connected', '1');
+      return token;
+    });
+  }
+
+  function disconnect() {
+    try {
+      if (_accessToken && window.google && window.google.accounts && window.google.accounts.oauth2) {
+        window.google.accounts.oauth2.revoke(_accessToken, function() {});
+      }
+    } catch(_e) {}
+    _accessToken = null;
+    _tokenExpiresAt = 0;
+    _fileIdCache = null;
+    LS.remove('drive-sync-connected');
+    LS.remove('drive-sync-file-id');
+    LS.remove('drive-sync-last');
+    clearPassphrase();
+  }
+
+  // Silent refresh — no popup. Used on boot / before an auto-sync. Rejects
+  // if there's no already-active Google session for the browser to reuse
+  // (or the browser blocks the silent iframe); caller falls back to asking
+  // the user to tap Connect rather than treating this as a hard error.
+  function _ensureToken() {
+    if (_accessToken && Date.now() < _tokenExpiresAt) return Promise.resolve(_accessToken);
+    if (!isConnected()) return Promise.reject(new Error('Not connected'));
+    return _requestToken('');
+  }
+
+  function _driveFetch(url, opts) {
+    opts = opts || {};
+    return _ensureToken().then(function(token) {
+      var headers = opts.headers || {};
+      headers['Authorization'] = 'Bearer ' + token;
+      var merged = {};
+      for (var k in opts) if (opts.hasOwnProperty(k)) merged[k] = opts[k];
+      merged.headers = headers;
+      return fetch(url, merged);
+    });
+  }
+
+  function _findFileId() {
+    if (_fileIdCache) return Promise.resolve(_fileIdCache);
+    var cached = LS.get('drive-sync-file-id');
+    if (cached) { _fileIdCache = cached; return Promise.resolve(cached); }
+    var q = "name='" + DRIVE_SYNC_FILENAME + "' and trashed=false";
+    var url = 'https://www.googleapis.com/drive/v3/files?spaces=appDataFolder&q=' + encodeURIComponent(q) + '&fields=files(id,name)';
+    return _driveFetch(url).then(function(r) {
+      if (!r.ok) throw new Error('Drive lookup failed (' + r.status + ')');
+      return r.json();
+    }).then(function(data) {
+      if (data && Array.isArray(data.files) && data.files.length) {
+        _fileIdCache = data.files[0].id;
+        LS.set('drive-sync-file-id', _fileIdCache);
+        return _fileIdCache;
+      }
+      return null; // doesn't exist yet — first sync on this Drive account
+    });
+  }
+
+  function _downloadContent(fileId) {
+    var url = 'https://www.googleapis.com/drive/v3/files/' + fileId + '?alt=media';
+    return _driveFetch(url).then(function(r) {
+      if (r.status === 404) { _fileIdCache = null; LS.remove('drive-sync-file-id'); return null; } // deleted remotely
+      if (!r.ok) throw new Error('Drive download failed (' + r.status + ')');
+      return r.text();
+    });
+  }
+
+  // Multipart upload — create (no fileId) or update (fileId given). Drive
+  // v3's simplest content-write path that also lets metadata (name +
+  // parents) be set in the same call on create.
+  function _uploadContent(fileId, contentString) {
+    var boundary = 'stlcr_sync_' + Date.now();
+    var metadata = fileId ? {} : { name: DRIVE_SYNC_FILENAME, parents: ['appDataFolder'] };
+    var body =
+      '--' + boundary + '\r\n' +
+      'Content-Type: application/json; charset=UTF-8\r\n\r\n' +
+      JSON.stringify(metadata) + '\r\n' +
+      '--' + boundary + '\r\n' +
+      'Content-Type: text/plain\r\n\r\n' +
+      contentString + '\r\n' +
+      '--' + boundary + '--';
+    var url = fileId
+      ? 'https://www.googleapis.com/upload/drive/v3/files/' + fileId + '?uploadType=multipart'
+      : 'https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart';
+    return _driveFetch(url, {
+      method: fileId ? 'PATCH' : 'POST',
+      headers: { 'Content-Type': 'multipart/related; boundary=' + boundary },
+      body: body
+    }).then(function(r) {
+      if (!r.ok) throw new Error('Drive upload failed (' + r.status + ')');
+      return r.json();
+    }).then(function(data) {
+      if (data && data.id) { _fileIdCache = data.id; LS.set('drive-sync-file-id', data.id); }
+      return data;
+    });
+  }
+
+  // ---- pull: download, decrypt, merge into current profile via
+  // ProfileBackup.applyImportMerge (Drop AR — already covers stops,
+  // archives, transactions, custom types, map layers, photo tracker,
+  // survey log, all additive with dedupe). ----
+  async function pull() {
+    var passphrase = getPassphrase();
+    if (!passphrase) throw new Error('Enter your sync passphrase first');
+    var fileId = await _findFileId();
+    if (!fileId) return { pulled: false, reason: 'nothing on Drive yet' };
+    var content = await _downloadContent(fileId);
+    if (!content) return { pulled: false, reason: 'nothing on Drive yet' };
+    var plaintext = await _decryptKey(content, passphrase);
+    if (plaintext == null) throw new Error('Could not decrypt — wrong passphrase, or the remote copy was written with a different one');
+    var blob = JSON.parse(plaintext);
+    var stats = await ProfileBackup.applyImportMerge(blob);
+    return { pulled: true, stats: stats };
+  }
+
+  // ---- push: build export, encrypt, upload (create or update) ----
+  async function push() {
+    var passphrase = getPassphrase();
+    if (!passphrase) throw new Error('Enter your sync passphrase first');
+    var blob = await ProfileBackup.buildExport();
+    var json = JSON.stringify(blob);
+    var encrypted = await _encryptKey(json, passphrase);
+    var fileId = await _findFileId();
+    await _uploadContent(fileId, encrypted);
+    LS.set('drive-sync-last', new Date().toISOString());
+    return { pushed: true };
+  }
+
+  // ---- syncNow: pull-then-push. Safe to call repeatedly — see the
+  // convergence note in the section header comment above. ----
+  async function syncNow() {
+    var pullResult = await pull();
+    var pushResult = await push();
+    return { pull: pullResult, push: pushResult };
+  }
+
+  // ---- boot-time silent attempt. Fire-and-forget from _initBody — never
+  // throws to the caller, never shows a popup or a passphrase prompt.
+  // No-ops entirely unless already connected AND the passphrase is already
+  // in sessionStorage from earlier this tab session. ----
+  function autoSyncOnBoot() {
+    if (!isConfigured() || !isConnected() || !hasPassphrase()) return;
+    syncNow().then(function(result) {
+      try { if (typeof updateDriveSyncStatusUI === 'function') updateDriveSyncStatusUI(); } catch(_e) {}
+      var stats = result.pull && result.pull.stats;
+      if (stats) {
+        var n = (stats.stopsAppended||0) + (stats.archivedStopsAppended||0) + (stats.transactionsAppended||0) +
+                (stats.photoTrackerPhotosAppended||0) + (stats.surveySessionsAppended||0);
+        if (n > 0 && typeof showToast === 'function') showToast('🔄 Synced — ' + n + ' item' + (n===1?'':'s') + ' from another device');
+      }
+    }).catch(function(e) {
+      console.warn('[DriveSync] auto-sync on boot failed:', e && e.message);
+      try { if (typeof updateDriveSyncStatusUI === 'function') updateDriveSyncStatusUI(); } catch(_e) {}
+    });
+  }
+
+  function getStatus() {
+    return {
+      configured: isConfigured(),
+      connected: isConnected(),
+      hasPassphrase: hasPassphrase(),
+      lastSync: LS.get('drive-sync-last')
+    };
+  }
+
+  return {
+    isConfigured: isConfigured,
+    isConnected: isConnected,
+    hasPassphrase: hasPassphrase,
+    setPassphrase: setPassphrase,
+    clearPassphrase: clearPassphrase,
+    connect: connect,
+    disconnect: disconnect,
+    pull: pull,
+    push: push,
+    syncNow: syncNow,
+    autoSyncOnBoot: autoSyncOnBoot,
+    getStatus: getStatus
+  };
+})();
+window.DriveSync = DriveSync;
+
+// ── Google Drive Sync UI handlers (Settings panel) ──────────────────────────
+function updateDriveSyncStatusUI() {
+  var status = DriveSync.getStatus();
+  var el = document.getElementById('drive-sync-status');
+  if (el) {
+    if (!status.configured) {
+      el.innerHTML = '⚠ Not set up yet — the developer setup step below (Google Cloud Console → Client ID) hasn\'t been done on this deployment yet. The Connect button won\'t do anything until then — that\'s expected, not a bug.';
+    } else if (!status.connected) {
+      el.innerHTML = 'Not connected.';
+    } else if (!status.hasPassphrase) {
+      el.innerHTML = '✅ Connected to Google Drive — 🔒 enter your app PIN to start syncing.';
+    } else {
+      var last = status.lastSync ? new Date(status.lastSync).toLocaleString() : 'never yet';
+      el.innerHTML = '✅ Connected · 🔓 unlocked · Last synced: ' + escHtml(last);
+    }
+  }
+  var connectBtn = document.getElementById('drive-sync-connect-btn');
+  var disconnectBtn = document.getElementById('drive-sync-disconnect-btn');
+  var syncBtn = document.getElementById('drive-sync-now-btn');
+  var passBtn = document.getElementById('drive-sync-passphrase-btn');
+  if (connectBtn) connectBtn.style.display = status.connected ? 'none' : '';
+  if (disconnectBtn) disconnectBtn.style.display = status.connected ? '' : 'none';
+  if (syncBtn) syncBtn.disabled = !(status.connected && status.hasPassphrase);
+  if (passBtn) passBtn.textContent = status.hasPassphrase ? '🔓 Re-enter PIN' : '🔒 Enter PIN';
+}
+
+async function connectDriveSync() {
+  if (!DriveSync.isConfigured()) {
+    showToast('Google Drive sync is not set up yet — see Settings for the developer step');
+    return;
+  }
+  try {
+    showToast('Opening Google sign-in…');
+    await DriveSync.connect();
+    showToast('✅ Connected to Google Drive');
+    updateDriveSyncStatusUI();
+    if (!DriveSync.hasPassphrase()) await enterDriveSyncPin();
+  } catch(e) {
+    showToast('Connect failed: ' + (e && e.message ? e.message : 'unknown'));
+  }
+}
+
+function disconnectDriveSync() {
+  if (!confirm('Disconnect Google Drive sync? Your data already on Drive is left as-is — this just stops this device from syncing.')) return;
+  DriveSync.disconnect();
+  updateDriveSyncStatusUI();
+  showToast('Disconnected');
+}
+
+// Drop AU: Drive sync's passphrase entry now reuses the shared PIN modal
+// instead of its own 6+ character passphrase modal — one 4-digit PIN for
+// both AI features and Drive sync. If a PIN is already cached this
+// session (the user unlocked AI features first, or synced earlier), it's
+// used silently with no prompt at all.
+async function enterDriveSyncPin() {
+  var cached = null;
+  try { cached = sessionStorage.getItem('shared-app-pin'); } catch(_e) {}
+  var pin = cached || await _promptForPin();
+  if (!pin) return;
+  DriveSync.setPassphrase(pin);
+  updateDriveSyncStatusUI();
+  showToast(cached ? '🔒 Using your app PIN' : '🔒 PIN set for this session');
+}
+
+async function syncDriveNow() {
+  var btn = document.getElementById('drive-sync-now-btn');
+  if (btn) btn.disabled = true;
+  try {
+    showToast('Syncing…');
+    var result = await DriveSync.syncNow();
+    updateDriveSyncStatusUI();
+    var stats = result.pull && result.pull.stats;
+    if (stats) {
+      var n = (stats.stopsAppended||0) + (stats.archivedStopsAppended||0) + (stats.transactionsAppended||0) +
+              (stats.photoTrackerPhotosAppended||0) + (stats.surveySessionsAppended||0);
+      showToast(n > 0 ? ('✓ Synced — ' + n + ' new item' + (n===1?'':'s') + ' pulled in') : '✓ Synced — nothing new');
+    } else {
+      showToast('✓ Synced');
+    }
+  } catch(e) {
+    showToast('Sync failed: ' + (e && e.message ? e.message : 'unknown'));
+  } finally {
+    if (btn) btn.disabled = false;
+    try { updateDriveSyncStatusUI(); } catch(_e) {}
+  }
+}
+
 
 // ── Fiscal-Day Stop Archive ──────────────────────────────────────────────────
 // Once a fiscal day is over, completed stops from that day move out of the
@@ -5556,13 +6167,17 @@ function deleteProfileById(id) {
 window.deleteProfileById = deleteProfileById;
 
 // ─── Profile export / import UI handlers ────────────────────────────────────
+// Drop AR (2026-07-28): on a phone, try the OS share sheet first (AirDrop,
+// email, Messages, "Save to Files"/Drive) — that's a much shorter path to
+// getting the backup file onto a desktop than "downloads to a folder you
+// then have to go find." Desktop browsers don't reliably support sharing
+// files via navigator.share, so there it just downloads like before.
 async function exportProfile() {
   try {
     showToast('Building backup…');
     var blob = await ProfileBackup.buildExport();
     var json = JSON.stringify(blob, null, 2);
     var fileBlob = new Blob([json], { type: 'application/json' });
-    var url = URL.createObjectURL(fileBlob);
 
     // Build a friendly filename: stlcityroute-profile-2026-04-25-1432.json
     var d = new Date();
@@ -5570,6 +6185,26 @@ async function exportProfile() {
     var stamp = d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate()) + '-' + pad(d.getHours()) + pad(d.getMinutes());
     var name = 'stlcityroute-profile-' + stamp + '.json';
 
+    var notDesktop = !(typeof _isLikelyDesktop === 'function' && _isLikelyDesktop());
+    if (notDesktop && navigator.canShare && navigator.share) {
+      try {
+        var shareFile = new File([fileBlob], name, { type: 'application/json' });
+        if (navigator.canShare({ files: [shareFile] })) {
+          await navigator.share({
+            files: [shareFile],
+            title: 'STLCityRoute backup',
+            text: 'STLCityRoute profile backup — import this on another device via Settings → Profile Backup & Restore.'
+          });
+          showToast('✓ Backup shared: ' + name);
+          return;
+        }
+      } catch(shareErr) {
+        if (shareErr && shareErr.name === 'AbortError') { showToast('Share cancelled'); return; }
+        // fall through to plain download on any other share failure
+      }
+    }
+
+    var url = URL.createObjectURL(fileBlob);
     var a = document.createElement('a');
     a.href = url;
     a.download = name;
@@ -5698,7 +6333,7 @@ async function confirmProfileImportMerge() {
     showToast('No backup file selected');
     return;
   }
-  if (!confirm('Merge the backup into your current profile?\n\nThis appends stops, archives, transactions, custom types, and map layers. Inspector identity, ID photo, API key, preferences, and webhook URLs are kept as-is on this device.\n\nThis cannot be undone — but data is added, not replaced.')) return;
+  if (!confirm('Merge the backup into your current profile?\n\nThis appends stops, archives, transactions, custom types, map layers, photo tracker locations, and completed survey sessions. Inspector identity, ID photo, API key, preferences, and webhook URLs are kept as-is on this device.\n\nThis cannot be undone — but data is added, not replaced.')) return;
   try {
     showToast('Merging…');
     var stats = await ProfileBackup.applyImportMerge(_pendingImportBlob);
@@ -5709,6 +6344,11 @@ async function confirmProfileImportMerge() {
     if (stats.transactionsAppended)  parts.push(stats.transactionsAppended + ' txns');
     if (stats.customTypesAppended)   parts.push(stats.customTypesAppended + ' types' + (stats.customTypesRenamed ? ' (' + stats.customTypesRenamed + ' renamed)' : ''));
     if (stats.mapLayersAppended)     parts.push(stats.mapLayersAppended + ' layers' + (stats.mapLayersRenamed ? ' (' + stats.mapLayersRenamed + ' renamed)' : ''));
+    if (stats.photoTrackerLocationsAppended || stats.photoTrackerPhotosAppended) {
+      parts.push(stats.photoTrackerPhotosAppended + ' photo tracker entr' + (stats.photoTrackerPhotosAppended === 1 ? 'y' : 'ies') +
+        (stats.photoTrackerLocationsAppended ? ' (' + stats.photoTrackerLocationsAppended + ' new location' + (stats.photoTrackerLocationsAppended === 1 ? '' : 's') + ')' : ''));
+    }
+    if (stats.surveySessionsAppended) parts.push(stats.surveySessionsAppended + ' survey session' + (stats.surveySessionsAppended === 1 ? '' : 's'));
     var msg = parts.length ? ('✓ Merged: ' + parts.join(', ')) : '✓ Merge complete (nothing new to add)';
     if (stats.keysSkipped && stats.keysSkipped.length) msg += '. Skipped: ' + stats.keysSkipped.length + ' setting' + (stats.keysSkipped.length === 1 ? '' : 's');
     msg += '. Reloading…';
@@ -6541,9 +7181,14 @@ function updateSettingsInstallStatus() {
                    || navigator.standalone
                    || LS.get('pwa-installed') === '1';
   const swOk = window._swState && window._swState.registered;
+  // Drop AR (2026-07-28): desktop machines generally have no GPS hardware,
+  // so "GPS active/available" framing is misleading there — swap to
+  // install/offline framing instead. Everything else (secure-context and
+  // service-worker logic) is unchanged; only the wording branches.
+  const isDesktop = typeof _isLikelyDesktop === 'function' && _isLikelyDesktop();
   let lines = [];
   if (isInstalled && isSecure) {
-    lines.push('✅ Installed as PWA — GPS active');
+    lines.push(isDesktop ? '✅ Installed as desktop app' : '✅ Installed as PWA — GPS active');
     lines.push('✅ Service Worker: ' + (swOk ? 'active · offline ready' : 'registering…'));
   } else if (isInstalled && !isSecure) {
     // Installed doesn't guarantee GPS works — e.g. a bookmark shortcut
@@ -6551,20 +7196,28 @@ function updateSettingsInstallStatus() {
     // Don't tell the user GPS is active when the browser will actually
     // refuse it — that's exactly the confusing state that led to the
     // "only secure origins" support case this status banner should catch.
-    lines.push('⚠ Installed, but NOT secure (HTTPS) — GPS will fail');
+    lines.push(isDesktop ? '⚠ Installed, but NOT secure (HTTPS)' : '⚠ Installed, but NOT secure (HTTPS) — GPS will fail');
     lines.push('📋 Open the SETUP GUIDE below and reinstall from ' + HOSTED_URL);
   } else if (isSecure) {
-    lines.push('🌐 HTTPS — GPS available');
-    lines.push('📲 Not installed — tap ADD TO HOME SCREEN for full PWA features');
+    lines.push(isDesktop ? '🌐 HTTPS — offline mode available once installed' : '🌐 HTTPS — GPS available');
+    lines.push(isDesktop ? '💻 Not installed — tap INSTALL APP for offline use + a standalone window' : '📲 Not installed — tap ADD TO HOME SCREEN for full PWA features');
     lines.push(swOk ? '✅ Service Worker active' : '⏳ Service Worker loading…');
   } else if (isFile) {
-    lines.push('⚠ Running from file:// — GPS unavailable');
+    lines.push(isDesktop ? '⚠ Running from file:// — install unavailable' : '⚠ Running from file:// — GPS unavailable');
     lines.push('📋 Open from ' + HOSTED_URL + ' for GPS + install');
   } else {
-    lines.push('⚠ Not secure (HTTP) — GPS unavailable');
+    lines.push(isDesktop ? '⚠ Not secure (HTTP) — install unavailable' : '⚠ Not secure (HTTP) — GPS unavailable');
     lines.push('📋 Open ' + HOSTED_URL + ' — include the https:// — for GPS + install');
   }
   el.innerHTML = lines.join('<br>');
+
+  // Swap the install button's own label/subtitle too — same isDesktop
+  // check, kept in this function so both pieces of copy can never drift
+  // out of sync with each other.
+  const installBtn = document.querySelector('#settings-install-btn-wrap button');
+  const installSub = document.querySelector('#settings-install-btn-wrap div');
+  if (installBtn) installBtn.textContent = isDesktop ? '💻 INSTALL APP' : '📲 ADD TO HOME SCREEN';
+  if (installSub) installSub.textContent = isDesktop ? 'Runs in its own window, works offline' : 'GPS works after installing';
 }
 
 // PWA install prompt
@@ -6574,10 +7227,12 @@ function triggerInstallPrompt() {
     window._deferredInstallPrompt.userChoice.then(r => {
       if (r.outcome === 'accepted') {
         LS.set('pwa-installed', '1');
-        showToast('✅ Adding to home screen…');
+        showToast('✅ Installing…');
       }
       window._deferredInstallPrompt = null;
     });
+  } else if (typeof _isLikelyDesktop === 'function' && _isLikelyDesktop()) {
+    showToast('Use the install icon in your browser\'s address bar, or its menu → Install STLCityRoute');
   } else {
     showToast('Use your browser menu → Add to Home Screen');
   }
@@ -6590,6 +7245,35 @@ function triggerInstallPrompt() {
 // the real hosted URL, not a placeholder — update HOSTED_URL if the domain
 // ever changes.
 var HOSTED_URL = 'https://stlcityroute.com';
+
+// Drop AS (2026-07-28) — Google Drive Sync setup. This Client ID is a
+// PLACEHOLDER that must be replaced with a real one before sync will work.
+// It is NOT a secret — client-side OAuth (Google Identity Services token
+// flow) is designed to ship this in public code; the actual security
+// boundary is the "Authorized JavaScript origins" allowlist set when the
+// credential is created, not secrecy of the ID itself. One-time setup,
+// done once by whoever hosts this app (no ongoing server, no recurring
+// cost):
+//   1. https://console.cloud.google.com/ → create a project (or reuse one)
+//   2. APIs & Services → Enabled APIs → enable "Google Drive API"
+//   3. APIs & Services → OAuth consent screen → External → fill in app
+//      name/support email → Scopes → add ".../auth/drive.appdata" →
+//      Test users → add each inspector's Google account. Leave the app in
+//      "Testing" status — that supports up to 100 test users with zero
+//      Google review needed, which is plenty for a single department.
+//      (Only if you outgrow 100 users AND want the public "unverified
+//      app" warning gone does this need Google's app-verification review.)
+//   4. APIs & Services → Credentials → Create Credentials → OAuth client
+//      ID → Application type: Web application → Authorized JavaScript
+//      origins: add https://stlcityroute.com (and http://localhost:PORT
+//      if testing locally) → Create.
+//   5. Paste the generated Client ID below, replacing the placeholder.
+// See the Drop AS Version Notes for the full walkthrough with screenshots
+// references and troubleshooting.
+var GOOGLE_DRIVE_CLIENT_ID = '872557938817-do6hdbgc3ha0jk83gds2jejsl08n9jjv.apps.googleusercontent.com';
+var DRIVE_SYNC_SCOPE = 'https://www.googleapis.com/auth/drive.appdata';
+var DRIVE_SYNC_FILENAME = 'stlcityroute-sync.json.enc';
+
 function _gpsSetupGuideHtml() {
   return ''
     + '<div style="background:#e8f5e9;border-left:3px solid #27ae60;border-radius:0 8px 8px 0;padding:11px 13px;margin-bottom:8px">'
@@ -7355,6 +8039,21 @@ function _initBody() {
   _attachRouteListListener();
 
   _attachLifecycleListeners();
+
+  // Drop AS: silent Drive sync attempt — no-op unless already connected
+  // with a passphrase already unlocked this session (see DriveSync
+  // section header for why this never prompts or blocks boot).
+  try { if (typeof DriveSync !== 'undefined') DriveSync.autoSyncOnBoot(); } catch(_e) {}
+
+  // Drop AT: reveal the manual fullscreen toggle only on desktop — stays
+  // display:none (its markup default) on phones/tablets so it never
+  // affects the header-width math flagged in Drop AQ.
+  try {
+    if (typeof _isLikelyDesktop === 'function' && _isLikelyDesktop()) {
+      var _fsBtn = document.getElementById('fullscreen-btn');
+      if (_fsBtn) _fsBtn.style.display = '';
+    }
+  } catch(_e) {}
 }
 
 // ============================================================
@@ -15906,6 +16605,48 @@ var _photoSession = {
   IDLE_MS: 5 * 60 * 1000
 };
 
+// ── Photo session GPS pre-warming (Drop AT, 2026-07-28) ─────────────────
+// Field-test finding: the pause between "photo accepted" and the stamped
+// preview appearing was dominated by GPS acquisition, not canvas/encode
+// work. _tryGetLocationForStamp() used to call getCurrentPosition() fresh
+// on every single shot with maximumAge:30000 — fine for the FIRST shot,
+// but during a multi-shot session (3-5 photos in quick succession while
+// composing/walking between frames) it's common for >30s to pass between
+// shots, so the browser discards its cached fix and re-acquires from
+// scratch each time: 1-3.5s of dead time per photo.
+// Fix: keep a live watchPosition() stream running for the duration of an
+// active photo session. Each shot then just reads whatever fix is already
+// sitting in _photoGpsWatch.lastFix — no per-shot wait. Falls back to the
+// original one-shot getCurrentPosition() path (below) if the watch hasn't
+// produced anything recent (e.g. indoor / signal loss / session not
+// active), so single-shot header-button stamping and edge cases are
+// unaffected.
+var _photoGpsWatch = { id: null, lastFix: null, lastFixAt: 0 };
+
+function _startPhotoGpsWatch() {
+  if (_photoGpsWatch.id != null) return; // already running
+  if (!navigator.geolocation || !navigator.geolocation.watchPosition) return;
+  try {
+    _photoGpsWatch.id = navigator.geolocation.watchPosition(
+      function(p) {
+        _photoGpsWatch.lastFix = { lat: p.coords.latitude, lng: p.coords.longitude, acc: p.coords.accuracy };
+        _photoGpsWatch.lastFixAt = Date.now();
+      },
+      function(_err) { /* ignore — per-shot getCurrentPosition fallback still works */ },
+      { enableHighAccuracy: true, maximumAge: 0, timeout: 8000 }
+    );
+  } catch(_e) {}
+}
+
+function _stopPhotoGpsWatch() {
+  if (_photoGpsWatch.id != null && navigator.geolocation && navigator.geolocation.clearWatch) {
+    try { navigator.geolocation.clearWatch(_photoGpsWatch.id); } catch(_e) {}
+  }
+  _photoGpsWatch.id = null;
+  _photoGpsWatch.lastFix = null;
+  _photoGpsWatch.lastFixAt = 0;
+}
+
 // ── Photostamp drift detection ───────────────────────────────────────────
 // When a new photo is captured, compare its GPS to the rolling average of
 // the last few shots in the active session. If the new shot is unusually
@@ -16019,12 +16760,15 @@ function _startPhotoSession(stopId, address, notes) {
   try { _photoSession.quickMode = LS.get('photo-quick-mode') === '1'; }
   catch(_e) { _photoSession.quickMode = false; }
   _resetIdleTimer();
+  _startPhotoGpsWatch();
 }
 
 function _endPhotoSession(opts) {
   opts = opts || {};
   if (_photoSession.idleTimer) { clearTimeout(_photoSession.idleTimer); _photoSession.idleTimer = null; }
   _photoSession.active = false;
+  _stopPhotoGpsWatch();
+  _exitToolFullscreen();
   // Free memory
   _photoSession.shots = [];
   _photoSession.address = '';
@@ -16071,6 +16815,7 @@ function _renderSessionStrip() {
 
 // Entry point — opens pre-capture setup modal
 function openStampedCameraForStop(stopId) {
+  _enterToolFullscreen('photostamp');
   _photoContext.stopId = (stopId === null || stopId === undefined) ? null : Number(stopId);
   _photoContext.stampedBlob = null;
   _photoContext.stampedDataUrl = null;
@@ -16170,6 +16915,25 @@ function closePhotoSetup() {
   var modal = document.getElementById('photo-setup-modal');
   modal.style.display = 'none';
   Accessibility.modalClosed(modal);
+}
+
+// Wraps closePhotoSetup for the Cancel/Exit buttons specifically (as
+// opposed to photoSetupContinue, which also calls closePhotoSetup mid-flow
+// when handing off to the camera — that path must NOT exit fullscreen).
+// No session has started yet at this point, so _endPhotoSession's own
+// _exitToolFullscreen() call never fires for a cancel-before-capture; this
+// covers that gap.
+function cancelPhotoSetup() {
+  closePhotoSetup();
+  if (!_photoSession.active) _exitToolFullscreen();
+}
+
+// The preview modal's "✕ Exit" button (Drop AT) — a full exit back to the
+// routing app, distinct from the lighter-weight paths closePhotoPreview()
+// already handles (iOS mid-session defer, non-forced close). Forces the
+// session closed so fullscreen/theme cleanup in _endPhotoSession fires.
+function exitPhotoStamp() {
+  closePhotoPreview({ force: true });
 }
 
 // Reverse-geocode current GPS into an address (uses Nominatim if available)
@@ -17204,6 +17968,79 @@ function _isIOS() {
   return false;
 }
 
+// Desktop-browser detection (Drop AR, 2026-07-28) — heuristic, not exact.
+// Checks for a fine (mouse) pointer AND hover capability, which excludes
+// touch phones/tablets (coarse pointer, no hover) including iPadOS-as-Mac
+// (which _isIOS() above already catches separately). Not meant to be a
+// hard device gate — just used to soften GPS-framed copy that doesn't
+// apply to a machine without GPS hardware (install status text, PWA
+// install prompt wording). Never used to hide/disable functionality.
+// ── Tool fullscreen + distinct-app chrome (Drop AT, 2026-07-28) ─────────
+// Three tools in one file (routing/survey, PhotoStamp, PDF Docs) should
+// feel like three separate apps when you're inside PhotoStamp or PDF
+// Docs, but the base routing screens stay a normal windowed page.
+// Browsers only allow requestFullscreen() from a real user gesture — it
+// cannot fire on page load — so this hooks the SAME taps that already
+// open these tools (a real gesture) rather than trying to auto-fullscreen
+// on desktop at boot, which the Fullscreen API would silently reject.
+// Desktop-only (_isLikelyDesktop()); on phones the tools are already
+// full-screen by virtue of the viewport, so there's nothing to request.
+var _toolFullscreenActive = null; // 'photostamp' | 'pdfdocs' | null
+function _enterToolFullscreen(tool) {
+  if (!_isLikelyDesktop()) return;
+  try { document.body.classList.add('tool-fullscreen-' + tool); } catch(_e) {}
+  _toolFullscreenActive = tool;
+  try {
+    var el = document.documentElement;
+    if (el.requestFullscreen && !document.fullscreenElement) {
+      el.requestFullscreen().catch(function(){ /* user/browser declined — full-bleed layout still applies */ });
+    }
+  } catch(_e) {}
+}
+function _exitToolFullscreen() {
+  if (!_toolFullscreenActive) return;
+  try { document.body.classList.remove('tool-fullscreen-' + _toolFullscreenActive); } catch(_e) {}
+  _toolFullscreenActive = null;
+  try {
+    if (document.fullscreenElement && document.exitFullscreen) document.exitFullscreen().catch(function(){});
+  } catch(_e) {}
+}
+// Manual toggle for the base routing screens (desktop only) — the tools
+// above enter fullscreen automatically off their own open taps, but the
+// base app has no equivalent single "open" gesture to hook, so it gets an
+// explicit button instead.
+function toggleAppFullscreen() {
+  try {
+    if (document.fullscreenElement) {
+      document.exitFullscreen().catch(function(){});
+    } else {
+      document.documentElement.requestFullscreen().catch(function(){
+        showToast('⚠ Fullscreen not available');
+      });
+    }
+  } catch(_e) { showToast('⚠ Fullscreen not available'); }
+}
+// Keeps the manual button's icon honest and cleans up the tool theme class
+// if the user exits fullscreen via Esc (bypassing exitPhotoStamp/
+// closeCndPdfModal) rather than the app's own Exit buttons.
+try {
+  document.addEventListener('fullscreenchange', function() {
+    var fsBtn = document.getElementById('fullscreen-btn');
+    if (fsBtn) fsBtn.textContent = document.fullscreenElement ? '⛝' : '⛶';
+    if (!document.fullscreenElement && _toolFullscreenActive) {
+      try { document.body.classList.remove('tool-fullscreen-' + _toolFullscreenActive); } catch(_e) {}
+      _toolFullscreenActive = null;
+    }
+  });
+} catch(_e) {}
+
+function _isLikelyDesktop() {
+  try {
+    if (_isIOS()) return false;
+    return window.matchMedia('(pointer: fine)').matches && window.matchMedia('(hover: hover)').matches;
+  } catch(e) { return false; }
+}
+
 // Re-stamp the original photo with current _photoContext values, then update preview
 async function rebuildStampedPreview() {
   if (!_photoContext.originalBlob) return;
@@ -17925,6 +18762,12 @@ function _readCredsField(key) {
 }
 
 function _tryGetLocationForStamp() {
+  // Fast path — an active session's GPS watch already has a fix from the
+  // last 20s. This is what removes the per-shot pause during multi-photo
+  // sessions; see _startPhotoGpsWatch above.
+  if (_photoGpsWatch.lastFix && (Date.now() - _photoGpsWatch.lastFixAt) < 20000) {
+    return Promise.resolve(_photoGpsWatch.lastFix);
+  }
   return new Promise(function(resolve) {
     if (!navigator.geolocation) return resolve(null);
     var done = false;
@@ -23139,6 +23982,575 @@ async function geoLookup(lat, lng) {
   return out;
 }
 
+// ============================================================================
+// SECTION: PDF Docs — C&D photo documentation + simple PDF convert
+// Incorporated from the standalone pdf_converter.html tool (Drop AQ,
+// 2026-07-28). Deliberately does NOT bring over that tool's own Nominatim
+// fetch or the ~800KB inline neighborhoods/wards GeoJSON — it reuses
+// AddressAutocomplete.geocodeRaw() for address search and geoLookup()
+// (via GeoCache) for neighborhood/ward/police-district, same as every
+// other address field in this app. jsPDF is lazy-loaded via a small
+// module-local loader (_cndPdfEnsureJsPDF), duplicated rather than reached
+// into AreaPeriodReport's private closure — consistent with this
+// project's per-module self-containment convention.
+// ============================================================================
+var _cndPdfPhotos = [];          // C&D tab: { file, img, name, dataUrl }
+var _cndPdfSimplePhotos = [];    // Simple Convert tab
+var _cndPdfNisExtra = [];        // additional NIS names (strings)
+var _cndPdfPpoExtra = [];        // additional PPO names (strings)
+var _cndPdfAddrSuggestions = [];
+var _cndPdfAddrDebounce = null;
+var _cndPdfAddrFetchCtrl = null;
+var _cndPdfDefaultDirHandle = null;
+var _cndPdfDropzonesWired = false;
+
+function _cndPdfFsSupported() { return typeof window.showDirectoryPicker === 'function'; }
+
+function _cndPdfEnsureJsPDF() {
+  if (window.jspdf && window.jspdf.jsPDF) return Promise.resolve(window.jspdf.jsPDF);
+  return new Promise(function(resolve, reject) {
+    var s = document.createElement('script');
+    s.src = 'https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js';
+    s.onload = function() {
+      if (window.jspdf && window.jspdf.jsPDF) resolve(window.jspdf.jsPDF);
+      else reject(new Error('PDF library loaded but did not initialize as expected'));
+    };
+    s.onerror = function() { reject(new Error('Could not load the PDF library — check your connection and try again')); };
+    document.head.appendChild(s);
+  });
+}
+
+// ---- Default-save-folder handle persistence (File System Access API),
+// namespaced under the app's unified stlcr- IDB prefix. ----
+function _cndPdfIdbOpen() {
+  return new Promise(function(resolve, reject) {
+    var req = indexedDB.open('stlcr-pdfdocs', 1);
+    req.onupgradeneeded = function() { req.result.createObjectStore('handles'); };
+    req.onsuccess = function() { resolve(req.result); };
+    req.onerror = function() { reject(req.error); };
+  });
+}
+function _cndPdfIdbSet(key, val) {
+  return _cndPdfIdbOpen().then(function(db) {
+    return new Promise(function(resolve, reject) {
+      var tx = db.transaction('handles', 'readwrite');
+      tx.objectStore('handles').put(val, key);
+      tx.oncomplete = function() { resolve(); };
+      tx.onerror = function() { reject(tx.error); };
+    });
+  });
+}
+function _cndPdfIdbGet(key) {
+  return _cndPdfIdbOpen().then(function(db) {
+    return new Promise(function(resolve, reject) {
+      var tx = db.transaction('handles', 'readonly');
+      var req = tx.objectStore('handles').get(key);
+      req.onsuccess = function() { resolve(req.result); };
+      req.onerror = function() { reject(req.error); };
+    });
+  });
+}
+function _cndPdfRefreshFolderStatus(needsPermission) {
+  var el = document.getElementById('cndpdf-folder-status');
+  if (!el) return;
+  if (_cndPdfDefaultDirHandle) {
+    el.textContent = needsPermission
+      ? ('Default folder "' + _cndPdfDefaultDirHandle.name + '" — tap Set Default Folder to re-grant access after reopening this app.')
+      : ('Saving into: ' + _cndPdfDefaultDirHandle.name);
+  } else {
+    el.textContent = "No default folder set — you'll be asked where to save each time.";
+  }
+}
+function _cndPdfLoadSavedFolder() {
+  if (!_cndPdfFsSupported()) return;
+  _cndPdfIdbGet('defaultDir').then(function(handle) {
+    if (!handle) return;
+    _cndPdfDefaultDirHandle = handle;
+    return handle.queryPermission({ mode: 'readwrite' }).then(function(perm) {
+      _cndPdfRefreshFolderStatus(perm !== 'granted');
+    });
+  }).catch(function() { /* no saved folder or IndexedDB unavailable */ });
+}
+function cndPdfChooseFolder() {
+  if (!_cndPdfFsSupported()) { showToast('Folder picking is not supported in this browser'); return; }
+  window.showDirectoryPicker().then(function(handle) {
+    _cndPdfDefaultDirHandle = handle;
+    _cndPdfRefreshFolderStatus(false);
+    _cndPdfIdbSet('defaultDir', handle).catch(function() {});
+  }).catch(function() { /* user cancelled the picker */ });
+}
+function cndPdfClearFolder() {
+  _cndPdfDefaultDirHandle = null;
+  _cndPdfRefreshFolderStatus(false);
+  _cndPdfIdbSet('defaultDir', null).catch(function() {});
+}
+
+// Saves one or more PDF Blobs: into the default folder if set (no dialogs),
+// otherwise a Save As dialog for a single file, otherwise sequential
+// downloads. Same fallback chain as the standalone tool.
+async function _cndPdfSavePdfBlobs(files) {
+  if (_cndPdfDefaultDirHandle) {
+    try {
+      var perm = await _cndPdfDefaultDirHandle.queryPermission({ mode: 'readwrite' });
+      if (perm !== 'granted') perm = await _cndPdfDefaultDirHandle.requestPermission({ mode: 'readwrite' });
+      if (perm === 'granted') {
+        for (var i = 0; i < files.length; i++) {
+          var fh = await _cndPdfDefaultDirHandle.getFileHandle(files[i].filename, { create: true });
+          var w = await fh.createWritable();
+          await w.write(files[i].blob);
+          await w.close();
+        }
+        return { method: 'folder', detail: _cndPdfDefaultDirHandle.name, count: files.length };
+      }
+    } catch(e) { /* fall through to other save methods */ }
+  }
+  if (files.length === 1 && _cndPdfFsSupported() && window.showSaveFilePicker) {
+    try {
+      var handle = await window.showSaveFilePicker({
+        suggestedName: files[0].filename,
+        types: [{ description: 'PDF', accept: { 'application/pdf': ['.pdf'] } }]
+      });
+      var writable = await handle.createWritable();
+      await writable.write(files[0].blob);
+      await writable.close();
+      return { method: 'picker', count: 1 };
+    } catch(e) {
+      if (e && e.name === 'AbortError') return { method: 'cancelled' };
+      // fall through to plain download
+    }
+  }
+  for (var j = 0; j < files.length; j++) {
+    var url = URL.createObjectURL(files[j].blob);
+    var a = document.createElement('a');
+    a.href = url; a.download = files[j].filename;
+    document.body.appendChild(a); a.click(); a.remove();
+    URL.revokeObjectURL(url);
+    await new Promise(function(r) { setTimeout(r, 150); }); // avoid the browser dropping rapid-fire downloads
+  }
+  return { method: 'download', count: files.length };
+}
+
+// ---- shared photo helpers ----
+function _cndPdfReadFileAsImage(file) {
+  return new Promise(function(resolve, reject) {
+    var reader = new FileReader();
+    reader.onload = function() {
+      var img = new Image();
+      img.onload = function() { resolve(img); };
+      img.onerror = reject;
+      img.src = reader.result;
+    };
+    reader.onerror = reject;
+    reader.readAsDataURL(file);
+  });
+}
+async function _cndPdfAddFilesToStore(files, store) {
+  for (var i = 0; i < files.length; i++) {
+    var img = await _cndPdfReadFileAsImage(files[i]);
+    store.push({ file: files[i], img: img, name: files[i].name, dataUrl: img.src });
+  }
+}
+function _cndPdfRenderPhotoList(listEl, photos, removeFnName, moveFnName) {
+  if (!listEl) return;
+  listEl.innerHTML = photos.map(function(p, i) {
+    return '<div style="display:flex;align-items:center;gap:10px;padding:8px;border:1px solid #d9d6cd;background:#fdfcfa">' +
+      '<img src="' + p.dataUrl + '" style="width:48px;height:48px;object-fit:cover;border:1px solid #d9d6cd">' +
+      '<div style="flex:1;font-size:0.6rem;word-break:break-all;color:#3c4a5c">' + escHtml(p.name) + '</div>' +
+      '<div style="display:flex;gap:4px">' +
+        '<button onclick="' + moveFnName + '(' + i + ',-1)" style="background:none;border:1px solid #c7c3b8;color:#3c4a5c;cursor:pointer;font-size:0.6rem;padding:4px 7px">\u2191</button>' +
+        '<button onclick="' + moveFnName + '(' + i + ',1)" style="background:none;border:1px solid #c7c3b8;color:#3c4a5c;cursor:pointer;font-size:0.6rem;padding:4px 7px">\u2193</button>' +
+        '<button onclick="' + removeFnName + '(' + i + ')" style="background:none;border:1px solid #d8b3a8;color:#a3402f;cursor:pointer;font-size:0.6rem;padding:4px 7px">Remove</button>' +
+      '</div></div>';
+  }).join('');
+}
+
+// ---- modal open/close + tab switch ----
+function openCndPdfModal() {
+  _enterToolFullscreen('pdfdocs');
+  var modal = document.getElementById('cnd-pdf-modal');
+  if (!modal) return;
+  modal.style.display = 'flex';
+  cndPdfSwitchTab('cnd');
+  _cndPdfLoadSavedFolder();
+  _cndPdfSetupDropzones();
+}
+function closeCndPdfModal() {
+  var modal = document.getElementById('cnd-pdf-modal');
+  if (modal) modal.style.display = 'none';
+  _exitToolFullscreen();
+}
+function cndPdfSwitchTab(which) {
+  var cndTab = document.getElementById('cndpdf-tab-cnd');
+  var simpleTab = document.getElementById('cndpdf-tab-simple');
+  var cndPanel = document.getElementById('cndpdf-panel-cnd');
+  var simplePanel = document.getElementById('cndpdf-panel-simple');
+  if (!cndTab || !simpleTab || !cndPanel || !simplePanel) return;
+  var isCnd = which === 'cnd';
+  cndPanel.style.display = isCnd ? 'block' : 'none';
+  simplePanel.style.display = isCnd ? 'none' : 'block';
+  cndTab.style.background = isCnd ? '#28323f' : '#eae7de';
+  cndTab.style.color = isCnd ? '#fff' : '#3c4a5c';
+  cndTab.style.borderColor = isCnd ? '#28323f' : '#d9d6cd';
+  simpleTab.style.background = isCnd ? '#eae7de' : '#28323f';
+  simpleTab.style.color = isCnd ? '#3c4a5c' : '#fff';
+  simpleTab.style.borderColor = isCnd ? '#d9d6cd' : '#28323f';
+}
+
+// ---- date mask (MM/DD/YYYY with auto slashes + 2-digit-year expansion) ----
+function _cndPdfFormatDateDigits(digits) {
+  digits = digits.slice(0, 8);
+  if (digits.length <= 2) return digits;
+  if (digits.length <= 4) return digits.slice(0,2) + '/' + digits.slice(2);
+  return digits.slice(0,2) + '/' + digits.slice(2,4) + '/' + digits.slice(4);
+}
+function cndPdfDateMask(id) {
+  var input = document.getElementById(id);
+  if (!input) return;
+  var digitsOnly = input.value.replace(/\D/g, '');
+  input.value = _cndPdfFormatDateDigits(digitsOnly);
+  cndPdfUpdatePreview();
+}
+function _cndPdfExpandYear(dateStr) {
+  var parts = dateStr.split('/');
+  if (parts.length === 3 && parts[2].length === 2) {
+    var century = Math.floor(new Date().getFullYear() / 100) * 100;
+    parts[2] = String(century + parseInt(parts[2], 10));
+    return parts.join('/');
+  }
+  return dateStr;
+}
+
+// ---- dynamic "additional name" lists for NIS / PPO ----
+function cndPdfAddName(kind) {
+  var arr = kind === 'nis' ? _cndPdfNisExtra : _cndPdfPpoExtra;
+  arr.push('');
+  _cndPdfRenderNameList(kind);
+}
+function _cndPdfRenderNameList(kind) {
+  var containerId = kind === 'nis' ? 'cndpdf-nis-extra' : 'cndpdf-ppo-extra';
+  var arr = kind === 'nis' ? _cndPdfNisExtra : _cndPdfPpoExtra;
+  var container = document.getElementById(containerId);
+  if (!container) return;
+  container.innerHTML = arr.map(function(val, i) {
+    return '<div style="display:flex;gap:6px;align-items:center">' +
+      '<input type="text" value="' + val.replace(/"/g,'&quot;') + '" placeholder="Additional ' + kind.toUpperCase() + ' name" oninput="_cndPdfNameInput(\'' + kind + '\',' + i + ',this.value)" style="flex:1;padding:8px 9px;border:1px solid #c7c3b8;background:#fdfcfa;font-size:0.68rem;box-sizing:border-box">' +
+      '<button type="button" onclick="_cndPdfNameRemove(\'' + kind + '\',' + i + ')" title="Remove" style="background:none;border:1px solid #d8b3a8;color:#a3402f;cursor:pointer;font-size:0.6rem;padding:7px 9px">Remove</button>' +
+    '</div>';
+  }).join('');
+}
+function _cndPdfNameInput(kind, i, val) {
+  var arr = kind === 'nis' ? _cndPdfNisExtra : _cndPdfPpoExtra;
+  arr[i] = val;
+  cndPdfUpdatePreview();
+}
+function _cndPdfNameRemove(kind, i) {
+  var arr = kind === 'nis' ? _cndPdfNisExtra : _cndPdfPpoExtra;
+  arr.splice(i, 1);
+  _cndPdfRenderNameList(kind);
+  cndPdfUpdatePreview();
+}
+
+// ---- header lines + canvas stamping + live preview ----
+function _cndPdfBuildHeaderLines() {
+  var address = (document.getElementById('cndpdf-address').value || '').trim();
+  var zip = (document.getElementById('cndpdf-zip').value || '').trim();
+  var neighborhood = (document.getElementById('cndpdf-neighborhood').value || '').trim();
+  var ward = (document.getElementById('cndpdf-ward').value || '').trim();
+  var policeDistrict = (document.getElementById('cndpdf-police-district').value || '').trim();
+  var dated = _cndPdfExpandYear((document.getElementById('cndpdf-dated').value || '').trim());
+  var posted = _cndPdfExpandYear((document.getElementById('cndpdf-posted').value || '').trim());
+  var nis1 = (document.getElementById('cndpdf-nis').value || '').trim();
+  var ppo1 = (document.getElementById('cndpdf-ppo').value || '').trim();
+  var nisExtraNames = _cndPdfNisExtra.map(function(n){ return n.trim(); }).filter(Boolean);
+  var ppoExtraNames = _cndPdfPpoExtra.map(function(n){ return n.trim(); }).filter(Boolean);
+
+  var lines = [];
+  var addressLine = [address || '\u2014', zip].filter(Boolean).join(' ');
+  lines.push(addressLine);
+
+  var geoParts = [];
+  if (neighborhood) geoParts.push(neighborhood);
+  if (ward) geoParts.push(/^ward/i.test(ward) ? ward : ('Ward ' + ward));
+  if (policeDistrict) geoParts.push(/district/i.test(policeDistrict) ? policeDistrict : ('Police District ' + policeDistrict));
+  if (geoParts.length) lines.push(geoParts.join(', '));
+
+  var datedStr = dated || 'XX/XX/XXXX';
+  var postedStr = posted || 'XX/XX/XXXX';
+  lines.push('C&D - Dated: ' + datedStr + '   |   Posted: ' + postedStr);
+  lines.push('NIS: ' + (nis1 || '\u2014') + '   |   PPO: ' + (ppo1 || '\u2014'));
+
+  if (nisExtraNames.length || ppoExtraNames.length) {
+    var extraParts = [];
+    if (nisExtraNames.length) extraParts.push('NIS: ' + nisExtraNames.join(', '));
+    if (ppoExtraNames.length) extraParts.push('PPO: ' + ppoExtraNames.join(', '));
+    lines.push(extraParts.join('   |   '));
+  }
+  return lines;
+}
+function _cndPdfStampImage(img, lines) {
+  var targetWidth = Math.max(img.width, 1000);
+  var scale = targetWidth / img.width;
+  var w = Math.round(img.width * scale);
+  var h = Math.round(img.height * scale);
+  var lineHeight = 58, padding = 34;
+  var headerHeight = padding * 2 + lines.length * lineHeight;
+  var canvas = document.createElement('canvas');
+  canvas.width = w; canvas.height = h + headerHeight;
+  var ctx = canvas.getContext('2d');
+  ctx.fillStyle = '#ffffff';
+  ctx.fillRect(0, 0, w, headerHeight);
+  ctx.strokeStyle = '#000000'; ctx.lineWidth = 2;
+  ctx.strokeRect(1, 1, w - 2, headerHeight - 3);
+  ctx.fillStyle = '#000000';
+  ctx.textBaseline = 'top'; ctx.textAlign = 'center';
+  var centerX = w / 2;
+  lines.forEach(function(line, i) {
+    ctx.font = (i === 0 ? 'bold 42px Arial' : '36px Arial');
+    ctx.fillText(line, centerX, padding + i * lineHeight + 2);
+  });
+  ctx.drawImage(img, 0, headerHeight, w, h);
+  return canvas;
+}
+function cndPdfUpdatePreview() {
+  var previewEl = document.getElementById('cndpdf-preview');
+  if (!previewEl) return;
+  previewEl.textContent = _cndPdfBuildHeaderLines().join('\n');
+  _cndPdfUpdateThumbnail();
+}
+function _cndPdfUpdateThumbnail() {
+  var wrap = document.getElementById('cndpdf-thumb-wrap');
+  var canvas = document.getElementById('cndpdf-thumb-canvas');
+  if (!wrap || !canvas) return;
+  if (!_cndPdfPhotos.length) { wrap.style.display = 'none'; return; }
+  wrap.style.display = 'block';
+  var lines = _cndPdfBuildHeaderLines();
+  var stamped = _cndPdfStampImage(_cndPdfPhotos[0].img, lines);
+  canvas.width = stamped.width; canvas.height = stamped.height;
+  canvas.getContext('2d').drawImage(stamped, 0, 0);
+}
+
+// ---- photo list mutation (C&D tab + Simple tab, kept separate) ----
+function cndPdfPhotoRemove(i) {
+  _cndPdfPhotos.splice(i, 1);
+  _cndPdfRenderPhotoList(document.getElementById('cndpdf-photo-list'), _cndPdfPhotos, 'cndPdfPhotoRemove', 'cndPdfPhotoMove');
+  _cndPdfUpdateThumbnail();
+}
+function cndPdfPhotoMove(i, dir) {
+  var j = i + dir;
+  if (j < 0 || j >= _cndPdfPhotos.length) return;
+  var tmp = _cndPdfPhotos[i]; _cndPdfPhotos[i] = _cndPdfPhotos[j]; _cndPdfPhotos[j] = tmp;
+  _cndPdfRenderPhotoList(document.getElementById('cndpdf-photo-list'), _cndPdfPhotos, 'cndPdfPhotoRemove', 'cndPdfPhotoMove');
+  _cndPdfUpdateThumbnail();
+}
+function cndPdfSimplePhotoRemove(i) {
+  _cndPdfSimplePhotos.splice(i, 1);
+  _cndPdfRenderPhotoList(document.getElementById('cndpdf-simple-photo-list'), _cndPdfSimplePhotos, 'cndPdfSimplePhotoRemove', 'cndPdfSimplePhotoMove');
+}
+function cndPdfSimplePhotoMove(i, dir) {
+  var j = i + dir;
+  if (j < 0 || j >= _cndPdfSimplePhotos.length) return;
+  var tmp = _cndPdfSimplePhotos[i]; _cndPdfSimplePhotos[i] = _cndPdfSimplePhotos[j]; _cndPdfSimplePhotos[j] = tmp;
+  _cndPdfRenderPhotoList(document.getElementById('cndpdf-simple-photo-list'), _cndPdfSimplePhotos, 'cndPdfSimplePhotoRemove', 'cndPdfSimplePhotoMove');
+}
+function cndPdfClearAll() {
+  _cndPdfPhotos = [];
+  _cndPdfRenderPhotoList(document.getElementById('cndpdf-photo-list'), _cndPdfPhotos, 'cndPdfPhotoRemove', 'cndPdfPhotoMove');
+  var statusEl = document.getElementById('cndpdf-status');
+  if (statusEl) statusEl.textContent = '';
+  _cndPdfUpdateThumbnail();
+}
+function cndPdfSimpleClearAll() {
+  _cndPdfSimplePhotos = [];
+  _cndPdfRenderPhotoList(document.getElementById('cndpdf-simple-photo-list'), _cndPdfSimplePhotos, 'cndPdfSimplePhotoRemove', 'cndPdfSimplePhotoMove');
+  var statusEl = document.getElementById('cndpdf-simple-status');
+  if (statusEl) statusEl.textContent = '';
+}
+
+// Builds CND_<address>_PostedOn_<MMDDYYYY>_<photo#>.pdf — same filename
+// convention as the standalone tool, for consistency with anything already
+// uploaded from field use of that tool.
+function _cndPdfBuildFilename(index) {
+  var address = (document.getElementById('cndpdf-address').value || '').trim();
+  var addressSlug = address.split(/\s+/).map(function(part) {
+    return part.replace(/[^a-zA-Z0-9]/g, '');
+  }).filter(Boolean).join('_');
+  var postedRaw = _cndPdfExpandYear((document.getElementById('cndpdf-posted').value || '').trim());
+  var postedDigits = postedRaw.replace(/\D/g, '');
+  var postedPart = postedDigits || 'Unknown';
+  return 'CND_' + (addressSlug || 'property') + '_PostedOn_' + postedPart + '_' + index + '.pdf';
+}
+
+async function cndPdfGenerate() {
+  var statusEl = document.getElementById('cndpdf-status');
+  if (!_cndPdfPhotos.length) {
+    if (statusEl) { statusEl.textContent = 'Add at least one photo first.'; statusEl.style.color = '#a3402f'; }
+    return;
+  }
+  var address = (document.getElementById('cndpdf-address').value || '').trim();
+  if (!address) {
+    if (statusEl) { statusEl.textContent = 'Enter the property address before generating.'; statusEl.style.color = '#a3402f'; }
+    return;
+  }
+  try {
+    var jsPDFCtor = await _cndPdfEnsureJsPDF();
+    var lines = _cndPdfBuildHeaderLines();
+    var canvases = _cndPdfPhotos.map(function(p) { return _cndPdfStampImage(p.img, lines); });
+    var files = canvases.map(function(c, i) {
+      var doc = new jsPDFCtor({ unit: 'pt', format: [c.width, c.height] });
+      doc.addImage(c.toDataURL('image/jpeg', 0.92), 'JPEG', 0, 0, c.width, c.height);
+      return { blob: doc.output('blob'), filename: _cndPdfBuildFilename(i + 1) };
+    });
+    var result = await _cndPdfSavePdfBlobs(files);
+    if (result.method === 'cancelled') {
+      if (statusEl) { statusEl.textContent = 'Save cancelled.'; statusEl.style.color = '#3c4a5c'; }
+    } else {
+      var where = result.method === 'folder' ? (' to "' + result.detail + '"') : '';
+      if (statusEl) {
+        statusEl.textContent = 'Saved ' + files.length + ' file' + (files.length > 1 ? 's' : '') + where + '.';
+        statusEl.style.color = '#3f6b4c';
+      }
+    }
+  } catch(err) {
+    if (statusEl) { statusEl.textContent = 'Error generating PDF: ' + err.message; statusEl.style.color = '#a3402f'; }
+  }
+}
+async function cndPdfSimpleGenerate() {
+  var statusEl = document.getElementById('cndpdf-simple-status');
+  if (!_cndPdfSimplePhotos.length) {
+    if (statusEl) { statusEl.textContent = 'Add at least one photo first.'; statusEl.style.color = '#a3402f'; }
+    return;
+  }
+  try {
+    var jsPDFCtor = await _cndPdfEnsureJsPDF();
+    var doc = new jsPDFCtor({ unit: 'pt', format: [_cndPdfSimplePhotos[0].img.width, _cndPdfSimplePhotos[0].img.height] });
+    _cndPdfSimplePhotos.forEach(function(p, i) {
+      if (i > 0) doc.addPage([p.img.width, p.img.height]);
+      doc.addImage(p.dataUrl, 'JPEG', 0, 0, p.img.width, p.img.height);
+    });
+    var blob = doc.output('blob');
+    var result = await _cndPdfSavePdfBlobs([{ blob: blob, filename: 'converted.pdf' }]);
+    if (result.method === 'cancelled') {
+      if (statusEl) { statusEl.textContent = 'Save cancelled.'; statusEl.style.color = '#3c4a5c'; }
+    } else {
+      var where = result.method === 'folder' ? (' to "' + result.detail + '"') : '';
+      if (statusEl) {
+        statusEl.textContent = 'Saved converted.pdf' + where + ' (' + _cndPdfSimplePhotos.length + ' page' + (_cndPdfSimplePhotos.length > 1 ? 's' : '') + ').';
+        statusEl.style.color = '#3f6b4c';
+      }
+    }
+  } catch(err) {
+    if (statusEl) { statusEl.textContent = 'Error generating PDF: ' + err.message; statusEl.style.color = '#a3402f'; }
+  }
+}
+
+// ---- dropzones — wired once, first time the modal is opened ----
+function _cndPdfSetupDropzones() {
+  if (_cndPdfDropzonesWired) return;
+  _cndPdfDropzonesWired = true;
+  _cndPdfWireDropzone(document.getElementById('cndpdf-drop'), document.getElementById('cndpdf-file-input'), async function(files) {
+    if (!files.length) return;
+    await _cndPdfAddFilesToStore(files, _cndPdfPhotos);
+    _cndPdfRenderPhotoList(document.getElementById('cndpdf-photo-list'), _cndPdfPhotos, 'cndPdfPhotoRemove', 'cndPdfPhotoMove');
+    _cndPdfUpdateThumbnail();
+  });
+  _cndPdfWireDropzone(document.getElementById('cndpdf-simple-drop'), document.getElementById('cndpdf-simple-file-input'), async function(files) {
+    if (!files.length) return;
+    await _cndPdfAddFilesToStore(files, _cndPdfSimplePhotos);
+    _cndPdfRenderPhotoList(document.getElementById('cndpdf-simple-photo-list'), _cndPdfSimplePhotos, 'cndPdfSimplePhotoRemove', 'cndPdfSimplePhotoMove');
+  });
+}
+function _cndPdfWireDropzone(dropEl, inputEl, onFiles) {
+  if (!dropEl || !inputEl) return;
+  dropEl.addEventListener('click', function() { inputEl.click(); });
+  inputEl.addEventListener('change', function(e) { onFiles(Array.from(e.target.files)); });
+  ['dragover','dragenter'].forEach(function(evt) {
+    dropEl.addEventListener(evt, function(e) { e.preventDefault(); dropEl.style.borderColor = '#b8742f'; dropEl.style.background = '#fbf3e8'; });
+  });
+  ['dragleave','drop'].forEach(function(evt) {
+    dropEl.addEventListener(evt, function(e) { e.preventDefault(); dropEl.style.borderColor = '#b9b5a8'; dropEl.style.background = '#fbfaf7'; });
+  });
+  dropEl.addEventListener('drop', function(e) {
+    var files = Array.from(e.dataTransfer.files).filter(function(f) { return f.type.indexOf('image/') === 0; });
+    onFiles(files);
+  });
+}
+
+// ---- address autocomplete — reuses AddressAutocomplete.geocodeRaw (same
+// Nominatim two-pass search the main Add Stop box and Regular Stops editor
+// use), then geoLookup(lat,lng) for neighborhood/ward/police district via
+// GeoCache. Modeled on the Regular Stop editor's autocomplete controller
+// (regularStopAddrInputChanged / selectRegularStopAddrSuggestion, above). ----
+function cndPdfAddrInputChanged() {
+  var inputEl = document.getElementById('cndpdf-address');
+  var val = inputEl ? inputEl.value.trim() : '';
+  var geoStatusEl = document.getElementById('cndpdf-geo-status');
+
+  clearTimeout(_cndPdfAddrDebounce);
+  if (_cndPdfAddrFetchCtrl) { _cndPdfAddrFetchCtrl.abort(); _cndPdfAddrFetchCtrl = null; }
+  _cndPdfAddrSuggestions = [];
+  _cndPdfHideAddrSuggestions();
+  if (geoStatusEl) geoStatusEl.textContent = '';
+  cndPdfUpdatePreview();
+
+  if (val.length < 3) return;
+
+  _cndPdfAddrDebounce = setTimeout(function() {
+    _cndPdfAddrFetchCtrl = new AbortController();
+    AddressAutocomplete.geocodeRaw(val, _cndPdfAddrFetchCtrl.signal).then(function(suggestions) {
+      _cndPdfAddrFetchCtrl = null;
+      _cndPdfAddrSuggestions = suggestions;
+      _cndPdfRenderAddrSuggestions();
+    }).catch(function(e) {
+      _cndPdfAddrFetchCtrl = null;
+      if (e && e.name === 'AbortError') return;
+    });
+  }, 380);
+}
+function _cndPdfRenderAddrSuggestions() {
+  var box = document.getElementById('cndpdf-addr-suggestions');
+  if (!box) return;
+  if (!_cndPdfAddrSuggestions.length) { box.style.display = 'none'; return; }
+  box.innerHTML = _cndPdfAddrSuggestions.map(function(s, i) {
+    var note = s.note ? ('<div style="font-size:0.5rem;color:' + (s.verified ? '#3f6b4c' : '#856404') + ';margin-top:1px">' + escHtml(s.note) + '</div>') : '';
+    return '<div onclick="cndPdfSelectAddrSuggestion(' + i + ')" style="padding:9px 12px;font-size:0.66rem;cursor:pointer;border-bottom:1px solid #f0f0f0;background:#fdfcfa;color:#1b2430">' + escHtml(s.label) + note + '</div>';
+  }).join('');
+  box.style.display = 'block';
+}
+function _cndPdfHideAddrSuggestions() {
+  var box = document.getElementById('cndpdf-addr-suggestions');
+  if (box) box.style.display = 'none';
+}
+async function cndPdfSelectAddrSuggestion(i) {
+  i = Number(i); // matches the app-wide convention: index args always arrive as strings
+  var s = _cndPdfAddrSuggestions[i];
+  if (!s) return;
+  _cndPdfAddrSuggestions = [];
+  _cndPdfHideAddrSuggestions();
+  var inputEl = document.getElementById('cndpdf-address');
+  if (inputEl) inputEl.value = s.address;
+  var geoStatusEl = document.getElementById('cndpdf-geo-status');
+  if (typeof s.lat !== 'number' || typeof s.lng !== 'number') {
+    if (geoStatusEl) geoStatusEl.textContent = 'Address not verified on map — enter neighborhood/ward/district manually if needed.';
+    cndPdfUpdatePreview();
+    return;
+  }
+  if (geoStatusEl) geoStatusEl.textContent = 'Looking up neighborhood, ward, and police district…';
+  try {
+    var geo = await geoLookup(s.lat, s.lng);
+    document.getElementById('cndpdf-neighborhood').value = geo.neighborhoodName || '';
+    document.getElementById('cndpdf-ward').value = geo.ward != null ? String(geo.ward) : '';
+    document.getElementById('cndpdf-police-district').value = geo.policeDistrict || '';
+    if (geoStatusEl) {
+      geoStatusEl.textContent = (geo.neighborhoodName || geo.ward != null || geo.policeDistrict)
+        ? 'Auto-filled — adjust any field if needed.'
+        : 'Could not determine neighborhood/ward/district for this point — enter manually if needed.';
+    }
+  } catch(e) {
+    if (geoStatusEl) geoStatusEl.textContent = 'Could not look up neighborhood/ward/district — enter manually if needed.';
+  }
+  cndPdfUpdatePreview();
+}
+
 // ── Photo log (metadata only, NO photo bytes) ───────────────────────────────
 // For each stop we keep a short array of { filename, timestamp } so the email
 // summary can tell the recipient exactly which files to attach from the user's
@@ -24618,6 +26030,12 @@ function submitPinEntry() {
   var val = (input && input.value || '').trim();
   _closePinEntryModal();
   var r = _pendingPinResolve; _pendingPinResolve = null;
+  // Drop AU: cache the raw PIN for this session so Google Drive Sync can
+  // reuse it silently — one shared PIN unlocks both. Cached regardless of
+  // which decrypt actually validates it against (AI key vs. Drive blob);
+  // if wrong for a given use, that specific unlock still fails its own
+  // check and shows its own error, same as before.
+  if (val) { try { sessionStorage.setItem('shared-app-pin', val); } catch(_e) {} }
   if (r) r(val || null);
 }
 
@@ -24684,6 +26102,7 @@ function _openSettingsPanel() {
   } catch(_) {}
 
   updateSettingsInstallStatus();
+  try { updateDriveSyncStatusUI(); } catch(_e) {}
   try { renderSettingsPhotoStamp(); } catch(_e) {}
   try { renderSettingsCustomTypes(); } catch(_e) {}
   try { renderAiUsage(); } catch(_e) {}
@@ -30089,78 +31508,6 @@ const AreaPeriodReport = (function() {
       '</svg>';
   }
 
-  // Shared live-map script builder — takes any report-SHAPED object
-  // (area.boundaryRings, photoTracker.locations, stops.list,
-  // coverage.breadcrumbPoints — a real AreaPeriodReport report, or a
-  // synthetic one from _mergeReportsForMap below) and the target map
-  // div's id; returns the full <script> tag as a string. Originally
-  // inline inside formatAsHTML only; factored out 2026-07-25 so
-  // formatMultiAsHTML's new map section (see that function's own
-  // comment) can reuse the exact same offline/tile-failure handling
-  // instead of a second copy to keep in sync.
-  function _buildLiveMapScriptHtml(mapReport, mapDivId) {
-    var mapMarkers = (mapReport.photoTracker.locations || []).filter(function(l) { return l.gps && typeof l.gps.lat === 'number'; });
-    var completedStopMarkers = (mapReport.stops.list || []).filter(function(s) { return s.done && typeof s.lat === 'number' && typeof s.lng === 'number'; });
-    var boundaryLatLngsJson = JSON.stringify(mapReport.area.boundaryRings || []);
-    var breadcrumbLatLngsJson = JSON.stringify((mapReport.coverage.breadcrumbPoints || []).map(function(p) { return [p[0], p[1]]; }));
-    var heatPointsJson = JSON.stringify(mapMarkers.map(function(l) {
-      return [l.gps.lat, l.gps.lng, Math.min(1, 0.3 + (l.countInPeriod || 1) * 0.08)];
-    }));
-    var markersJson = JSON.stringify(mapMarkers.map(function(l) {
-      return { lat: l.gps.lat, lng: l.gps.lng, label: l.displayLabel, count: l.countInPeriod, color: l.severityColor, severity: l.severityLabel };
-    }));
-    var completedJson = JSON.stringify(completedStopMarkers.map(function(s) {
-      return { lat: s.lat, lng: s.lng, address: s.address || '(no address)', completedAt: s.completedAt || null };
-    }));
-    var divIdJson = JSON.stringify(mapDivId);
-    // 2026-07-24 fix (still applies): this report is generated in the
-    // field and often opened/shared later with no connectivity — the map
-    // depends on network fetches (leaflet.js, leaflet-heat.js, and the
-    // CARTO basemap tiles), none of which are guaranteed. A failed
-    // leaflet.js load or offline tile fetch falls back to the
-    // .static-map-print SVG. leaflet-heat.js failing is non-fatal —
-    // L.heatLayer is checked before use, so a missing heat plugin just
-    // means no heat overlay, not a broken map.
-    return '<script>' +
-      '(function(){' +
-        'function useFallback(){' +
-          'var live = document.getElementById(' + divIdJson + ');' +
-          'var still = document.querySelector(".static-map-print");' +
-          'if (live) live.style.display = "none";' +
-          'if (still) still.style.display = "block";' +
-        '}' +
-        'if (typeof L === "undefined" || navigator.onLine === false) { useFallback(); return; }' +
-        'var boundaryRings = ' + boundaryLatLngsJson + ';' +
-        'var breadcrumb = ' + breadcrumbLatLngsJson + ';' +
-        'var heatPts = ' + heatPointsJson + ';' +
-        'var markers = ' + markersJson + ';' +
-        'var completed = ' + completedJson + ';' +
-        'try {' +
-          'var map = L.map(' + divIdJson + ', {zoomControl:true, attributionControl:true});' +
-          'var tiles = L.tileLayer("https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png", {subdomains:"abcd", maxZoom:20}).addTo(map);' +
-          'var tilesOk = false;' +
-          'tiles.on("tileload", function(){ tilesOk = true; });' +
-          'tiles.on("tileerror", function(){ if (!tilesOk) useFallback(); });' +
-          'var fitGroup = L.featureGroup();' +
-          'if (boundaryRings.length) { L.polygon(boundaryRings, {color:"#1a4a8c", weight:3, fillOpacity:0.04}).addTo(map).addTo(fitGroup); }' +
-          'if (breadcrumb.length > 1) { L.polyline(breadcrumb, {color:"#f5c518", weight:8, opacity:0.5, lineCap:"round"}).addTo(map).addTo(fitGroup); }' +
-          'if (heatPts.length && typeof L.heatLayer === "function") { L.heatLayer(heatPts, {radius:32, blur:24, maxZoom:17, gradient:{0.2:"#ffcf40",0.5:"#ff6a00",1.0:"#ff2b00"}}).addTo(map); }' +
-          'markers.forEach(function(p){' +
-            'var m = L.circleMarker([p.lat, p.lng], {radius: 5, color: p.color, weight:2, fillColor: p.color, fillOpacity:0.85});' +
-            'm.bindPopup("<b>" + p.label.replace(/</g,"&lt;") + "</b><br>" + p.count + " photo(s) this period &middot; " + (p.severity||""));' +
-            'm.addTo(map).addTo(fitGroup);' +
-          '});' +
-          'completed.forEach(function(s){' +
-            'var m = L.circleMarker([s.lat, s.lng], {radius: 6, color: "#2d7d3f", weight:2, fillColor: "#2d7d3f", fillOpacity:0.75});' +
-            'm.bindPopup("<b>✓ " + s.address.replace(/</g,"&lt;") + "</b>" + (s.completedAt ? "<br>" + new Date(s.completedAt).toLocaleString() : ""));' +
-            'm.addTo(map).addTo(fitGroup);' +
-          '});' +
-          'try { var b = fitGroup.getBounds(); if (b.isValid()) map.fitBounds(b.pad(0.08)); else map.setView([38.6270,-90.1994], 12); } catch(_e) { map.setView([38.6270,-90.1994], 12); }' +
-        '} catch(_e) { useFallback(); }' +
-      '})();' +
-    '<\/script>';
-  }
-
   function formatAsHTML(report) {
     var safe = function(x) {
       if (x == null) return '';
@@ -30281,7 +31628,63 @@ const AreaPeriodReport = (function() {
     html += '</div>';
 
     if (hasMapContent) {
-      html += _buildLiveMapScriptHtml(report, 'area-map');
+      var boundaryLatLngsJson = JSON.stringify(report.area.boundaryRings || []);
+      var breadcrumbLatLngsJson = JSON.stringify((cov.breadcrumbPoints || []).map(function(p) { return [p[0], p[1]]; }));
+      var heatPointsJson = JSON.stringify(mapMarkers.map(function(l) {
+        return [l.gps.lat, l.gps.lng, Math.min(1, 0.3 + (l.countInPeriod || 1) * 0.08)];
+      }));
+      var markersJson = JSON.stringify(mapMarkers.map(function(l) {
+        return { lat: l.gps.lat, lng: l.gps.lng, label: l.displayLabel, count: l.countInPeriod, color: l.severityColor, severity: l.severityLabel };
+      }));
+      var completedJson = JSON.stringify(completedStopMarkers.map(function(s) {
+        return { lat: s.lat, lng: s.lng, address: s.address || '(no address)', completedAt: s.completedAt || null };
+      }));
+      // 2026-07-24 fix (still applies): this report is generated in the
+      // field and often opened/shared later with no connectivity —
+      // #area-map depends on network fetches (leaflet.js, leaflet-heat.js,
+      // and the CARTO basemap tiles), none of which are guaranteed. A
+      // failed leaflet.js load or offline tile fetch falls back to the
+      // .static-map-print SVG, same as before. leaflet-heat.js failing is
+      // treated as non-fatal — L.heatLayer is checked before use, so a
+      // missing heat plugin just means no heat overlay, not a broken map.
+      html += '<script>' +
+        '(function(){' +
+          'function useFallback(){' +
+            'var live = document.getElementById("area-map");' +
+            'var still = document.querySelector(".static-map-print");' +
+            'if (live) live.style.display = "none";' +
+            'if (still) still.style.display = "block";' +
+          '}' +
+          'if (typeof L === "undefined" || navigator.onLine === false) { useFallback(); return; }' +
+          'var boundaryRings = ' + boundaryLatLngsJson + ';' +
+          'var breadcrumb = ' + breadcrumbLatLngsJson + ';' +
+          'var heatPts = ' + heatPointsJson + ';' +
+          'var markers = ' + markersJson + ';' +
+          'var completed = ' + completedJson + ';' +
+          'try {' +
+            'var map = L.map("area-map", {zoomControl:true, attributionControl:true});' +
+            'var tiles = L.tileLayer("https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png", {subdomains:"abcd", maxZoom:20}).addTo(map);' +
+            'var tilesOk = false;' +
+            'tiles.on("tileload", function(){ tilesOk = true; });' +
+            'tiles.on("tileerror", function(){ if (!tilesOk) useFallback(); });' +
+            'var fitGroup = L.featureGroup();' +
+            'if (boundaryRings.length) { L.polygon(boundaryRings, {color:"#1a4a8c", weight:3, fillOpacity:0.04}).addTo(map).addTo(fitGroup); }' +
+            'if (breadcrumb.length > 1) { L.polyline(breadcrumb, {color:"#f5c518", weight:8, opacity:0.5, lineCap:"round"}).addTo(map).addTo(fitGroup); }' +
+            'if (heatPts.length && typeof L.heatLayer === "function") { L.heatLayer(heatPts, {radius:32, blur:24, maxZoom:17, gradient:{0.2:"#ffcf40",0.5:"#ff6a00",1.0:"#ff2b00"}}).addTo(map); }' +
+            'markers.forEach(function(p){' +
+              'var m = L.circleMarker([p.lat, p.lng], {radius: 5, color: p.color, weight:2, fillColor: p.color, fillOpacity:0.85});' +
+              'm.bindPopup("<b>" + p.label.replace(/</g,"&lt;") + "</b><br>" + p.count + " photo(s) this period &middot; " + (p.severity||""));' +
+              'm.addTo(map).addTo(fitGroup);' +
+            '});' +
+            'completed.forEach(function(s){' +
+              'var m = L.circleMarker([s.lat, s.lng], {radius: 6, color: "#2d7d3f", weight:2, fillColor: "#2d7d3f", fillOpacity:0.75});' +
+              'm.bindPopup("<b>✓ " + s.address.replace(/</g,"&lt;") + "</b>" + (s.completedAt ? "<br>" + new Date(s.completedAt).toLocaleString() : ""));' +
+              'm.addTo(map).addTo(fitGroup);' +
+            '});' +
+            'try { var b = fitGroup.getBounds(); if (b.isValid()) map.fitBounds(b.pad(0.08)); else map.setView([38.6270,-90.1994], 12); } catch(_e) { map.setView([38.6270,-90.1994], 12); }' +
+          '} catch(_e) { useFallback(); }' +
+        '})();' +
+      '<\/script>';
     }
 
     html += '</body></html>';
@@ -30432,442 +31835,7 @@ const AreaPeriodReport = (function() {
     return doc.output('blob');
   }
 
-  // 2026-07-25: PDF for a combined/hierarchical multi-report (Report
-  // Focus, or saved-neighborhoods "single combined report" / NIS mode).
-  // Same jsPDF line/pagination engine as buildPdfBlob above, walked
-  // recursively through the tree with an indent per depth level, plus
-  // ONE overview map (via _mergeReportsForMap — see that function's own
-  // comment for why one map from the top-level reports is already
-  // complete, not a per-node compromise) rather than the per-node maps
-  // that would make a whole-district PDF impractically slow to build.
-  async function buildMultiPdfBlob(tree, meta) {
-    meta = meta || {};
-    var jsPDFCtor = await _ensureJsPDF();
-    var doc = new jsPDFCtor({ unit: 'mm', format: 'letter' });
-    var pageW = doc.internal.pageSize.getWidth();
-    var pageH = doc.internal.pageSize.getHeight();
-    var margin = 15;
-    var y = margin;
-    var lineH = 5.2;
-
-    function ensureRoom(neededMm) {
-      if (y + neededMm > pageH - margin) { doc.addPage(); y = margin; }
-    }
-    function line(text, opts) {
-      opts = opts || {};
-      var indent = opts.indent || 0;
-      doc.setFont('helvetica', opts.bold ? 'bold' : 'normal');
-      doc.setFontSize(opts.size || 10);
-      var c = opts.color || [30, 30, 30];
-      doc.setTextColor(c[0], c[1], c[2]);
-      var wrapped = doc.splitTextToSize(String(text), pageW - margin * 2 - indent);
-      wrapped.forEach(function(ln) {
-        ensureRoom(lineH);
-        doc.text(ln, margin + indent, y);
-        y += lineH;
-      });
-    }
-
-    line(meta.title || 'Multi-Area Report', { size: 18, bold: true, color: [26, 51, 32] });
-    line((meta.periodLabel || '') + '  ·  Generated ' + new Date().toLocaleString(), { size: 9, color: [130, 130, 130] });
-    y += 2;
-
-    var mapReport = _mergeReportsForMap(tree.map(function(n) { return n.report; }));
-    var mapMarkers = mapReport.photoTracker.locations.filter(function(l) { return l.gps && typeof l.gps.lat === 'number'; });
-    var completedStopMarkers = mapReport.stops.list.filter(function(s) { return s.done && typeof s.lat === 'number' && typeof s.lng === 'number'; });
-    var hasMapContent = (mapReport.area.boundaryRings && mapReport.area.boundaryRings.length) ||
-      mapReport.coverage.breadcrumbPointCount > 0 || mapMarkers.length > 0 || completedStopMarkers.length > 0;
-    if (hasMapContent) {
-      var svg = _buildStaticSVG(mapReport);
-      if (svg) {
-        try {
-          var pngDataUrl = await _svgToPngDataUrl(svg, 640, 640);
-          var imgSizeMm = Math.min(pageW - margin * 2, 150);
-          ensureRoom(imgSizeMm + 8);
-          doc.addImage(pngDataUrl, 'PNG', margin, y, imgSizeMm, imgSizeMm);
-          y += imgSizeMm + 3;
-          line('Orange heat = photo activity density · Green = completed stops · Yellow = survey path', { size: 7.5, color: [150, 150, 150] });
-          y += 2;
-        } catch(_e) {
-          line('(Map image could not be generated for this PDF.)', { size: 8, color: [180, 60, 60] });
-        }
-      }
-    }
-
-    function writeNode(node, depth) {
-      var indent = depth * 6;
-      var r = node.report;
-      y += (depth === 0 ? 3 : 2);
-      line(node.label, { size: Math.max(10, 15 - depth * 2), bold: true, color: [26, 51, 32], indent: indent });
-      if (r) {
-        line(r.stops.total + ' stops · ' + r.stops.completed + ' completed (' + r.stops.completionRate + '%) · ' +
-          r.photoTracker.locations.length + ' photo tracker location' + (r.photoTracker.locations.length === 1 ? '' : 's'),
-          { size: 9, color: [90, 90, 90], indent: indent });
-      }
-      if (node.children && node.children.length) {
-        node.children.forEach(function(child) { writeNode(child, depth + 1); });
-      } else if (r) {
-        if (r.photoTracker.locations.length) {
-          r.photoTracker.locations.forEach(function(loc) {
-            line('• ' + loc.displayLabel + ' — ' + loc.countInPeriod + ' photo' + (loc.countInPeriod === 1 ? '' : 's') +
-              (loc.severityLabel ? ' · ' + loc.severityLabel : ''), { size: 8, indent: indent + 4 });
-          });
-        }
-        r.stops.list.slice().sort(function(a, b) {
-          var ta = a.completedAt ? new Date(a.completedAt).getTime() : (a.addedAt ? new Date(a.addedAt).getTime() : 0);
-          var tb = b.completedAt ? new Date(b.completedAt).getTime() : (b.addedAt ? new Date(b.addedAt).getTime() : 0);
-          return ta - tb;
-        }).forEach(function(s) {
-          var mark = s.done ? '✓' : (s.followup ? '⚑' : '○');
-          line(mark + ' ' + (s.address || '(no address)'), { size: 8, indent: indent + 4 });
-        });
-      }
-    }
-    tree.forEach(function(node) { writeNode(node, 0); });
-
-    return doc.output('blob');
-  }
-
-  // ── Multi-scope reports (saved-neighborhoods batch + Report Focus) ───
-  // 2026-07-25: builds and combines several single-scope reports — each
-  // via the exact same buildReport() above, no parallel data-collection
-  // path to keep in sync — into one request. Two distinct UI features
-  // reuse this:
-  //   - Saved-neighborhoods batch mode: a flat list, one entry per saved
-  //     neighborhood name (buildScopedReports called directly).
-  //   - Report Focus (District/Ward/Neighborhood radios): a NESTED tree
-  //     built by buildFocusedScopeTree from the geography hierarchy
-  //     (_computeAreaHierarchy) plus whatever ward/neighborhood/
-  //     policeDistrict filters are currently active in the picker.
-
-  // Builds one report per {label, ward, neighborhood, policeDistrict}
-  // scope descriptor, in parallel (Promise.all — independent lookups, no
-  // reason to serialize). Returns [{label, report}, ...] in the same
-  // order as the input.
-  async function buildScopedReports(scopes, startMs, endMs) {
-    var results = await Promise.all(scopes.map(function(sc) {
-      return buildReport({
-        startMs: startMs, endMs: endMs,
-        ward: sc.ward || null, neighborhood: sc.neighborhood || null, policeDistrict: sc.policeDistrict || null
-      });
-    }));
-    return scopes.map(function(sc, i) { return { label: sc.label || results[i].area.label, report: results[i] }; });
-  }
-
-  // Report Focus tree builder. Given the CURRENT ward/neighborhood/
-  // policeDistrict filter state and a focus level, builds the nested
-  // scope description a hierarchical report walks:
-  //   focus 'district' → one node per district in scope, each with child
-  //     ward nodes (every ward that resolves to that district), each
-  //     with child neighborhood nodes (every neighborhood in that ward).
-  //   focus 'ward' → one node per ward in scope, each with child
-  //     neighborhood nodes — no district level above it.
-  //   focus 'neighborhood' → one flat node per neighborhood in scope, no
-  //     children (neighborhood is the finest level there is, matches
-  //     "per-neighborhood breakdowns of the entire neighborhood").
-  // "In scope" respects whatever of the three filters is already set: an
-  // explicit filter at a level narrows that level to just the one
-  // picked; no filter at a level means every value at that level (within
-  // whatever coarser filter IS set) is included. A whole-city District
-  // focus with nothing picked walks every district → every ward → every
-  // neighborhood — the most expensive case, since it's effectively one
-  // buildReport() call per neighborhood in the city (~80). Each call is
-  // local array filtering, not a network fetch, so this is slow-ish but
-  // not actually risky; not artificially capped.
-  async function buildFocusedScopeTree(focus, filters) {
-    filters = filters || {};
-    var hierarchy = { wardToDistrict: {}, neighborhoodToWard: {} };
-    try { hierarchy = await _computeAreaHierarchy(); } catch(_e) {}
-
-    function districtsInScope() {
-      if (filters.policeDistrict) return [filters.policeDistrict];
-      var set = {};
-      Object.keys(hierarchy.wardToDistrict).forEach(function(w) {
-        var d = hierarchy.wardToDistrict[w];
-        if (d) set[d] = true;
-      });
-      return Object.keys(set).sort();
-    }
-    function wardsInScope(districtName) {
-      if (filters.ward) return [filters.ward];
-      var wards = Object.keys(hierarchy.wardToDistrict).filter(function(w) {
-        return !districtName || hierarchy.wardToDistrict[w] === districtName;
-      });
-      return wards.sort(function(a, b) { return parseInt(a, 10) - parseInt(b, 10); });
-    }
-    function neighborhoodsInScope(wardNum) {
-      if (filters.neighborhood) return [filters.neighborhood];
-      var names = Object.keys(hierarchy.neighborhoodToWard).filter(function(n) {
-        return !wardNum || hierarchy.neighborhoodToWard[n] === wardNum;
-      });
-      return names.sort();
-    }
-
-    if (focus === 'neighborhood') {
-      var wardsForNbhd = filters.ward ? [filters.ward] : (filters.policeDistrict ? wardsInScope(filters.policeDistrict) : [null]);
-      var names = [], seen = {};
-      wardsForNbhd.forEach(function(w) {
-        neighborhoodsInScope(w).forEach(function(n) { if (!seen[n]) { seen[n] = true; names.push(n); } });
-      });
-      return names.map(function(n) {
-        return { level: 'neighborhood', label: n, ward: filters.ward || null, neighborhood: n, policeDistrict: filters.policeDistrict || null, children: [] };
-      });
-    }
-
-    if (focus === 'ward') {
-      var districtsForWard = filters.policeDistrict ? [filters.policeDistrict] : districtsInScope();
-      var wardNodes = [], seenW = {};
-      districtsForWard.forEach(function(d) {
-        wardsInScope(d).forEach(function(w) {
-          if (seenW[w]) return;
-          seenW[w] = true;
-          var kids = neighborhoodsInScope(w).map(function(n) {
-            return { level: 'neighborhood', label: n, ward: w, neighborhood: n, policeDistrict: filters.policeDistrict || null, children: [] };
-          });
-          wardNodes.push({ level: 'ward', label: 'Ward ' + w, ward: w, neighborhood: null, policeDistrict: filters.policeDistrict || null, children: kids });
-        });
-      });
-      return wardNodes;
-    }
-
-    // focus === 'district'
-    return districtsInScope().map(function(d) {
-      var wardKids = wardsInScope(d).map(function(w) {
-        var nbhdKids = neighborhoodsInScope(w).map(function(n) {
-          return { level: 'neighborhood', label: n, ward: w, neighborhood: n, policeDistrict: d, children: [] };
-        });
-        return { level: 'ward', label: 'Ward ' + w, ward: w, neighborhood: null, policeDistrict: d, children: nbhdKids };
-      });
-      return { level: 'district', label: d, ward: null, neighborhood: null, policeDistrict: d, children: wardKids };
-    });
-  }
-
-  // Attaches a .report to every node of a scope tree in place (mutates
-  // and returns the same tree) — one buildReport() call per node,
-  // parallelized per depth level via Promise.all rather than one giant
-  // flat Promise.all, so a huge whole-city tree doesn't fire hundreds of
-  // concurrent async calls all at once.
-  async function _hydrateScopeTree(nodes, startMs, endMs) {
-    await Promise.all(nodes.map(async function(node) {
-      node.report = await buildReport({ startMs: startMs, endMs: endMs, ward: node.ward, neighborhood: node.neighborhood, policeDistrict: node.policeDistrict });
-      if (node.children && node.children.length) await _hydrateScopeTree(node.children, startMs, endMs);
-    }));
-    return nodes;
-  }
-
-  // 2026-07-25: "NIS weekly report" — the saved-neighborhoods batch
-  // mode's third sub-option. An NIS's saved list is whatever
-  // neighborhoods THEY personally cover, but the deliverable here is
-  // meant for the ALDERPERSON of each affected ward, who wants their
-  // whole ward's picture — not an arbitrary slice determined by which
-  // neighborhoods one NIS happens to track. So this derives the set of
-  // wards that contain at least one saved neighborhood, then builds a
-  // FULL Ward-focus tree (every neighborhood in that ward, via the same
-  // buildFocusedScopeTree('ward', {ward}) any other Ward Focus report
-  // uses) for each one — reusing existing machinery rather than a
-  // parallel "partial ward" concept. Returns one tree per affected ward,
-  // each already hydrated (report attached to every node) and ready for
-  // the multi-formatters, since NIS mode always produces one deliverable
-  // per ward (there's no "combine multiple wards into one document"
-  // mode — that would mean handing one alderperson a report full of a
-  // different ward's data).
-  async function buildNISWeeklyWardTrees(savedNeighborhoodNames, startMs, endMs) {
-    var hierarchy = { wardToDistrict: {}, neighborhoodToWard: {} };
-    try { hierarchy = await _computeAreaHierarchy(); } catch(_e) {}
-    var wardSet = {};
-    savedNeighborhoodNames.forEach(function(name) {
-      var w = hierarchy.neighborhoodToWard[name];
-      if (w) wardSet[w] = true;
-    });
-    var wards = Object.keys(wardSet).sort(function(a, b) { return parseInt(a, 10) - parseInt(b, 10); });
-    var results = [];
-    for (var i = 0; i < wards.length; i++) {
-      var w = wards[i];
-      var rawTree = await buildFocusedScopeTree('ward', { ward: w });
-      var hydrated = await _hydrateScopeTree(rawTree, startMs, endMs);
-      // buildFocusedScopeTree('ward', {ward: w}) always returns exactly
-      // one node (the ward filter narrows it to one, deduped internally
-      // — see that function's own comment) — hydrated[0] is that node.
-      results.push({ ward: w, label: 'Ward ' + w, tree: hydrated });
-    }
-    return results;
-  }
-
-  // ── Formatters for a hydrated tree (flat list or nested) ────────────
-  // A flat list (saved-neighborhoods batch) is just a tree with no node
-  // having children — same walk handles both shapes.
-  function _multiTextNode(node, depth) {
-    var indent = '  '.repeat(depth);
-    var r = node.report;
-    var bar = '─'.repeat(Math.max(4, 44 - depth * 3));
-    var lines = [indent + bar + ' ' + node.label.toUpperCase() + ' ' + bar];
-    if (r) {
-      lines.push(indent + r.stops.total + ' stops · ' + r.stops.completed + ' completed (' + r.stops.completionRate + '%) · ' +
-        r.photoTracker.locations.length + ' photo tracker location' + (r.photoTracker.locations.length === 1 ? '' : 's') +
-        (r.coverage.sessionCount ? ' · ' + r.coverage.sessionCount + ' survey session' + (r.coverage.sessionCount === 1 ? '' : 's') : ''));
-    }
-    if (node.children && node.children.length) {
-      node.children.forEach(function(child) { lines.push(''); lines.push(_multiTextNode(child, depth + 1)); });
-    } else if (r) {
-      // Leaf level — full stop/photo detail, reusing the single-report
-      // text formatter's body (everything after its own title line,
-      // which we don't need since the section header above already
-      // names this node).
-      var full = formatAsText(r);
-      var firstBreak = full.indexOf('\n');
-      lines.push(indent + (firstBreak === -1 ? full : full.slice(firstBreak + 1)).split('\n').join('\n' + indent));
-    }
-    return lines.join('\n');
-  }
-  function formatMultiAsText(tree, meta) {
-    meta = meta || {};
-    var header = '=== ' + (meta.title || 'Multi-Area Report') + ' ===\n' +
-      (meta.periodLabel || '') + ' · Generated ' + new Date().toLocaleString() + '\n';
-    return header + '\n' + tree.map(function(node) { return _multiTextNode(node, 0); }).join('\n\n');
-  }
-
-  // CSV is flattened rather than nested — one summary row per node at
-  // every level, with a Level column distinguishing District/Ward/
-  // Neighborhood rows. A spreadsheet doesn't have a natural "nesting"
-  // representation the way text/HTML headers do; a flat table with a
-  // level+parent-label column is what someone would actually pivot or
-  // filter on anyway.
-  function _multiCsvRows(node, parentLabel, rows) {
-    var r = node.report;
-    rows.push([
-      node.level, node.label, parentLabel || '',
-      r ? r.stops.total : '', r ? r.stops.completed : '', r ? r.stops.completionRate : '',
-      r ? r.photoTracker.locations.length : '', r ? r.coverage.sessionCount : ''
-    ].map(function(v) { return '"' + String(v).replace(/"/g, '""') + '"'; }).join(','));
-    (node.children || []).forEach(function(child) { _multiCsvRows(child, node.label, rows); });
-  }
-  function formatMultiAsCSV(tree, meta) {
-    meta = meta || {};
-    var rows = ['"# ' + (meta.title || 'Multi-Area Report') + ' — ' + (meta.periodLabel || '') + '"',
-      'Level,Area,Parent Area,Total Stops,Completed,Completion Rate %,Photo Tracker Locations,Survey Sessions'];
-    tree.forEach(function(node) { _multiCsvRows(node, '', rows); });
-    return rows.join('\n');
-  }
-
-  function _multiHtmlNode(node, depth, safe) {
-    var r = node.report;
-    var hTag = 'h' + Math.min(6, depth + 2);
-    var html = '<' + hTag + '>' + safe(node.label) + '</' + hTag + '>';
-    if (r) {
-      html += '<div class="multi-kpi">' + r.stops.total + ' stops · ' + r.stops.completed + ' completed (' + r.stops.completionRate + '%) · ' +
-        r.photoTracker.locations.length + ' photo tracker location' + (r.photoTracker.locations.length === 1 ? '' : 's') +
-        (r.coverage.sessionCount ? ' · ' + r.coverage.sessionCount + ' survey session' + (r.coverage.sessionCount === 1 ? '' : 's') : '') + '</div>';
-    }
-    if (node.children && node.children.length) {
-      html += '<div class="multi-children">' + node.children.map(function(child) { return _multiHtmlNode(child, depth + 1, safe); }).join('') + '</div>';
-    } else if (r && r.stops.list.length) {
-      html += '<table class="multi-stops"><tbody>' + r.stops.list.slice().sort(function(a, b) {
-        var ta = a.completedAt ? new Date(a.completedAt).getTime() : (a.addedAt ? new Date(a.addedAt).getTime() : 0);
-        var tb = b.completedAt ? new Date(b.completedAt).getTime() : (b.addedAt ? new Date(b.addedAt).getTime() : 0);
-        return ta - tb;
-      }).map(function(s) {
-        var mark = s.done ? '✓' : (s.followup ? '⚑' : '○');
-        return '<tr><td class="mark">' + mark + '</td><td>' + safe(s.address || '(no address)') + '</td></tr>';
-      }).join('') + '</tbody></table>';
-    }
-    return html;
-  }
-  // 2026-07-25: merges the map-relevant fields (boundary, photo tracker
-  // locations, stops, breadcrumb points) from an array of ALREADY-BUILT
-  // reports into one synthetic report-shaped object, reusable directly
-  // with _buildStaticSVG/_buildLiveMapScriptHtml — the whole reason those
-  // two only need report.area.boundaryRings/photoTracker.locations/
-  // stops.list/coverage.breadcrumbPoints and never look at report.area's
-  // OTHER fields (label, ward, etc.), which a merged multi-area object
-  // wouldn't sensibly have one value for anyway.
-  //
-  // Takes the TOP-LEVEL node reports only, not every node in a tree —
-  // each node's own report is already an AND-filtered SUPERSET of its
-  // children's (a ward's report already includes every stop/photo with
-  // that ward regardless of neighborhood; a specific neighborhood's
-  // report is the same data narrowed further), so merging children too
-  // would just duplicate what the parent already covers. This is also
-  // why generating one map per node was never necessary to solve the
-  // "no map in hierarchical reports" limitation — one map from the root
-  // reports already shows everything.
-  function _mergeReportsForMap(reports) {
-    var boundaryRings = [], photoLocations = [], stopsList = [], breadcrumbPoints = [];
-    reports.forEach(function(r) {
-      if (!r) return;
-      if (r.area && r.area.boundaryRings) boundaryRings = boundaryRings.concat(r.area.boundaryRings);
-      if (r.photoTracker && r.photoTracker.locations) photoLocations = photoLocations.concat(r.photoTracker.locations);
-      if (r.stops && r.stops.list) stopsList = stopsList.concat(r.stops.list);
-      if (r.coverage && r.coverage.breadcrumbPoints) breadcrumbPoints = breadcrumbPoints.concat(r.coverage.breadcrumbPoints);
-    });
-    return {
-      area: { boundaryRings: boundaryRings },
-      photoTracker: { locations: photoLocations },
-      stops: { list: stopsList },
-      coverage: { breadcrumbPoints: breadcrumbPoints, breadcrumbPointCount: breadcrumbPoints.length }
-    };
-  }
-
-  function formatMultiAsHTML(tree, meta) {
-    meta = meta || {};
-    var safe = function(x) { if (x == null) return ''; return String(x).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;'); };
-    var body = tree.map(function(node) { return _multiHtmlNode(node, 0, safe); }).join('');
-
-    // 2026-07-25: combined overview map — resolves the earlier "combined
-    // District/Ward-focus documents don't include a map" limitation.
-    // Built once from the top-level nodes' reports (see
-    // _mergeReportsForMap's own comment for why that's already complete,
-    // not partial), using the exact same heatmap/completed-stops/
-    // offline-fallback machinery as the single-scope report — one
-    // drawing routine, now three consumers instead of two.
-    var mapReport = _mergeReportsForMap(tree.map(function(n) { return n.report; }));
-    var mapMarkers = mapReport.photoTracker.locations.filter(function(l) { return l.gps && typeof l.gps.lat === 'number'; });
-    var completedStopMarkers = mapReport.stops.list.filter(function(s) { return s.done && typeof s.lat === 'number' && typeof s.lng === 'number'; });
-    var hasMapContent = (mapReport.area.boundaryRings && mapReport.area.boundaryRings.length) ||
-      mapReport.coverage.breadcrumbPointCount > 0 || mapMarkers.length > 0 || completedStopMarkers.length > 0;
-    var staticSVG = hasMapContent ? _buildStaticSVG(mapReport) : null;
-
-    var mapSection = '';
-    if (hasMapContent) {
-      mapSection = '<h2>Map</h2><div id="multi-area-map"></div>' +
-        '<div class="map-legend">' +
-          (mapMarkers.length ? '<span><i style="background:#ff6a00"></i>Photo activity (heat = density)</span>' : '') +
-          (completedStopMarkers.length ? '<span><i style="background:#2d7d3f"></i>Completed stops</span>' : '') +
-          (mapReport.coverage.breadcrumbPointCount ? '<span><i style="background:#f5c518"></i>Survey path</span>' : '') +
-        '</div>' +
-        (staticSVG ? '<div class="static-map-print">' + staticSVG + '</div>' : '');
-    }
-
-    return '<!doctype html><html><head><meta charset="utf-8"><title>' + safe(meta.title || 'Multi-Area Report') + '</title>' +
-      '<meta name="viewport" content="width=device-width, initial-scale=1">' +
-      (hasMapContent ? '<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css">' +
-        '<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"><\/script>' +
-        '<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet.heat/0.2.0/leaflet-heat.js"><\/script>' : '') +
-      '<style>' +
-        'body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;color:#222;margin:0;padding:24px;background:#fafaf6;line-height:1.5}' +
-        '.report{max-width:820px;margin:0 auto;background:white;padding:32px 36px;border-radius:14px;box-shadow:0 2px 12px rgba(0,0,0,0.06)}' +
-        'h1{font-size:24px;color:#1a3320;border-bottom:2px solid #1a3320;padding-bottom:8px}' +
-        'h2{font-size:19px;color:#1a4a8c;margin-top:28px}' +
-        'h3{font-size:15px;color:#444;margin-top:16px}' +
-        '.multi-kpi{font-size:13px;color:#555;background:#f1f8e9;border-radius:8px;padding:8px 12px;margin:6px 0 10px}' +
-        '.multi-children{margin-left:14px;border-left:2px solid #eee;padding-left:16px}' +
-        'table.multi-stops{border-collapse:collapse;width:100%;font-size:12px;margin-bottom:10px}' +
-        'table.multi-stops td{padding:3px 8px;border-bottom:1px solid #f0f0f0}' +
-        'table.multi-stops td.mark{width:20px;text-align:center}' +
-        '#multi-area-map{height:420px;border-radius:10px;margin-top:6px;background:#eee}' +
-        '.map-legend{display:flex;gap:14px;flex-wrap:wrap;margin-top:8px;font-size:11px;color:#666}' +
-        '.map-legend span{display:inline-flex;align-items:center;gap:5px}' +
-        '.map-legend i{width:10px;height:10px;border-radius:50%;display:inline-block}' +
-        '.static-map-print{display:none}' +
-        '@media print{body{background:white;padding:0}.report{box-shadow:none;padding:18mm 16mm;max-width:none}#multi-area-map{display:none}.static-map-print{display:block}}' +
-      '</style></head><body><div class="report">' +
-      '<h1>' + safe(meta.title || 'Multi-Area Report') + '</h1>' +
-      '<div style="color:#888;font-size:12px;margin-bottom:14px">' + safe(meta.periodLabel || '') + ' · Generated ' + new Date().toLocaleString() + '</div>' +
-      mapSection + body + '</div>' +
-      (hasMapContent ? _buildLiveMapScriptHtml(mapReport, 'multi-area-map') : '') +
-      '</body></html>';
-  }
-
-
+  // stop, with the report-generator tool doing its own per-ward grouping
   // on the receiving end. Scoping this to one area would mean running it
   // once per ward/neighborhood just to reassemble the same city-wide
   // file the spec asks for — the opposite of what it wants. Period-only
@@ -30948,15 +31916,6 @@ const AreaPeriodReport = (function() {
     formatAsText: formatAsText,
     formatAsHTML: formatAsHTML,
     buildPdfBlob: buildPdfBlob,
-    buildMultiPdfBlob: buildMultiPdfBlob,
-    _mergeReportsForMap: _mergeReportsForMap,
-    buildScopedReports: buildScopedReports,
-    buildFocusedScopeTree: buildFocusedScopeTree,
-    buildNISWeeklyWardTrees: buildNISWeeklyWardTrees,
-    _hydrateScopeTree: _hydrateScopeTree,
-    formatMultiAsText: formatMultiAsText,
-    formatMultiAsCSV: formatMultiAsCSV,
-    formatMultiAsHTML: formatMultiAsHTML,
     buildExport: buildExport,
     formatAsExportJSON: formatAsExportJSON,
     staticMapSVG: _buildStaticSVG,
@@ -31229,14 +32188,6 @@ function applyCustomRange() {
 // state machine for the Data-tab panel.
 var _periodKind = 'day';
 var _periodAnchor = new Date();
-// 2026-07-25: custom date range — ISO date strings ('YYYY-MM-DD') or null.
-// Kept separate from _periodAnchor rather than overloading it, since a
-// range needs two endpoints and periodBoundsFor's single-anchor model
-// doesn't fit a custom range cleanly — renderAreaPeriodReport computes
-// bounds directly from these two when _periodKind === 'custom' instead
-// of calling PeriodReports.periodBoundsFor at all.
-var _customRangeStart = null;
-var _customRangeEnd = null;
 
 // Pull saved kind/anchor on first init so re-opening the Data tab returns
 // to whatever the user was looking at. Kept in sessionStorage (not LS)
@@ -31246,15 +32197,11 @@ var _customRangeEnd = null;
   try {
     var savedKind = sessionStorage.getItem('period-report-kind');
     var savedAnchor = sessionStorage.getItem('period-report-anchor');
-    if (savedKind && /^(day|week|month|year|custom)$/.test(savedKind)) _periodKind = savedKind;
+    if (savedKind && /^(day|week|month|year)$/.test(savedKind)) _periodKind = savedKind;
     if (savedAnchor) {
       var d = new Date(savedAnchor);
       if (!isNaN(d.getTime())) _periodAnchor = d;
     }
-    var savedStart = sessionStorage.getItem('period-report-custom-start');
-    var savedEnd = sessionStorage.getItem('period-report-custom-end');
-    if (savedStart) _customRangeStart = savedStart;
-    if (savedEnd) _customRangeEnd = savedEnd;
   } catch(_) {}
 })();
 
@@ -31262,32 +32209,11 @@ function _savePeriodState() {
   try {
     sessionStorage.setItem('period-report-kind', _periodKind);
     sessionStorage.setItem('period-report-anchor', _periodAnchor.toISOString());
-    sessionStorage.setItem('period-report-custom-start', _customRangeStart || '');
-    sessionStorage.setItem('period-report-custom-end', _customRangeEnd || '');
   } catch(_) {}
 }
 
-// Shows the ◀ label ▶ / NOW navigator for day/week/month/year, or the
-// From/To date inputs for custom — never both, never neither. Also seeds
-// the date inputs with whatever's currently stored so reopening the tab
-// (or switching back to Custom after visiting another kind) doesn't show
-// blank fields the person already filled in once.
-function _updatePeriodNavigatorUI() {
-  var navRow = document.getElementById('period-nav-row');
-  var customRow = document.getElementById('period-custom-range-row');
-  var isCustom = (_periodKind === 'custom');
-  if (navRow) navRow.style.display = isCustom ? 'none' : 'flex';
-  if (customRow) customRow.style.display = isCustom ? 'flex' : 'none';
-  if (isCustom) {
-    var startEl = document.getElementById('period-custom-start');
-    var endEl = document.getElementById('period-custom-end');
-    if (startEl && _customRangeStart) startEl.value = _customRangeStart;
-    if (endEl && _customRangeEnd) endEl.value = _customRangeEnd;
-  }
-}
-
 function setPeriodKind(kind) {
-  if (!/^(day|week|month|year|custom)$/.test(kind)) return;
+  if (!/^(day|week|month|year)$/.test(kind)) return;
   _periodKind = kind;
   // When switching to a coarser period, clamp the anchor to be "now-ish"
   // so we don't end up looking at e.g. "the week containing some random
@@ -31299,12 +32225,11 @@ function setPeriodKind(kind) {
   var btn = document.getElementById('period-kind-' + kind);
   if (btn) btn.classList.add('active-period');
   _savePeriodState();
-  _updatePeriodNavigatorUI();
-  renderAreaPeriodReport();
+  renderPeriodReport();
 }
 
 function shiftPeriod(dirStr) {
-  if (typeof PeriodReports === 'undefined' || _periodKind === 'custom') return;
+  if (typeof PeriodReports === 'undefined') return;
   var dir = parseInt(dirStr, 10);
   if (!dir) return;
   // Clamp future navigation: don't let the user navigate past the current
@@ -31320,33 +32245,14 @@ function shiftPeriod(dirStr) {
   }
   _periodAnchor = nextAnchor;
   _savePeriodState();
-  renderAreaPeriodReport();
+  renderPeriodReport();
 }
 
 function resetPeriodToNow() {
-  if (_periodKind === 'custom') return; // NOW is hidden for custom anyway (see _updatePeriodNavigatorUI), but guard directly too
   _periodAnchor = new Date();
   _savePeriodState();
-  renderAreaPeriodReport();
+  renderPeriodReport();
 }
-
-// Reads the two date inputs, validates, and re-renders. Swaps start/end
-// automatically if they're picked backwards rather than rejecting — a
-// person picking "To" before "From" almost always just means the range,
-// not an error to correct.
-function setPeriodCustomRange() {
-  var startEl = document.getElementById('period-custom-start');
-  var endEl = document.getElementById('period-custom-end');
-  var start = startEl ? startEl.value : '';
-  var end = endEl ? endEl.value : '';
-  if (!start || !end) return; // wait for both — a half-picked range isn't renderable
-  if (start > end) { var tmp = start; start = end; end = tmp; if (startEl) startEl.value = start; if (endEl) endEl.value = end; }
-  _customRangeStart = start;
-  _customRangeEnd = end;
-  _savePeriodState();
-  renderAreaPeriodReport();
-}
-window.setPeriodCustomRange = setPeriodCustomRange;
 
 function togglePeriodReportSettings() {
   var panel = document.getElementById('period-settings-panel');
@@ -31366,7 +32272,7 @@ function togglePeriodReportSettings() {
 function setPeriodWeekStart(val) {
   if (typeof PeriodReports === 'undefined') return;
   if (PeriodReports.setWeekStart(val)) {
-    renderAreaPeriodReport();
+    renderPeriodReport();
     showToast('Week start updated');
   }
 }
@@ -31700,8 +32606,6 @@ async function _renderAreaPeriodReportModal() {
   var districtPicker = document.getElementById('area-report-district-picker');
   if (!wardPicker || !nbhdPicker || !districtPicker) return;
 
-  try { if (typeof _updatePeriodNavigatorUI === 'function') _updatePeriodNavigatorUI(); } catch(_e) {}
-
   var hierarchy = { wardToDistrict: {}, neighborhoodToWard: {} };
   try { hierarchy = await _computeAreaHierarchy(); } catch(_e) {}
 
@@ -31760,86 +32664,19 @@ async function _renderAreaPeriodReportModal() {
 }
 window._renderAreaPeriodReportModal = _renderAreaPeriodReportModal;
 
-// Bounds for whatever period is currently selected — either the normal
-// PeriodReports.periodBoundsFor(kind, anchor) path, or (2026-07-25) a
-// directly-computed range when _periodKind === 'custom', since a two-
-// endpoint range doesn't fit periodBoundsFor's single-anchor model.
-// Same returned shape either way ({startMs, endMs, label, isCurrent,
-// isFuture}) plus an `incomplete` flag custom-only, true when either
-// date hasn't been picked yet.
-function _currentPeriodBounds() {
-  if (_periodKind === 'custom') {
-    if (!_customRangeStart || !_customRangeEnd) {
-      return { startMs: null, endMs: null, label: 'Pick a start and end date', isCurrent: false, isFuture: false, incomplete: true };
-    }
-    var s = new Date(_customRangeStart + 'T00:00:00');
-    var e = new Date(_customRangeEnd + 'T00:00:00');
-    e.setDate(e.getDate() + 1); // endMs exclusive, matching periodBoundsFor's own convention
-    var now = Date.now();
-    var label = (_customRangeStart === _customRangeEnd) ?
-      s.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) :
-      s.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) + ' – ' +
-        new Date(_customRangeEnd + 'T00:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
-    return { startMs: s.getTime(), endMs: e.getTime(), label: label, isCurrent: now >= s.getTime() && now < e.getTime(), isFuture: now < s.getTime() };
-  }
-  return PeriodReports.periodBoundsFor(_periodKind, _periodAnchor);
-}
-
 // The only async render in the report UI layer — AreaPeriodReport.buildReport
 // itself is async (polygon fetch for breadcrumb clipping). Shows a
 // lightweight loading state so a slow/offline GeoCache fetch doesn't look
-// like a frozen modal. No "pick something first" guard for the area
-// filters — empty selectors are a valid state (whole city), always
-// renders — but a custom range with a missing endpoint IS incomplete and
-// shows a prompt instead of attempting a report.
-//
-// 2026-07-25: also now owns the period pill highlight, label text, status
-// badge, and Next-button disable state — these used to live in
-// renderPeriodReport (the pre-merge Period Reports panel's own render
-// function), which is retired now that this function is what every
-// period-changing control actually calls. Consolidating them here means
-// there's exactly one function that "the period changed" needs to notify.
+// like a frozen modal. No "pick something first" guard anymore — empty
+// selectors are a valid state (whole city), always renders.
 var _areaReportRenderToken = 0;
 async function renderAreaPeriodReport() {
   var preview = document.getElementById('area-report-preview');
   if (!preview || typeof AreaPeriodReport === 'undefined' || typeof PeriodReports === 'undefined') return;
-
-  document.querySelectorAll('.period-kind-btn').forEach(function(b) { b.classList.remove('active-period'); });
-  var pillBtn = document.getElementById('period-kind-' + _periodKind);
-  if (pillBtn) pillBtn.classList.add('active-period');
-
-  var bounds = _currentPeriodBounds();
-
-  var labelEl = document.getElementById('period-current-label');
-  if (labelEl) labelEl.textContent = bounds.label;
-
-  var statusEl = document.getElementById('period-status-row');
-  if (statusEl) {
-    if (bounds.incomplete) {
-      statusEl.innerHTML = '';
-    } else if (bounds.isCurrent) {
-      statusEl.innerHTML = '<span style="background:#fff8c5;color:#7a5000;padding:3px 9px;border-radius:10px;font-family:\'Space Mono\',monospace;font-size:0.5rem;font-weight:700;letter-spacing:0.5px">● IN PROGRESS</span>';
-    } else if (bounds.isFuture) {
-      statusEl.innerHTML = '<span style="background:#eee;color:#888;padding:3px 9px;border-radius:10px;font-family:\'Space Mono\',monospace;font-size:0.5rem;font-weight:700;letter-spacing:0.5px">FUTURE</span>';
-    } else {
-      statusEl.innerHTML = '<span style="background:#e8f5e9;color:#2d5a3d;padding:3px 9px;border-radius:10px;font-family:\'Space Mono\',monospace;font-size:0.5rem;font-weight:700;letter-spacing:0.5px">✓ COMPLETED</span>';
-    }
-  }
-
-  var nextBtn = document.getElementById('period-next-btn');
-  if (nextBtn) {
-    nextBtn.style.opacity = bounds.isCurrent ? '0.4' : '';
-    nextBtn.style.cursor = bounds.isCurrent ? 'not-allowed' : 'pointer';
-  }
-
-  if (bounds.incomplete) {
-    preview.innerHTML = '<div style="font-family:\'Space Mono\',monospace;font-size:0.6rem;color:#999;padding:12px 2px;text-align:center">Pick a start and end date above to build this report.</div>';
-    return;
-  }
-
   var myToken = ++_areaReportRenderToken;
   preview.innerHTML = '<div style="font-family:\'Space Mono\',monospace;font-size:0.6rem;color:#999;padding:12px 2px;text-align:center">Building report…</div>';
 
+  var bounds = PeriodReports.periodBoundsFor(_periodKind, _periodAnchor);
   var report;
   try {
     report = await AreaPeriodReport.buildReport({
@@ -31878,141 +32715,9 @@ async function renderAreaPeriodReport() {
 }
 window.renderAreaPeriodReport = renderAreaPeriodReport;
 
-// 2026-07-25: Report Focus + saved-neighborhoods batch mode state.
-// _areaReportFocus determines the STRUCTURE of what an output button
-// produces (District → Ward → Neighborhood nesting, Ward → Neighborhood,
-// or flat Neighborhood-only) — orthogonal to the ward/neighborhood/
-// district FILTERS above, which determine the DATA SCOPE. Batch mode is
-// a separate, higher-priority mode: when on, output buttons ignore both
-// the filters and the Report Focus and instead build one report per
-// saved ("My Neighborhoods") entry.
-var _areaReportFocus = 'neighborhood';
-var _areaReportBatchMode = false;
-// 'combined' = one document with all saved neighborhoods as sections,
-// 'separate' = one file per saved neighborhood (each a full rich
-// single-scope report), 'nis' = one full WARD report per ward the saved
-// neighborhoods fall in — see buildNISWeeklyWardTrees's own comment.
-var _areaReportBatchSubmode = 'combined';
-
-function setAreaReportFocus(val) {
-  if (!/^(district|ward|neighborhood)$/.test(val)) return;
-  _areaReportFocus = val;
-  document.querySelectorAll('.area-report-focus-btn').forEach(function(b) { b.classList.remove('active-period'); });
-  var btn = document.getElementById('area-report-focus-' + val);
-  if (btn) btn.classList.add('active-period');
-}
-window.setAreaReportFocus = setAreaReportFocus;
-
-function toggleAreaReportBatchMode(checked) {
-  _areaReportBatchMode = !!checked;
-  var sub = document.getElementById('area-report-batch-sub');
-  if (sub) sub.style.display = _areaReportBatchMode ? 'block' : 'none';
-}
-window.toggleAreaReportBatchMode = toggleAreaReportBatchMode;
-
-function setAreaReportBatchSubmode(mode) {
-  if (!/^(combined|separate|nis)$/.test(mode)) return;
-  _areaReportBatchSubmode = mode;
-  document.querySelectorAll('.area-report-batch-submode-btn').forEach(function(b) { b.classList.remove('active-period'); });
-  var btn = document.getElementById('area-report-batch-' + mode + '-btn');
-  if (btn) btn.classList.add('active-period');
-  var note = document.getElementById('area-report-batch-nis-note');
-  if (note) note.style.display = (mode === 'nis') ? 'block' : 'none';
-}
-window.setAreaReportBatchSubmode = setAreaReportBatchSubmode;
-
-// Decides what an output button tap should actually build, in priority
-// order: batch mode (if on and there's a saved list) → Report Focus
-// (hierarchical, unless it collapses to a single flat scope, in which
-// case the already-built single report — with its full interactive map
-// — is reused rather than rebuilt through the simpler multi-formatter
-// path) → nothing (incomplete custom range).
-//
-// Returns one of:
-//   { mode: 'single', report }                — reuse existing rich formatters (map/heatmap/PDF)
-//   { mode: 'batch-separate', reports: [{label, report}] } — each also a full rich single report
-//   { mode: 'multi', tree, title, periodLabel } — combined hierarchical document, simpler formatters (no map)
-//   null                                       — nothing to build yet (incomplete custom range, or empty saved list)
-async function _resolveOutputPlan() {
-  var bounds = _currentPeriodBounds();
-  if (bounds.incomplete) { showToast('Pick a start and end date first'); return null; }
-
-  if (_areaReportBatchMode) {
-    var shortlist = _areaReportShortlist();
-    if (!shortlist.length) {
-      showToast('No saved neighborhoods yet — tap ☆ next to Neighborhood to save one first');
-      return null;
-    }
-
-    if (_areaReportBatchSubmode === 'nis') {
-      var wardTrees = await AreaPeriodReport.buildNISWeeklyWardTrees(shortlist, bounds.startMs, bounds.endMs);
-      if (!wardTrees.length) {
-        showToast('Could not determine which wards your saved neighborhoods are in — try again once online');
-        return null;
-      }
-      // Always one deliverable per ward — combining several different
-      // alderpeople's wards into one document would defeat the point of
-      // a per-ward, per-alderperson report.
-      return { mode: 'nis-separate', wardTrees: wardTrees, periodLabel: bounds.label };
-    }
-
-    var scopes = shortlist.map(function(name) { return { label: name, neighborhood: name }; });
-    var scoped = await AreaPeriodReport.buildScopedReports(scopes, bounds.startMs, bounds.endMs);
-    if (_areaReportBatchSubmode === 'separate') {
-      return { mode: 'batch-separate', reports: scoped };
-    }
-    var tree = scoped.map(function(s) { return { level: 'neighborhood', label: s.label, report: s.report, children: [] }; });
-    return { mode: 'multi', tree: tree, title: 'Saved Neighborhoods (' + tree.length + ')', periodLabel: bounds.label };
-  }
-
-  var filters = { ward: _areaReportWard || null, neighborhood: _areaReportNeighborhood || null, policeDistrict: _areaReportPoliceDistrict || null };
-  var rawTree = await AreaPeriodReport.buildFocusedScopeTree(_areaReportFocus, filters);
-  if (rawTree.length === 1 && !rawTree[0].children.length) {
-    return { mode: 'single', report: _lastAreaPeriodReport };
-  }
-  var hydrated = await AreaPeriodReport._hydrateScopeTree(rawTree, bounds.startMs, bounds.endMs);
-  var focusTitle = { district: 'District', ward: 'Ward', neighborhood: 'Neighborhood' }[_areaReportFocus] + ' Focus Report';
-  return { mode: 'multi', tree: hydrated, title: focusTitle, periodLabel: bounds.label };
-}
-
-function _multiSlug(title, periodLabel) {
-  var name = (title + '_' + periodLabel).replace(/[^a-zA-Z0-9]+/g, '_').replace(/^_+|_+$/g, '');
-  return 'CityRoute_' + name;
-}
-
-// Fires N sequential downloads with a short stagger between each — most
-// browsers handle a burst of same-tick download triggers unreliably
-// (some silently drop all but the first), but tolerate them fine spaced
-// a few hundred ms apart within the same user-gesture-initiated call.
-function _downloadSequentially(items) {
-  items.forEach(function(item, i) {
-    setTimeout(function() { _periodDownload(item.content, item.ext, item.mime, item.name); }, i * 400);
-  });
-}
-
-async function copyAreaPeriodReport() {
-  if (typeof AreaPeriodReport === 'undefined') return;
-  var plan = await _resolveOutputPlan();
-  if (!plan) return;
-  var text;
-  if (plan.mode === 'single') {
-    if (!plan.report) return;
-    text = AreaPeriodReport.formatAsText(plan.report);
-  } else if (plan.mode === 'batch-separate') {
-    // Copy has no concept of "separate files" — falls back to combining
-    // all the saved neighborhoods' text into one clipboard payload
-    // regardless of the Separate toggle, since there's nothing to
-    // download individually here.
-    text = plan.reports.map(function(s) { return AreaPeriodReport.formatAsText(s.report); }).join('\n\n\n');
-  } else if (plan.mode === 'nis-separate') {
-    // Same reasoning as batch-separate: Copy combines every ward's
-    // report into one clipboard payload, clearly divided.
-    text = plan.wardTrees.map(function(wt) {
-      return AreaPeriodReport.formatMultiAsText(wt.tree, { title: wt.label + ' — NIS Weekly Report', periodLabel: plan.periodLabel });
-    }).join('\n\n\n');
-  } else {
-    text = AreaPeriodReport.formatMultiAsText(plan.tree, { title: plan.title, periodLabel: plan.periodLabel });
-  }
+function copyAreaPeriodReport() {
+  if (!_lastAreaPeriodReport || typeof AreaPeriodReport === 'undefined') return;
+  var text = AreaPeriodReport.formatAsText(_lastAreaPeriodReport);
   if (navigator.clipboard && navigator.clipboard.writeText) {
     navigator.clipboard.writeText(text).then(function() {
       showToast('📋 Copied to clipboard ✓');
@@ -32029,51 +32734,13 @@ function _areaReportSlug() {
   var name = (r.area.label + '_' + r.period.label).replace(/[^a-zA-Z0-9]+/g, '_').replace(/^_+|_+$/g, '');
   return 'CityRoute_' + name;
 }
-
-async function downloadAreaPeriodReportCSV() {
-  if (typeof AreaPeriodReport === 'undefined') return;
-  var plan = await _resolveOutputPlan();
-  if (!plan) return;
-  if (plan.mode === 'single') {
-    if (!plan.report) return;
-    _periodDownload(AreaPeriodReport.formatAsCSV(plan.report), 'csv', 'text/csv', _areaReportSlug());
-  } else if (plan.mode === 'batch-separate') {
-    _downloadSequentially(plan.reports.map(function(s) {
-      return { content: AreaPeriodReport.formatAsCSV(s.report), ext: 'csv', mime: 'text/csv', name: _multiSlug(s.label, s.report.period.label) };
-    }));
-  } else if (plan.mode === 'nis-separate') {
-    _downloadSequentially(plan.wardTrees.map(function(wt) {
-      return { content: AreaPeriodReport.formatMultiAsCSV(wt.tree, { title: wt.label + ' NIS Weekly', periodLabel: plan.periodLabel }), ext: 'csv', mime: 'text/csv', name: _multiSlug(wt.label + '_NIS_Weekly', plan.periodLabel) };
-    }));
-  } else {
-    _periodDownload(AreaPeriodReport.formatMultiAsCSV(plan.tree, { title: plan.title, periodLabel: plan.periodLabel }), 'csv', 'text/csv', _multiSlug(plan.title, plan.periodLabel));
-  }
+function downloadAreaPeriodReportCSV() {
+  if (!_lastAreaPeriodReport || typeof AreaPeriodReport === 'undefined') return;
+  _periodDownload(AreaPeriodReport.formatAsCSV(_lastAreaPeriodReport), 'csv', 'text/csv', _areaReportSlug());
 }
-
-async function downloadAreaPeriodReportHTML() {
-  if (typeof AreaPeriodReport === 'undefined') return;
-  var plan = await _resolveOutputPlan();
-  if (!plan) return;
-  if (plan.mode === 'single') {
-    if (!plan.report) return;
-    _periodDownload(AreaPeriodReport.formatAsHTML(plan.report), 'html', 'text/html', _areaReportSlug());
-  } else if (plan.mode === 'batch-separate') {
-    _downloadSequentially(plan.reports.map(function(s) {
-      return { content: AreaPeriodReport.formatAsHTML(s.report), ext: 'html', mime: 'text/html', name: _multiSlug(s.label, s.report.period.label) };
-    }));
-  } else if (plan.mode === 'nis-separate') {
-    // One HTML file per ward, each including the combined overview map
-    // (formatMultiAsHTML — see that function's own comment for the
-    // 2026-07-25 map addition) since NIS reports explicitly need one.
-    _downloadSequentially(plan.wardTrees.map(function(wt) {
-      return { content: AreaPeriodReport.formatMultiAsHTML(wt.tree, { title: wt.label + ' — NIS Weekly Report', periodLabel: plan.periodLabel }), ext: 'html', mime: 'text/html', name: _multiSlug(wt.label + '_NIS_Weekly', plan.periodLabel) };
-    }));
-  } else {
-    // Combined/hierarchical HTML includes its own overview map — see
-    // formatMultiAsHTML's own comment for how (one map built from the
-    // top-level nodes' already-complete data, not one per node).
-    _periodDownload(AreaPeriodReport.formatMultiAsHTML(plan.tree, { title: plan.title, periodLabel: plan.periodLabel }), 'html', 'text/html', _multiSlug(plan.title, plan.periodLabel));
-  }
+function downloadAreaPeriodReportHTML() {
+  if (!_lastAreaPeriodReport || typeof AreaPeriodReport === 'undefined') return;
+  _periodDownload(AreaPeriodReport.formatAsHTML(_lastAreaPeriodReport), 'html', 'text/html', _areaReportSlug());
 }
 window.downloadAreaPeriodReportCSV  = downloadAreaPeriodReportCSV;
 window.downloadAreaPeriodReportHTML = downloadAreaPeriodReportHTML;
@@ -32085,33 +32752,13 @@ window.downloadAreaPeriodReportHTML = downloadAreaPeriodReportHTML;
 // since this is genuinely async work (CDN fetch + image rasterization),
 // unlike the synchronous CSV/HTML downloads next to it.
 async function downloadAreaPeriodReportPDF() {
-  if (typeof AreaPeriodReport === 'undefined') return;
+  if (!_lastAreaPeriodReport || typeof AreaPeriodReport === 'undefined') return;
   var btn = document.getElementById('area-report-pdf-btn');
   var origLabel = btn ? btn.textContent : '';
   if (btn) { btn.disabled = true; btn.style.opacity = '0.6'; btn.textContent = '⏳ Building PDF…'; }
   try {
-    var plan = await _resolveOutputPlan();
-    if (!plan) return;
-    if (plan.mode === 'single') {
-      if (!plan.report) return;
-      var blob = await AreaPeriodReport.buildPdfBlob(plan.report);
-      _periodDownload(blob, 'pdf', 'application/pdf', _areaReportSlug());
-    } else if (plan.mode === 'batch-separate') {
-      for (var i = 0; i < plan.reports.length; i++) {
-        var s = plan.reports[i];
-        var b = await AreaPeriodReport.buildPdfBlob(s.report);
-        _periodDownload(b, 'pdf', 'application/pdf', _multiSlug(s.label, s.report.period.label));
-      }
-    } else if (plan.mode === 'nis-separate') {
-      for (var j = 0; j < plan.wardTrees.length; j++) {
-        var wt = plan.wardTrees[j];
-        var wb = await AreaPeriodReport.buildMultiPdfBlob(wt.tree, { title: wt.label + ' — NIS Weekly Report', periodLabel: plan.periodLabel });
-        _periodDownload(wb, 'pdf', 'application/pdf', _multiSlug(wt.label + '_NIS_Weekly', plan.periodLabel));
-      }
-    } else {
-      var mb = await AreaPeriodReport.buildMultiPdfBlob(plan.tree, { title: plan.title, periodLabel: plan.periodLabel });
-      _periodDownload(mb, 'pdf', 'application/pdf', _multiSlug(plan.title, plan.periodLabel));
-    }
+    var blob = await AreaPeriodReport.buildPdfBlob(_lastAreaPeriodReport);
+    _periodDownload(blob, 'pdf', 'application/pdf', _areaReportSlug());
   } catch(e) {
     showToast('⚠ Could not build PDF: ' + (e && e.message || 'unknown error'));
   } finally {
@@ -32139,41 +32786,19 @@ function _renderAreaReportShareRow() {
 }
 
 async function shareAreaPeriodReport() {
-  if (typeof AreaPeriodReport === 'undefined') return;
+  if (!_lastAreaPeriodReport || typeof AreaPeriodReport === 'undefined') return;
   if (!(navigator.share && navigator.canShare)) {
     showToast('Sharing isn\'t available in this browser — use a download button instead');
     return;
   }
-  var plan = await _resolveOutputPlan();
-  if (!plan) return;
   try {
-    var files, title, text;
-    if (plan.mode === 'single') {
-      if (!plan.report) return;
-      files = [new File([AreaPeriodReport.formatAsHTML(plan.report)], _areaReportSlug() + '.html', { type: 'text/html' })];
-      title = plan.report.area.label; text = plan.report.period.label + ' report';
-    } else if (plan.mode === 'batch-separate') {
-      // Web Share supports multiple files in one call — shares the whole
-      // batch through a single share-sheet invocation rather than N
-      // separate ones.
-      files = plan.reports.map(function(s) {
-        return new File([AreaPeriodReport.formatAsHTML(s.report)], _multiSlug(s.label, s.report.period.label) + '.html', { type: 'text/html' });
-      });
-      title = 'Saved Neighborhoods'; text = plan.reports.length + ' neighborhood reports';
-    } else if (plan.mode === 'nis-separate') {
-      files = plan.wardTrees.map(function(wt) {
-        return new File([AreaPeriodReport.formatMultiAsHTML(wt.tree, { title: wt.label + ' — NIS Weekly Report', periodLabel: plan.periodLabel })], _multiSlug(wt.label + '_NIS_Weekly', plan.periodLabel) + '.html', { type: 'text/html' });
-      });
-      title = 'NIS Weekly Reports'; text = plan.wardTrees.length + ' ward report' + (plan.wardTrees.length === 1 ? '' : 's');
-    } else {
-      files = [new File([AreaPeriodReport.formatMultiAsHTML(plan.tree, { title: plan.title, periodLabel: plan.periodLabel })], _multiSlug(plan.title, plan.periodLabel) + '.html', { type: 'text/html' })];
-      title = plan.title; text = plan.periodLabel;
-    }
-    if (!navigator.canShare({ files: files })) {
+    var htmlText = AreaPeriodReport.formatAsHTML(_lastAreaPeriodReport);
+    var file = new File([htmlText], _areaReportSlug() + '.html', { type: 'text/html' });
+    if (!navigator.canShare({ files: [file] })) {
       showToast('This device can\'t share files directly — use a download button instead');
       return;
     }
-    await navigator.share({ files: files, title: title, text: text });
+    await navigator.share({ files: [file], title: _lastAreaPeriodReport.area.label, text: _lastAreaPeriodReport.period.label + ' report' });
   } catch(e) {
     if (e && e.name === 'AbortError') return; // person just backed out of the share sheet — not an error
     showToast('⚠ Could not share: ' + (e && e.message || 'unknown error'));
@@ -32727,6 +33352,116 @@ function wizSaveRole() {
     <div style="display:flex;gap:8px;margin-top:6px">
       <button data-fn="deleteCustomLayerConfirm" style="flex:1;padding:11px;background:#fff5f5;border:1.5px solid #fecaca;border-radius:10px;color:#dc2626;font-family:Syne,sans-serif;font-weight:700;font-size:0.7rem;cursor:pointer">🗑 Delete</button>
       <button data-fn="saveCustomLayerEdit" style="flex:1.5;padding:11px;background:linear-gradient(135deg,#7c3aed,#9333ea);border:none;border-radius:10px;color:white;font-family:Syne,sans-serif;font-weight:800;font-size:0.75rem;cursor:pointer">Save</button>
+    </div>
+  </div>
+</div>
+
+<!-- ===== PDF DOCS MODAL (Drop AQ, 2026-07-28) =====
+     Incorporated from the standalone pdf_converter.html tool. Reuses the
+     app's existing AddressAutocomplete.geocodeRaw (Nominatim two-pass
+     lookup) and geoLookup(lat,lng) (neighborhood/ward/police district via
+     GeoCache) instead of the standalone's own duplicated Nominatim fetch +
+     inline GeoJSON blobs — this is the main integration win over just
+     copy-pasting the file: no second copy of the ~800KB neighborhoods/wards
+     GeoJSON. jsPDF is lazy-loaded the same way AreaPeriodReport already
+     does it, via a small module-local _ensureJsPDF() (duplicated rather
+     than reaching into that module's private closure — consistent with
+     the project's per-module self-containment convention). -->
+<div id="cnd-pdf-modal" class="modal-overlay" style="display:none;z-index:9998;padding:0;align-items:stretch;justify-content:stretch" role="dialog" aria-modal="true" aria-labelledby="cnd-pdf-modal-title" data-backdrop-close data-fn="closeCndPdfModal">
+  <div class="modal-sheet" style="padding:18px 18px 24px;background:#f6f5f1;width:100%;max-width:none;height:100dvh;max-height:100dvh;border-radius:0;overflow-y:auto">
+    <div class="modal-handle"></div>
+    <div style="display:flex;align-items:baseline;justify-content:space-between;border-bottom:2px solid #28323f;padding-bottom:12px;margin-bottom:16px">
+      <div id="cnd-pdf-modal-title" style="font-family:'Syne',sans-serif;font-weight:800;font-size:0.95rem;color:#28323f">📄 PDF Docs</div>
+      <button data-fn="closeCndPdfModal" style="background:none;border:none;font-size:1.4rem;color:#aaa;cursor:pointer;padding:0 4px;line-height:1">✕</button>
+    </div>
+
+    <div style="display:flex;gap:2px;margin-bottom:14px">
+      <div class="cndpdf-tab active" data-fn="cndPdfSwitchTab" data-arg="cnd" id="cndpdf-tab-cnd" style="flex:1;padding:10px 12px;background:#28323f;color:#fff;border:1px solid #28323f;font-family:Syne,sans-serif;font-weight:700;font-size:0.62rem;letter-spacing:0.3px;cursor:pointer;text-align:center">C&amp;D Photo Doc</div>
+      <div class="cndpdf-tab" data-fn="cndPdfSwitchTab" data-arg="simple" id="cndpdf-tab-simple" style="flex:1;padding:10px 12px;background:#eae7de;color:#3c4a5c;border:1px solid #d9d6cd;font-family:Syne,sans-serif;font-weight:700;font-size:0.62rem;letter-spacing:0.3px;cursor:pointer;text-align:center">Simple Convert</div>
+    </div>
+
+    <!-- Save-location bar (File System Access API, same as standalone) -->
+    <div id="cndpdf-settings-bar" style="background:#eeece5;border:1px solid #d9d6cd;padding:10px 12px;margin-bottom:14px;font-family:'Space Mono',monospace;font-size:0.6rem;color:#3c4a5c">
+      <div id="cndpdf-folder-status">No default folder set — you'll be asked where to save each time.</div>
+      <div style="display:flex;gap:8px;margin-top:8px">
+        <button data-fn="cndPdfChooseFolder" style="background:none;border:1px dashed #b9b5a8;color:#3c4a5c;cursor:pointer;font-size:0.58rem;font-weight:600;padding:6px 10px">Set Default Folder</button>
+        <button data-fn="cndPdfClearFolder" style="background:none;border:1px dashed #b9b5a8;color:#3c4a5c;cursor:pointer;font-size:0.58rem;font-weight:600;padding:6px 10px">Clear Default</button>
+      </div>
+    </div>
+
+    <!-- C&D MODE -->
+    <div id="cndpdf-panel-cnd">
+      <div style="position:relative;margin-bottom:12px">
+        <label style="display:block;font-size:0.56rem;text-transform:uppercase;letter-spacing:0.06em;color:#3c4a5c;margin-bottom:5px;font-weight:600">Property Address</label>
+        <input type="text" id="cndpdf-address" placeholder="Start typing an address…" autocomplete="off" oninput="cndPdfAddrInputChanged()" style="width:100%;padding:9px 10px;border:1px solid #c7c3b8;background:#fdfcfa;font-size:0.72rem;color:#1b2430;box-sizing:border-box">
+        <div id="cndpdf-addr-suggestions" style="display:none;position:absolute;left:0;right:0;top:100%;background:#fdfcfa;border:1px solid #d9d6cd;box-shadow:0 6px 18px rgba(0,0,0,0.12);z-index:50;max-height:220px;overflow-y:auto"></div>
+        <div id="cndpdf-geo-status" style="font-size:0.55rem;color:#8a8577;margin-top:4px"></div>
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:12px">
+        <div><label style="display:block;font-size:0.56rem;text-transform:uppercase;color:#3c4a5c;margin-bottom:5px;font-weight:600">Neighborhood</label><input type="text" id="cndpdf-neighborhood" placeholder="Auto-filled" oninput="cndPdfUpdatePreview()" style="width:100%;padding:9px 10px;border:1px solid #c7c3b8;background:#fdfcfa;font-size:0.72rem;box-sizing:border-box"></div>
+        <div><label style="display:block;font-size:0.56rem;text-transform:uppercase;color:#3c4a5c;margin-bottom:5px;font-weight:600">Ward</label><input type="text" id="cndpdf-ward" placeholder="Auto-filled" oninput="cndPdfUpdatePreview()" style="width:100%;padding:9px 10px;border:1px solid #c7c3b8;background:#fdfcfa;font-size:0.72rem;box-sizing:border-box"></div>
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:12px">
+        <div><label style="display:block;font-size:0.56rem;text-transform:uppercase;color:#3c4a5c;margin-bottom:5px;font-weight:600">Police District</label><input type="text" id="cndpdf-police-district" placeholder="Auto-filled" oninput="cndPdfUpdatePreview()" style="width:100%;padding:9px 10px;border:1px solid #c7c3b8;background:#fdfcfa;font-size:0.72rem;box-sizing:border-box"></div>
+        <div><label style="display:block;font-size:0.56rem;text-transform:uppercase;color:#3c4a5c;margin-bottom:5px;font-weight:600">ZIP Code</label><input type="text" id="cndpdf-zip" placeholder="Auto-filled" maxlength="10" oninput="cndPdfUpdatePreview()" style="width:100%;padding:9px 10px;border:1px solid #c7c3b8;background:#fdfcfa;font-size:0.72rem;box-sizing:border-box"></div>
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:12px">
+        <div><label style="display:block;font-size:0.56rem;text-transform:uppercase;color:#3c4a5c;margin-bottom:5px;font-weight:600">C&amp;D Dated</label><input type="text" id="cndpdf-dated" placeholder="MM/DD/YY" oninput="cndPdfDateMask('cndpdf-dated')" style="width:100%;padding:9px 10px;border:1px solid #c7c3b8;background:#fdfcfa;font-size:0.72rem;box-sizing:border-box"></div>
+        <div><label style="display:block;font-size:0.56rem;text-transform:uppercase;color:#3c4a5c;margin-bottom:5px;font-weight:600">Posted On</label><input type="text" id="cndpdf-posted" placeholder="MM/DD/YY" oninput="cndPdfDateMask('cndpdf-posted')" style="width:100%;padding:9px 10px;border:1px solid #c7c3b8;background:#fdfcfa;font-size:0.72rem;box-sizing:border-box"></div>
+      </div>
+      <div style="margin-bottom:12px">
+        <label style="display:block;font-size:0.56rem;text-transform:uppercase;color:#3c4a5c;margin-bottom:5px;font-weight:600">NIS Name</label>
+        <input type="text" id="cndpdf-nis" placeholder="e.g. J. Smith" oninput="cndPdfUpdatePreview()" style="width:100%;padding:9px 10px;border:1px solid #c7c3b8;background:#fdfcfa;font-size:0.72rem;box-sizing:border-box">
+        <div class="cndpdf-name-list" id="cndpdf-nis-extra" style="display:flex;flex-direction:column;gap:6px;margin-top:6px"></div>
+        <button type="button" data-fn="cndPdfAddName" data-arg="nis" style="margin-top:6px;background:none;border:1px dashed #b9b5a8;color:#3c4a5c;cursor:pointer;font-size:0.58rem;font-weight:600;padding:6px 10px">+ Add NIS</button>
+      </div>
+      <div style="margin-bottom:12px">
+        <label style="display:block;font-size:0.56rem;text-transform:uppercase;color:#3c4a5c;margin-bottom:5px;font-weight:600">PPO Name</label>
+        <input type="text" id="cndpdf-ppo" placeholder="Problem Property Officer" oninput="cndPdfUpdatePreview()" style="width:100%;padding:9px 10px;border:1px solid #c7c3b8;background:#fdfcfa;font-size:0.72rem;box-sizing:border-box">
+        <div class="cndpdf-name-list" id="cndpdf-ppo-extra" style="display:flex;flex-direction:column;gap:6px;margin-top:6px"></div>
+        <button type="button" data-fn="cndPdfAddName" data-arg="ppo" style="margin-top:6px;background:none;border:1px dashed #b9b5a8;color:#3c4a5c;cursor:pointer;font-size:0.58rem;font-weight:600;padding:6px 10px">+ Add PPO</button>
+      </div>
+
+      <div id="cndpdf-preview" style="font-family:'Space Mono',monospace;font-size:0.6rem;color:#3c4a5c;background:#eeece5;border:1px solid #d9d6cd;padding:10px 12px;margin:10px 0;line-height:1.6;white-space:pre-wrap;text-align:center">—
+C&amp;D - Dated: XX/XX/XXXX   |   Posted: XX/XX/XXXX
+NIS: —   |   PPO: —</div>
+
+      <div id="cndpdf-drop" style="border:2px dashed #b9b5a8;padding:22px;text-align:center;color:#3c4a5c;font-size:0.62rem;cursor:pointer;margin:14px 0;background:#fbfaf7">
+        Tap to choose photos (JPG / PNG) — each becomes a stamped page
+        <input type="file" id="cndpdf-file-input" accept="image/*" multiple style="display:none">
+      </div>
+      <div class="cndpdf-photo-list" id="cndpdf-photo-list" style="display:flex;flex-direction:column;gap:8px;margin:12px 0"></div>
+
+      <div id="cndpdf-thumb-wrap" style="margin:14px 0;display:none">
+        <label style="display:block;font-size:0.56rem;text-transform:uppercase;color:#3c4a5c;margin-bottom:6px;font-weight:600">Preview — stamped page</label>
+        <canvas id="cndpdf-thumb-canvas" style="width:100%;max-width:380px;height:auto;border:1px solid #d9d6cd;background:#fdfcfa;display:block"></canvas>
+      </div>
+
+      <div style="display:flex;gap:8px;align-items:center;margin-top:16px;flex-wrap:wrap">
+        <button data-fn="cndPdfGenerate" style="padding:10px 18px;font-size:0.68rem;font-weight:700;border:1px solid #28323f;background:#28323f;color:#fff;cursor:pointer">Generate Stamped PDF</button>
+        <button data-fn="cndPdfClearAll" style="padding:10px 18px;font-size:0.68rem;font-weight:700;border:1px solid #28323f;background:transparent;color:#28323f;cursor:pointer">Clear All</button>
+        <span id="cndpdf-status" style="font-size:0.6rem;color:#3c4a5c"></span>
+      </div>
+      <div style="font-size:0.55rem;color:#8a8577;margin-top:16px;border-top:1px solid #d9d6cd;padding-top:12px;line-height:1.5">
+        Fields left blank are skipped in the header. The same header is applied to every photo added — fill in once per property, add all photos for that posting, then Generate. Hit Clear All to start the next property.
+      </div>
+    </div>
+
+    <!-- SIMPLE MODE -->
+    <div id="cndpdf-panel-simple" style="display:none">
+      <div id="cndpdf-simple-drop" style="border:2px dashed #b9b5a8;padding:22px;text-align:center;color:#3c4a5c;font-size:0.62rem;cursor:pointer;margin:14px 0;background:#fbfaf7">
+        Tap to choose photos (JPG / PNG) — each becomes one PDF page, no header
+        <input type="file" id="cndpdf-simple-file-input" accept="image/*" multiple style="display:none">
+      </div>
+      <div class="cndpdf-photo-list" id="cndpdf-simple-photo-list" style="display:flex;flex-direction:column;gap:8px;margin:12px 0"></div>
+      <div style="display:flex;gap:8px;align-items:center;margin-top:16px;flex-wrap:wrap">
+        <button data-fn="cndPdfSimpleGenerate" style="padding:10px 18px;font-size:0.68rem;font-weight:700;border:1px solid #28323f;background:#28323f;color:#fff;cursor:pointer">Generate PDF</button>
+        <button data-fn="cndPdfSimpleClearAll" style="padding:10px 18px;font-size:0.68rem;font-weight:700;border:1px solid #28323f;background:transparent;color:#28323f;cursor:pointer">Clear All</button>
+        <span id="cndpdf-simple-status" style="font-size:0.6rem;color:#3c4a5c"></span>
+      </div>
+      <div style="font-size:0.55rem;color:#8a8577;margin-top:16px;border-top:1px solid #d9d6cd;padding-top:12px;line-height:1.5">
+        For quick batches that don't need the C&amp;D header — just stacks the images into a single PDF in the order added.
+      </div>
     </div>
   </div>
 </div>
