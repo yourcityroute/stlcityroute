@@ -29977,12 +29977,20 @@ function _metricsCollectStops(allStops, range, cutoff, cutoffEnd) {
       }
     } catch(_) {}
   }
-  // Apply the cutoff window to the combined active+archive set
+  // 2026-08-10: this used to filter on addedAt ONLY — a stop added before
+  // the window but completed inside it (a very ordinary case: add Monday,
+  // finish Wednesday) was silently excluded from that window's metrics
+  // entirely, even though its completion genuinely happened during the
+  // period being reported on. AreaPeriodReport's own _collectStops already
+  // checks both (addedIn || completedIn); this brings computeMetrics'
+  // collector in line with that instead of quietly disagreeing with it.
   if (!cutoff) return allStops;
   return allStops.filter(function(s) {
-    var t = s.addedAt ? new Date(s.addedAt).getTime() : s.id;
-    if (cutoffEnd) return t >= cutoff && t <= cutoffEnd;
-    return t >= cutoff;
+    var addedT = s.addedAt ? new Date(s.addedAt).getTime() : s.id;
+    var completedT = s.completedAt ? new Date(s.completedAt).getTime() : null;
+    var addedIn = cutoffEnd ? (addedT >= cutoff && addedT <= cutoffEnd) : (addedT >= cutoff);
+    var completedIn = completedT != null && (cutoffEnd ? (completedT >= cutoff && completedT <= cutoffEnd) : (completedT >= cutoff));
+    return addedIn || completedIn;
   });
 }
 
@@ -30115,8 +30123,8 @@ function computeMetrics(range) {
     .map(function(s) { return { s: s, ts: new Date(s.completedAt).getTime() }; })
     .sort(function(a, b) { return a.ts - b.ts; });
 
-  // Historical log used by several helpers (close-rate-by-DOW, by-month,
-  // historicalDays). Loaded once, passed to each helper.
+  // Historical log used by several helpers (by-month, historicalDays).
+  // Loaded once, passed to each helper.
   var log = loadDataLog();
   var historicalDays = (range !== 'today')
     ? log.filter(function(e) { return !cutoff || new Date(e.date).getTime() >= cutoff; })
@@ -30127,7 +30135,6 @@ function computeMetrics(range) {
   var optimizeRuns = parseInt(sessionStorage.getItem('data-optimize-runs') || '0', 10);
   var avgMinsPerStop = _metricsAvgGap(completedWithTs);
   var repeats = _metricsRepeatAddresses(inRange);
-  var closeRateByDow = _metricsCloseRateByDow(log);
   var streetStats = _metricsStreetSpread(inRange);
   var byMonth = _metricsByMonth(log);
 
@@ -30148,7 +30155,6 @@ function computeMetrics(range) {
     lastStopTime:   completedWithTs.length ? new Date(completedWithTs[completedWithTs.length - 1].ts) : null,
     returnVisits:    repeats.returnVisits,
     returnAddresses: repeats.returnAddresses,
-    closeRateByDow:  closeRateByDow,
     uniqueStreets:   streetStats.uniqueStreets,
     topStreets:      streetStats.topStreets,
     byMonth:         byMonth,
@@ -30451,7 +30457,7 @@ const PeriodReports = (function() {
     var statusTag = b.isCurrent ? ' [in progress]' : '';
     lines.push('CityRoute — ' + b.label + statusTag);
     lines.push('—');
-    lines.push(s.stopCount + ' stops · ' + s.completedCount + ' completed (' + s.completionRate + '%)');
+    lines.push(s.stopCount + ' stops · ' + s.completedCount + ' completed');
     if (s.followups > 0) lines.push(s.followups + ' followups');
     if (s.withNotes > 0) lines.push(s.withNotes + ' with notes');
     if (s.time.firstMs && s.time.lastMs) {
@@ -30571,7 +30577,6 @@ const PeriodReports = (function() {
       '<div class="kpi-row">' +
         '<div class="kpi"><div class="kpi-num">' + s.stopCount + '</div><div class="kpi-label">Stops</div></div>' +
         '<div class="kpi"><div class="kpi-num">' + s.completedCount + '</div><div class="kpi-label">Completed</div></div>' +
-        '<div class="kpi"><div class="kpi-num">' + s.completionRate + '%</div><div class="kpi-label">Close rate</div></div>' +
         (s.followups ? '<div class="kpi"><div class="kpi-num">' + s.followups + '</div><div class="kpi-label">Followups</div></div>' : '') +
       '</div>';
 
@@ -30838,7 +30843,7 @@ const CoverageReport = (function() {
 
     var sessionCount = report.sessions.length + (report.active ? 1 : 0);
     lines.push(sessionCount + ' survey session' + (sessionCount === 1 ? '' : 's') + (report.active ? ' (1 in progress)' : ''));
-    lines.push(st.total + ' stops · ' + st.completed + ' completed (' + st.completionRate + '%)');
+    lines.push(st.total + ' stops · ' + st.completed + ' completed');
     lines.push('');
 
     lines.push('COVERAGE');
@@ -30923,7 +30928,7 @@ const CoverageReport = (function() {
       '<div class="kpi-row">' +
         '<div class="kpi"><div class="kpi-num">' + (report.sessions.length + (report.active ? 1 : 0)) + '</div><div class="kpi-label">Sessions</div></div>' +
         '<div class="kpi"><div class="kpi-num">' + st.total + '</div><div class="kpi-label">Stops</div></div>' +
-        '<div class="kpi"><div class="kpi-num">' + st.completionRate + '%</div><div class="kpi-label">Close rate</div></div>' +
+        '<div class="kpi"><div class="kpi-num">' + st.completed + '</div><div class="kpi-label">Completed</div></div>' +
         '<div class="kpi"><div class="kpi-num">' + c.breadcrumbPointCount + '</div><div class="kpi-label">Breadcrumb points</div></div>' +
       '</div>';
 
@@ -31463,7 +31468,7 @@ const AreaPeriodReport = (function() {
     rows.push(['SUMMARY'].join(','));
     rows.push(['Stops', 'Completed', 'CompletionRate', 'PhotoTrackerLocations', 'Sessions', 'BreadcrumbPoints'].join(','));
     rows.push([
-      esc(report.stops.total), esc(report.stops.completed), esc(report.stops.completionRate + '%'),
+      esc(report.stops.total), esc(report.stops.completed),
       esc(report.photoTracker.locations.length), esc(report.coverage.sessionCount), esc(report.coverage.breadcrumbPointCount)
     ].join(','));
     rows.push([]);
@@ -31495,7 +31500,7 @@ const AreaPeriodReport = (function() {
     lines.push('—');
     lines.push('Generated ' + new Date(report.generatedAt).toLocaleString());
     lines.push('');
-    lines.push(st.total + ' stops · ' + st.completed + ' completed (' + st.completionRate + '%)');
+    lines.push(st.total + ' stops · ' + st.completed + ' completed');
     if (cov.sessionCount) lines.push(cov.sessionCount + ' survey session' + (cov.sessionCount === 1 ? '' : 's') + (cov.activeInPeriod ? ' (1 in progress)' : ''));
     lines.push('');
 
@@ -31752,7 +31757,6 @@ const AreaPeriodReport = (function() {
       '<div class="kpi-row">' +
         '<div class="kpi"><div class="kpi-num">' + st.total + '</div><div class="kpi-label">Stops</div></div>' +
         '<div class="kpi"><div class="kpi-num">' + st.completed + '</div><div class="kpi-label">Completed</div></div>' +
-        '<div class="kpi"><div class="kpi-num">' + st.completionRate + '%</div><div class="kpi-label">Close rate</div></div>' +
         '<div class="kpi"><div class="kpi-num">' + ch.locations.length + '</div><div class="kpi-label">Photo Tracker locations</div></div>' +
         (cov.sessionCount ? '<div class="kpi"><div class="kpi-num">' + cov.sessionCount + '</div><div class="kpi-label">Survey sessions</div></div>' : '') +
       '</div>';
@@ -31931,7 +31935,7 @@ const AreaPeriodReport = (function() {
     line(report.area.label, { size: 18, bold: true, color: [26, 51, 32] });
     line(report.period.label + '  ·  Generated ' + new Date(report.generatedAt).toLocaleString(), { size: 9, color: [130, 130, 130] });
     y += 1;
-    line(st.total + ' stops · ' + st.completed + ' completed (' + st.completionRate + '%) · ' +
+    line(st.total + ' stops · ' + st.completed + ' completed · ' +
       ch.locations.length + ' photo tracker location' + (ch.locations.length === 1 ? '' : 's') +
       (cov.sessionCount ? ' · ' + cov.sessionCount + ' survey session' + (cov.sessionCount === 1 ? '' : 's') : ''),
       { size: 10, bold: true });
@@ -32153,7 +32157,7 @@ function generateCoverageReportUI(areaKeyStr) {
   preview.innerHTML =
     '<div style="background:#fafafa;border:1.5px solid #e5e7eb;border-radius:9px;padding:12px;margin-bottom:12px;font-family:\'Space Mono\',monospace;font-size:0.62rem;color:#444;line-height:1.9">' +
       '<div>' + sessionCount + ' survey session' + (sessionCount === 1 ? '' : 's') + (report.active ? ' <span style="color:#7a5000">(1 in progress)</span>' : '') + '</div>' +
-      '<div>' + st.total + ' stops · ' + st.completed + ' completed (' + st.completionRate + '%)</div>' +
+      '<div>' + st.total + ' stops · ' + st.completed + ' completed</div>' +
       '<div>' + c.breadcrumbPointCount + ' breadcrumb points tracked</div>' +
       '<div>' + ch.locations.length + ' photo tracker location' + (ch.locations.length === 1 ? '' : 's') + '</div>' +
       '<div>' + pl.totalLoggedPhotos + ' logged photo' + (pl.totalLoggedPhotos === 1 ? '' : 's') + ' across ' + pl.stopsWithPhotos.length + ' stop' + (pl.stopsWithPhotos.length === 1 ? '' : 's') + '</div>' +
@@ -32501,7 +32505,7 @@ function _periodReportBodyHtml(report) {
   // KPI row
   html += '<div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:6px;margin-bottom:10px">';
   html += _periodKpiCard(s.stopCount, 'STOPS', '');
-  html += _periodKpiCard(s.completedCount, 'CLOSED', s.completionRate + '%');
+  html += _periodKpiCard(s.completedCount, 'CLOSED', '');
   if (s.followups > 0) {
     html += _periodKpiCard(s.followups, 'FOLLOWUPS', '⚑');
   } else if (s.withNotes > 0) {
@@ -32855,7 +32859,7 @@ async function renderAreaPeriodReport() {
   preview.innerHTML =
     '<div style="background:#fafafa;border:1.5px solid #e5e7eb;border-radius:9px;padding:12px;margin-bottom:12px;font-family:\'Space Mono\',monospace;font-size:0.62rem;color:#444;line-height:1.9">' +
       '<div style="font-family:Syne,sans-serif;font-weight:800;font-size:0.66rem;color:#1a4a8c;margin-bottom:4px">' + escHtml(report.area.label) + '</div>' +
-      '<div>' + st.total + ' stop' + (st.total === 1 ? '' : 's') + ' · ' + st.completed + ' completed (' + st.completionRate + '%)</div>' +
+      '<div>' + st.total + ' stop' + (st.total === 1 ? '' : 's') + ' · ' + st.completed + ' completed</div>' +
       '<div>' + ch.locations.length + ' photo tracker location' + (ch.locations.length === 1 ? '' : 's') + '</div>' +
       (cov.sessionCount ? '<div>' + cov.sessionCount + ' survey session' + (cov.sessionCount === 1 ? '' : 's') + (cov.activeInPeriod ? ' <span style="color:#7a5000">(1 in progress)</span>' : '') + '</div>' : '') +
       (cov.breadcrumbPointCount ? '<div>' + cov.breadcrumbPointCount + ' breadcrumb point' + (cov.breadcrumbPointCount === 1 ? '' : 's') + (cov.breadcrumbClipped ? '' : ' <span style="color:#999">(boundary unavailable — points omitted)</span>') + '</div>' : '') +
