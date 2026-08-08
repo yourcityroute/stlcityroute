@@ -613,8 +613,22 @@ header{
    the .left-hand-mode rule below flips flex-direction to row-reverse, and
    row-reverse + flex-start still clusters from the row's leading edge —
    which is now the right side of the card, exactly where a left-handed
-   user wants the cluster. */
-.action-row-new{display:flex;gap:6px;align-items:center;flex-wrap:nowrap;margin-top:8px;justify-content:flex-start}
+   user wants the cluster.
+   2026-08-09: flex-start alone only changed WHERE the row overflowed, not
+   WHETHER it did — on Route tab / map popup, the row carries 7 items (pin
+   column + reorder column + util + recon + state + photo + navigate),
+   comfortably wider than many phone screens (confirmed crowding/overflow
+   on a Galaxy A14 5G's ~360-412px viewport). Switched nowrap → wrap: every
+   child here is a fixed-size, flex-shrink:0 button or button-column (no
+   flex-grow anywhere in this row), so wrapping is clean — extra buttons
+   drop to a second line at their natural size instead of squeezing or
+   spilling off the card edge, and flex's gap property applies the same 6px
+   spacing between wrapped rows as between items in a row, so nothing needs
+   a separate row-gap rule. Scales automatically to any screen width
+   without a hardcoded per-device breakpoint — narrower phones wrap sooner,
+   wide screens (iPad, desktop) still fit everything on one line exactly
+   as before. */
+.action-row-new{display:flex;gap:6px;align-items:center;flex-wrap:wrap;margin-top:8px;justify-content:flex-start}
 .action-btn-new{background:white;border:1.5px solid rgba(0,0,0,0.1);flex-direction:column;gap:1px;padding:5px 6px;border-radius:8px;font-family:Syne,sans-serif;font-weight:700;cursor:pointer;flex-shrink:0;min-width:48px;height:40px;display:flex;align-items:center;justify-content:center;font-size:0.58rem}
 .action-btn-label{font-size:0.38rem;letter-spacing:0.3px;margin-top:1px;line-height:1}
 /* Drop P: action row buttons are 52x52 rounded squares (was 38x38 round).
@@ -978,9 +992,11 @@ header{
       rather than hand-editing every button; scoped to (hover:hover) and
       (pointer:fine) so touchscreens with a stray mouse driver don't get
       stuck-hover states.
-   Deliberately NOT touched: overall app layout, font sizes, touch-target
-   sizing — those are fine as-is and changing them risks looking templated
-   rather than intentional for what's still primarily a field tool.
+   Previously deliberately NOT touched: overall app layout. That changed
+   2026-08-09 — see the body.app-fullscreen rules below, added on request
+   once someone was actually using a wide desktop monitor day-to-day and
+   the app stayed pinned at its mobile-width 480px column with empty
+   space on both sides even in real browser fullscreen.
    ============================================================================ */
 /* Drop AT (2026-07-28): distinct-app chrome. When a tool has taken over
    fullscreen (desktop only — see _enterToolFullscreen), give its screens
@@ -1009,6 +1025,77 @@ body.tool-fullscreen-pdfdocs #cnd-pdf-modal .modal-sheet {
     max-height: 92dvh !important;
     margin-top: 4dvh;
     box-shadow: 0 12px 60px rgba(0,0,0,0.45);
+  }
+}
+/* 2026-08-09: base-app fullscreen layout — desktop only, toggled by
+   toggleAppFullscreen() via body.app-fullscreen (same pattern as the
+   tool-fullscreen-* classes above). #fullscreen-btn itself only ever
+   appears on desktop (_isLikelyDesktop() at boot), so this whole block
+   can lean on modern desktop-browser CSS (:has()) without a mobile
+   fallback concern.
+
+   The min-width guard is a safety net matching the existing
+   tool-fullscreen convention above, not the primary gate — app-fullscreen
+   is desktop-only by construction already.
+
+   Philosophy: widen the app FRAME, but let each section decide how to
+   actually use the extra width rather than uniformly stretching
+   everything — a stretched-wide settings-style form looks worse, not
+   better, than one at a comfortable width. Map and the stop lists
+   genuinely benefit from more space and get it directly; form-heavy
+   panels (Reports) stay at a readable width and center in the wider
+   frame instead. */
+@media (min-width: 900px) {
+  body.app-fullscreen #app {
+    max-width: 1400px;
+  }
+
+  /* Map tab: the single most obvious win from more screen space — more
+     of the city visible without panning. Both taller (using vertical
+     space a phone doesn't have at all) and full frame width. */
+  body.app-fullscreen #visual-route-map {
+    height: 82dvh;
+    max-height: 1100px;
+  }
+
+  /* Stop lists (Stops + Route tabs): multi-column instead of one long
+     column stretched uncomfortably wide. :has(.card) guards the
+     empty-state placeholder (a single centered message when there are no
+     stops) from being forced into a left-aligned grid cell — only
+     switches to grid once there's actually a list of cards to arrange. */
+  body.app-fullscreen #stops-list:has(.card),
+  body.app-fullscreen #route-list:has(.card) {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(360px, 1fr));
+    align-items: start;
+    gap: 10px;
+  }
+  body.app-fullscreen #stops-list:has(.card) .card,
+  body.app-fullscreen #route-list:has(.card) .card {
+    margin-bottom: 0; /* grid gap replaces the stacked-list margin */
+  }
+
+  /* Reports panel: form-like content (period pills, navigator, area
+     filter dropdowns) reads worse stretched edge-to-edge than at a
+     bounded, centered width — same 680px-ish reading-width principle as
+     everything else in this rule block. */
+  body.app-fullscreen #period-reports-panel {
+    max-width: 680px;
+    margin-left: auto;
+    margin-right: auto;
+  }
+
+  /* PDF Docs: already capped at 640px by the Drop AT rule above,
+     unconditionally at 700px+ viewports. On an actual wide desktop
+     monitor in fullscreen there's comfortably room for more — covers
+     both ways into fullscreen here (opening PDF Docs directly, which
+     enters its own tool-fullscreen automatically; or opening it while
+     already in base app-fullscreen). Higher specificity than the Drop AT
+     rule (body class + id + class vs. just id + class) wins regardless
+     of source order. */
+  body.app-fullscreen #cnd-pdf-modal .modal-sheet,
+  body.tool-fullscreen-pdfdocs #cnd-pdf-modal .modal-sheet {
+    max-width: 1000px !important;
   }
 }
 @media (hover: hover) and (pointer: fine) {
@@ -17875,13 +17962,23 @@ function _exitToolFullscreen() {
 // above enter fullscreen automatically off their own open taps, but the
 // base app has no equivalent single "open" gesture to hook, so it gets an
 // explicit button instead.
+// 2026-08-09: now also toggles body.app-fullscreen, same pattern as
+// _enterToolFullscreen's tool-fullscreen-<name> classes — previously this
+// only requested REAL browser fullscreen (hides browser chrome) without
+// changing the app's own internal layout at all, so on a wide desktop
+// monitor the app stayed pinned at its mobile-width 480px column with
+// empty space on both sides. See the body.app-fullscreen CSS rules for
+// the actual widened layout (Map, PDF Docs, Reports, and the stop lists
+// all get more room — see the rules' own comments for what each does).
 function toggleAppFullscreen() {
   try {
     if (document.fullscreenElement) {
       document.exitFullscreen().catch(function(){});
     } else {
+      document.body.classList.add('app-fullscreen');
       document.documentElement.requestFullscreen().catch(function(){
         showToast('⚠ Fullscreen not available');
+        document.body.classList.remove('app-fullscreen');
       });
     }
   } catch(_e) { showToast('⚠ Fullscreen not available'); }
@@ -17893,10 +17990,24 @@ try {
   document.addEventListener('fullscreenchange', function() {
     var fsBtn = document.getElementById('fullscreen-btn');
     if (fsBtn) fsBtn.textContent = document.fullscreenElement ? '⛝' : '⛶';
-    if (!document.fullscreenElement && _toolFullscreenActive) {
-      try { document.body.classList.remove('tool-fullscreen-' + _toolFullscreenActive); } catch(_e) {}
-      _toolFullscreenActive = null;
+    if (!document.fullscreenElement) {
+      if (_toolFullscreenActive) {
+        try { document.body.classList.remove('tool-fullscreen-' + _toolFullscreenActive); } catch(_e) {}
+        _toolFullscreenActive = null;
+      }
+      try { document.body.classList.remove('app-fullscreen'); } catch(_e) {}
     }
+    // 2026-08-09: Leaflet caches its container's pixel size and doesn't
+    // notice a CSS-driven resize on its own — the app-fullscreen rules
+    // change #visual-route-map's height/width, but without this the map
+    // keeps rendering tiles at its OLD size until the user drags or
+    // zooms, leaving blank gray bands. Same invalidateSize()-after-a-
+    // short-delay pattern already used for tab switches and the
+    // PhotoStamp setup map (see _routeMap.invalidateSize() elsewhere) —
+    // the delay lets the CSS transition/reflow actually finish first.
+    setTimeout(function() {
+      try { if (window._routeMap) window._routeMap.invalidateSize(); } catch(_e) {}
+    }, 120);
   });
 } catch(_e) {}
 
