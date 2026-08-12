@@ -831,6 +831,19 @@ header{
 .btn-compliant{background:#1abc9c;color:#fff}
 
 /* VISUAL MAP */
+/* 2026-08-13: thumb-scroll gutter — a narrow strip beside the map that's
+   deliberately NOT part of the Leaflet element, so a thumb resting there
+   always scrolls the page instead of panning the map. Added because the
+   map can end up tall enough (max-height 560px, some viewports run close
+   to that) that there's no obvious non-map area left to grab. Sits on the
+   right by default; .left-hand-mode (existing body class, same one that
+   mirrors the stop-card action row) flips it to the left via
+   row-reverse, matching that same convention. */
+#visual-route-map-row{display:flex;align-items:stretch;gap:0}
+#visual-route-map-row #visual-route-map{flex:1;min-width:0}
+#visual-route-map-thumb-gutter{width:26px;flex-shrink:0;touch-action:pan-y;-webkit-user-select:none;user-select:none;position:relative}
+#visual-route-map-thumb-gutter::before{content:'';position:absolute;top:50%;left:50%;width:4px;height:44px;transform:translate(-50%,-50%);border-radius:3px;background:rgba(0,0,0,0.08)}
+.left-hand-mode #visual-route-map-row{flex-direction:row-reverse}
 #visual-route-map{
   /* Constrained height so the map doesn't swallow the whole viewport. The
      screen-map container scrolls around it (toolbar above, legend + stop
@@ -2545,12 +2558,20 @@ body.tool-fullscreen-pdfdocs #cnd-pdf-modal .modal-sheet {
       style="flex:1;min-width:0;border:none;background:transparent 100% 100% no-repeat;background-size:100% 100%;border-radius:8px;padding:0;cursor:pointer;transition:box-shadow 0.15s"></button>
   </div>
   <div id="map-gps-status" style="display:none;font-size:0.62rem;color:var(--warn);font-family:'Syne',sans-serif;font-weight:700;margin-bottom:7px;text-align:center">📡 Getting location…</div>
-  <div id="visual-route-map"></div>
+  <div id="visual-route-map-row">
+    <div id="visual-route-map"></div>
+    <div id="visual-route-map-thumb-gutter" aria-hidden="true" title="Scroll here"></div>
+  </div>
   <div id="map-legend" style="margin-top:9px;display:flex;gap:10px;flex-wrap:wrap;font-size:0.6rem;font-family:'Syne',sans-serif;font-weight:700;color:var(--forest)">
     <span>🔴 Service Req</span><span>🔵 Inspection</span><span>🟡 Other</span><span>📡 You</span>
   </div>
   <!-- Map stop popup — renders the same card as the route tab for 1:1 parity -->
   <div id="map-stop-popup" style="display:none;margin-top:9px"></div>
+  <!-- CityRoute in-app turn-by-turn directions — populated by
+       _renderCityRouteDirections when the "CityRoute Map" nav choice is
+       picked from a stop card's Navigate button while a survey is active.
+       Sits directly under the map-stop-popup card, hidden otherwise. -->
+  <div id="map-citymap-directions" style="display:none"></div>
   <a class="tab-footer-link" href="https://www.stlouis-mo.gov/government/departments/personnel/jobs/openings/index.cfm" target="_blank" rel="noopener">St. Louis City Employment Opportunities ↗</a>
 </div>
 <!-- ===== INFO / CREDENTIALS SCREEN ===== -->
@@ -3206,6 +3227,22 @@ body.tool-fullscreen-pdfdocs #cnd-pdf-modal .modal-sheet {
     <div id="scan-guide-content" style="font-size:0.63rem;font-family:'Space Mono',monospace;color:#444;line-height:1.9"></div>
     <button onclick="closeScanGuide();openPastePanel()" style="width:100%;margin-top:14px;padding:14px;border-radius:12px;border:none;background:var(--forest);color:var(--lime);font-family:'Syne',sans-serif;font-weight:800;font-size:0.82rem;cursor:pointer">📋 OPEN PASTE PANEL<br><span style="font-size:0.6rem;font-weight:400;opacity:0.7">Paste the copied text here</span></button>
     <button onclick="closeScanGuide()" style="width:100%;margin-top:8px;padding:10px;border-radius:10px;border:1.5px solid #ddd;background:none;color:#888;font-family:'Syne',sans-serif;font-weight:700;font-size:0.76rem;cursor:pointer">CANCEL</button>
+  </div>
+</div>
+
+<!-- NAVIGATION CHOICE MODAL — Google Maps vs CityRoute Map (2026-08-13).
+     Only shown when a survey is active (see navToStopChoice); outside
+     Survey Mode the Navigate button behaves exactly as before, straight
+     to Google Maps, no modal. -->
+<div id="nav-choice-modal" class="modal-overlay" role="dialog" aria-modal="true" aria-labelledby="nav-choice-modal-title" data-backdrop-close data-fn="closeNavChoiceModal" style="display:none">
+  <div class="modal-sheet" style="padding-bottom:24px">
+    <div class="modal-handle"></div>
+    <div class="modal-title" id="nav-choice-modal-title">Navigate</div>
+    <div style="display:flex;flex-direction:column;gap:8px;margin-top:10px">
+      <button onclick="navChoiceGoogleMaps()" style="padding:13px;border-radius:10px;border:2px solid #ddd;background:#e8f4fd;color:#2c5282;font-family:'Syne',sans-serif;font-weight:800;font-size:0.76rem;cursor:pointer;text-align:left">🗺️ Google Maps<br><span style="font-size:0.58rem;font-weight:400;color:#888">Opens the Maps app — turn-by-turn, live rerouting</span></button>
+      <button onclick="navChoiceCityRouteMap()" style="padding:13px;border-radius:10px;border:2px solid #ddd;background:#eef6ee;color:#1b5e20;font-family:'Syne',sans-serif;font-weight:800;font-size:0.76rem;cursor:pointer;text-align:left">🧭 CityRoute Map<br><span style="font-size:0.58rem;font-weight:400;color:#888">Plots the route + directions right here on the Map tab</span></button>
+    </div>
+    <button class="btn-modal-cancel" data-fn="closeNavChoiceModal" style="margin-top:10px">Cancel</button>
   </div>
 </div>
 
@@ -5262,6 +5299,7 @@ const ProfileBackup = (function() {
       stopsDuplicatesSkipped: 0,
       stopsFieldsMerged:    0,
       stopsTombstoned:      0,
+      stopsArchivedElsewhere: 0,
       conflictsQueued:      0,
       archivedStopsAppended:0,
       transactionsAppended: 0,
@@ -5447,6 +5485,65 @@ const ProfileBackup = (function() {
             }
           });
           if (!LS.set('stops-archive', JSON.stringify(curArch))) console.warn('[merge] stops-archive write failed (storage full?)');
+
+          // ─── Reconcile: a stop completed AND fiscal-day-archived on
+          // another device, but still sitting active here ────────────────
+          // 2026-08-12 root-cause fix. Sequence that produced the bug:
+          // device A pushes a stop completed today (still in its active
+          // stops[] at push time — same-day fiscal rollover hasn't run
+          // yet). Device B pulls, correctly marks it done via the active-
+          // stops merge above. But if device B never syncs again, and
+          // device A's own overnight rollover later moves that stop from
+          // its active stops[] into stops-archive, device A's NEXT push
+          // uploads its current (post-rollover) state: the stop is gone
+          // from active stops[] entirely, present only in stops-archive.
+          // A third device (or device B, if it re-syncs from scratch)
+          // pulling THAT snapshot never sees the stop in incoming.stops at
+          // all — only the loop above, which only walks incoming.stops,
+          // would have caught it — so its own untouched, still-active
+          // local copy is never updated and sits there forever looking
+          // like an open stop that was actually finished days ago.
+          //
+          // Fix: after merging in archived stops, check every id that's
+          // now known to be archived (anywhere — pre-existing local
+          // archive included, since the SAME gap can happen for stops
+          // that were archived locally after arriving via an earlier
+          // sync too) against the current active list. An active local
+          // copy with no edits since the archived completion is safe to
+          // drop — the archive merge above already preserved its data.
+          // An active local copy that WAS genuinely touched after that
+          // point (a real revisit) is queued for review instead of
+          // silently dropped, same safety pattern as the tombstone logic.
+          try {
+            var curInspectorRaw2 = LS.get('inspector-data');
+            var curInspector2 = curInspectorRaw2 ? JSON.parse(curInspectorRaw2) : null;
+            if (curInspector2 && Array.isArray(curInspector2.stops) && curInspector2.stops.length) {
+              var archIdMap = {};
+              Object.keys(curArch).forEach(function(dk) {
+                (curArch[dk] || []).forEach(function(as) { if (as && as.id != null) archIdMap[as.id] = as; });
+              });
+              var removedActiveCount = 0;
+              var keptStops = [];
+              curInspector2.stops.forEach(function(s) {
+                var archived = s && archIdMap[s.id];
+                if (!archived) { keptStops.push(s); return; }
+                var archivedAt = archived.completedAt ? new Date(archived.completedAt).getTime() : 0;
+                var touched = _stopLastTouchedTs(s);
+                if (touched && archivedAt && touched > archivedAt) {
+                  _queueSyncConflict('archived-elsewhere', { localStop: s, archivedStop: archived });
+                  stats.conflictsQueued++;
+                  keptStops.push(s);
+                  return;
+                }
+                removedActiveCount++; // archive already has the final record — drop the stale active duplicate
+              });
+              if (removedActiveCount) {
+                curInspector2.stops = keptStops;
+                stats.stopsArchivedElsewhere = removedActiveCount;
+                if (!LS.set('inspector-data', JSON.stringify(curInspector2))) console.warn('[merge] inspector-data write failed during archive-reconciliation');
+              }
+            }
+          } catch(e2) { console.warn('[merge] archive-reconciliation error:', e2); }
         }
       }
     } catch(e) { console.warn('[merge] stops-archive error:', e); }
@@ -6008,11 +6105,12 @@ var DriveSync = (function() {
       // async sync even resolves) never automatically picks back up. See
       // _reloadStopsFromStorageAfterSync's own comment for the full story.
       try { if (typeof window._reloadStopsFromStorageAfterSync === 'function') window._reloadStopsFromStorageAfterSync(); } catch(_e) {}
+      try { if (typeof window.refreshMapIfActive === 'function') window.refreshMapIfActive(); } catch(_e) {}
       try { if (typeof updateDriveSyncStatusUI === 'function') updateDriveSyncStatusUI(); } catch(_e) {}
       var stats = result.pull && result.pull.stats;
       if (stats) {
         var n = (stats.stopsAppended||0) + (stats.archivedStopsAppended||0) + (stats.transactionsAppended||0) +
-                (stats.photoTrackerPhotosAppended||0) + (stats.surveySessionsAppended||0) + (stats.stopsFieldsMerged||0);
+                (stats.photoTrackerPhotosAppended||0) + (stats.surveySessionsAppended||0) + (stats.stopsFieldsMerged||0) + (stats.stopsArchivedElsewhere||0);
         var conflictNote = stats.conflictsQueued ? (' · ⚠ ' + stats.conflictsQueued + ' need' + (stats.conflictsQueued===1?'s':'') + ' review') : '';
         if ((n > 0 || stats.conflictsQueued) && typeof showToast === 'function') {
           showToast('🔄 Synced — ' + n + ' item' + (n===1?'':'s') + ' from another device' + conflictNote);
@@ -6199,7 +6297,12 @@ async function syncDriveNow() {
   if (btn) btn.disabled = true;
   if (headerBtn) { headerBtn.disabled = true; headerBtn.classList.add('syncing'); }
   try {
-    showToast('Syncing…');
+    // Sticky, not the usual 2.5s auto-dismiss toast — a slow cellular sync
+    // can easily run longer than that, and the toast disappearing reads as
+    // "done" well before it actually is. Every path below (success and
+    // catch) ends with a normal showToast() call, which replaces this and
+    // resumes the usual auto-dismiss behavior.
+    showStickyToast('🔄 Syncing…');
     var result = await DriveSync.syncNow();
     // 2026-08-10 fix: bring the in-memory stops[]/routeOrder back in sync
     // with whatever the pull's merge just wrote to the 'inspector-data' LS
@@ -6208,6 +6311,12 @@ async function syncDriveNow() {
     // showed up in the running app, and a subsequent stop edit would have
     // silently erased the merge).
     if (typeof _reloadStopsFromStorageAfterSync === 'function') _reloadStopsFromStorageAfterSync();
+    // 2026-08-12 fix: renderAll() (called above) never touches the Map
+    // tab's Leaflet markers — if the person is sitting on the Map tab
+    // when new stops sync in, they'd see nothing update until they left
+    // and came back (or reloaded). refreshMapIfActive() is the same
+    // no-op-unless-on-Map-tab helper used after closing/deleting a stop.
+    try { if (typeof refreshMapIfActive === 'function') refreshMapIfActive(); } catch(_e) {}
     updateDriveSyncStatusUI();
     var stats = result.pull && result.pull.stats;
     if (stats) {
@@ -6215,8 +6324,9 @@ async function syncDriveNow() {
               (stats.photoTrackerPhotosAppended||0) + (stats.surveySessionsAppended||0);
       var dupeNote = stats.stopsDuplicatesSkipped ? (' · ' + stats.stopsDuplicatesSkipped + ' duplicate' + (stats.stopsDuplicatesSkipped===1?'':'s') + ' skipped') : '';
       var mergeNote = stats.stopsFieldsMerged ? (' · ' + stats.stopsFieldsMerged + ' stop' + (stats.stopsFieldsMerged===1?'':'s') + ' updated from another device') : '';
+      var archivedNote = stats.stopsArchivedElsewhere ? (' · ' + stats.stopsArchivedElsewhere + ' marked done (completed on another device)') : '';
       var conflictNote = stats.conflictsQueued ? (' · ⚠ ' + stats.conflictsQueued + ' need' + (stats.conflictsQueued===1?'s':'') + ' review') : '';
-      showToast((n > 0 ? ('✓ Synced — ' + n + ' new item' + (n===1?'':'s') + ' pulled in') : '✓ Synced — nothing new') + dupeNote + mergeNote + conflictNote);
+      showToast((n > 0 ? ('✓ Synced — ' + n + ' new item' + (n===1?'':'s') + ' pulled in') : '✓ Synced — nothing new') + dupeNote + mergeNote + archivedNote + conflictNote);
     } else {
       showToast('✓ Synced');
     }
@@ -7023,6 +7133,16 @@ window.resetAppData = resetAppData;
 
 // Toast notification
 function showToast(msg){const t=document.getElementById('toast');t.textContent=msg;t.classList.add('show');setTimeout(()=>t.classList.remove('show'),2500);}
+// 2026-08-12: sticky variant for operations that can take a while over a
+// weak cellular connection (Drive Sync). A normal showToast() call always
+// auto-dismisses after 2.5s regardless of whether the underlying work is
+// actually done — on a slow sync that reads as "it finished" well before
+// it really did, with nothing else obviously indicating work is still in
+// flight (the header sync icon's spin is easy to miss). Shows with no
+// timer; the caller is responsible for replacing it with a normal
+// showToast() call (or hideStickyToast()) once the operation resolves.
+function showStickyToast(msg){const t=document.getElementById('toast');if(!t)return;t.textContent=msg;t.classList.add('show');}
+function hideStickyToast(){const t=document.getElementById('toast');if(t)t.classList.remove('show');}
 
 // Save stops to localStorage
 let _saveStopsTimer = null;
@@ -8260,7 +8380,7 @@ function _attachStopsListListener() {
     if (!btn) return;
     const { action, id, addr } = btn.dataset;
     const numId = Number(id);
-    if (action === 'nav')            navToStop(addr);
+    if (action === 'nav')            navToStopChoice(numId, addr);
     if (action === 'show-on-map')    showStopOnMap(numId);
     if (action === 'prop')           { var stopCard = btn.closest('.card'); var pId = (btn.dataset.id) ? Number(btn.dataset.id) : null; if (pId!==null) closeStopDropdowns(pId); openPropertySearch(addr, parseFloat(btn.dataset.lat)||null, parseFloat(btn.dataset.lng)||null); }
     if (action === 'gis')            { var gId = btn.dataset.id ? Number(btn.dataset.id) : null; if (gId!==null) closeStopDropdowns(gId); openGISMap(parseFloat(btn.dataset.lat)||null, parseFloat(btn.dataset.lng)||null); }
@@ -8616,8 +8736,23 @@ function _attachLifecycleListeners() {
     if (document.visibilityState === 'hidden') {
       saveStops(); logDaySession();
       try { if (typeof _autoPauseSurveyTracking === 'function') _autoPauseSurveyTracking(); } catch(_e) {}
+      // The Wake Lock spec releases any held lock automatically on hide —
+      // clear our reference so we don't hold a stale, already-dead lock
+      // object (_acquireSurveyWakeLock's own no-op-if-held check would
+      // otherwise wrongly think a lock is still active on return).
+      try { if (typeof _releaseSurveyWakeLock === 'function') _releaseSurveyWakeLock(); } catch(_e) {}
     } else if (document.visibilityState === 'visible') {
       try { if (typeof _checkSurveyResumePrompt === 'function') _checkSurveyResumePrompt(); } catch(_e) {}
+      // Safety net: if a survey is active and tracking isn't paused (e.g.
+      // a brief visibility flicker that didn't trigger the auto-pause
+      // prompt), re-acquire the wake lock since it was cleared on hide.
+      try {
+        if (typeof SurveySession !== 'undefined' && SurveySession.getActive() &&
+            typeof _isSurveyTrackingPaused === 'function' && !_isSurveyTrackingPaused() &&
+            typeof _acquireSurveyWakeLock === 'function') {
+          _acquireSurveyWakeLock();
+        }
+      } catch(_e) {}
     }
   });
   window.addEventListener('beforeunload', saveStops);
@@ -8852,6 +8987,20 @@ function renderSyncConflictsList() {
         '</div>' +
       '</div>';
     }
+    if (c.kind === 'archived-elsewhere') {
+      var aLoc = c.payload.localStop, aArch = c.payload.archivedStop;
+      return '<div style="background:#f8f8f6;border:1px solid #e5e5e0;border-radius:10px;padding:11px 13px">' +
+        '<div style="font-family:Syne,sans-serif;font-weight:800;font-size:0.66rem;color:#333;margin-bottom:6px">⚠️ Completed elsewhere, but edited since</div>' +
+        '<div style="font-size:0.58rem;font-family:\'Space Mono\',monospace;color:#555;line-height:1.6;margin-bottom:8px">' +
+          'Completed and archived on another device: ' + _syncConflictSummaryLine(aArch) + '<br>' +
+          '<b>Here (changed since):</b> ' + _syncConflictSummaryLine(aLoc) +
+        '</div>' +
+        '<div style="display:flex;flex-direction:column;gap:6px">' +
+          '<button data-fn="resolveSyncConflict" data-arg="' + c.conflictId + ':mark_done" style="padding:9px;border:none;border-radius:8px;background:#eef6ee;color:#1b5e20;font-family:Syne,sans-serif;font-weight:700;font-size:0.62rem;cursor:pointer;text-align:left">✓ Mark Completed <span style="font-weight:400;opacity:0.8">— accept the other device\'s completion</span></button>' +
+          '<button data-fn="resolveSyncConflict" data-arg="' + c.conflictId + ':keep_active" style="padding:9px;border:none;border-radius:8px;background:#fff8ec;color:#7a5000;font-family:Syne,sans-serif;font-weight:700;font-size:0.62rem;cursor:pointer;text-align:left">📍 Keep Active <span style="font-weight:400;opacity:0.8">— likely a genuine revisit</span></button>' +
+        '</div>' +
+      '</div>';
+    }
     // delete-edit
     var tomb = c.payload.tombstone, stop = c.payload.stop;
     var whoDeleted = c.payload.side === 'incoming' ? 'another device' : 'this device';
@@ -8942,6 +9091,23 @@ function resolveSyncConflict(packed) {
       showToast('Synced-in copy discarded');
     }
     saveStops();
+  } else if (conflict.kind === 'archived-elsewhere') {
+    var archLoc = conflict.payload.localStop, archRec = conflict.payload.archivedStop;
+    var archIdx = stops.findIndex(function(s) { return s.id === archLoc.id; });
+    if (action === 'mark_done') {
+      if (archIdx >= 0) {
+        stops[archIdx].done = true;
+        stops[archIdx].completedAt = archRec.completedAt || new Date().toISOString();
+        _touchField(stops[archIdx], 'completion');
+      }
+      showToast('Marked completed');
+      saveStops();
+    } else if (action === 'keep_active') {
+      showToast('Kept active — treated as a new visit');
+      // Nothing to change on the active copy; the archived record from
+      // the other device stays in stops-archive as its own historical
+      // entry, same as a genuine two-visit address would look.
+    }
   } else if (conflict.kind === 'delete-edit') {
     var tomb = conflict.payload.tombstone, editedStop = conflict.payload.stop;
     var existingIdx = stops.findIndex(function(s) { return s.id === editedStop.id; });
@@ -11897,6 +12063,72 @@ const OSRM = (function() {
   // can pass it to dist() when measuring origin-to-stop.
   const ORIGIN_ID = '__origin__';
 
+  // ── Single-leg turn-by-turn directions (2026-08-13) ─────────────────────
+  // Used by the "CityRoute Map" in-app navigation choice on stop cards —
+  // fetches OSRM's full maneuver-by-maneuver step list for ONE leg
+  // (wherever the person is right now → a single stop), not the ordered
+  // multi-stop route. Deliberately separate from fetchRouteGeometry/the
+  // optimizer's matrix — a one-off lookup that doesn't touch `_state`, so
+  // it can't invalidate anything the optimizer or the main route line are
+  // relying on.
+  async function fetchStepByStepDirections(originLat, originLng, destLat, destLng) {
+    if ([originLat, originLng, destLat, destLng].some(function(v) { return typeof v !== 'number' || !isFinite(v); })) return null;
+    var coords = originLng + ',' + originLat + ';' + destLng + ',' + destLat;
+    var url = _endpoint() + '/route/v1/driving/' + coords + '?overview=full&geometries=geojson&steps=true';
+    try {
+      var res = await fetchWithTimeout(url, { timeout: 12000 });
+      if (!res.ok) return null;
+      var data = await res.json();
+      if (data.code !== 'Ok' || !data.routes || !data.routes.length) return null;
+      var route = data.routes[0];
+      var geom = route.geometry;
+      var latlngs = (geom && geom.type === 'LineString' && Array.isArray(geom.coordinates))
+        ? geom.coordinates.map(function(c) { return [c[1], c[0]]; }) : [];
+      var steps = [];
+      (route.legs || []).forEach(function(leg) {
+        (leg.steps || []).forEach(function(st) {
+          var instr = _describeOsrmManeuver(st);
+          if (!instr) return;
+          steps.push({ instruction: instr, distanceM: st.distance || 0, durationSec: st.duration || 0 });
+        });
+      });
+      return { geometry: latlngs, steps: steps, distanceM: route.distance || 0, durationSec: route.duration || 0 };
+    } catch (e) { return null; }
+  }
+
+  // Turns one OSRM step's maneuver object into a plain-language
+  // instruction. OSRM's maneuver vocabulary (type + modifier) is compact
+  // but not human-readable on its own — this covers the maneuver types
+  // actually reachable while driving city streets; anything unrecognized
+  // falls back to a generic "Continue on <street>" rather than surfacing
+  // raw OSRM jargon.
+  function _describeOsrmManeuver(step) {
+    var m = step && step.maneuver;
+    if (!m) return null;
+    var street = step.name || '';
+    var streetPart = street ? (' on ' + street) : '';
+    var modWord = {
+      'left': 'left', 'right': 'right', 'sharp left': 'sharp left', 'sharp right': 'sharp right',
+      'slight left': 'slightly left', 'slight right': 'slightly right', 'straight': 'straight',
+      'uturn': 'a U-turn'
+    }[m.modifier] || m.modifier || '';
+    switch (m.type) {
+      case 'depart':       return 'Head out' + streetPart;
+      case 'arrive':       return 'Arrive at destination';
+      case 'turn':         return 'Turn ' + modWord + streetPart;
+      case 'new name':     return 'Continue' + streetPart;
+      case 'merge':        return 'Merge' + streetPart;
+      case 'on ramp':      return 'Take the ramp' + streetPart;
+      case 'off ramp':     return 'Take the exit' + streetPart;
+      case 'fork':         return 'Keep ' + (modWord || 'straight') + streetPart;
+      case 'roundabout':
+      case 'rotary':       return 'Take the roundabout' + streetPart;
+      case 'continue':     return 'Continue ' + modWord + streetPart;
+      case 'end of road':  return 'Turn ' + modWord + streetPart;
+      default:             return 'Continue' + streetPart;
+    }
+  }
+
   return {
     prefetchMatrix: prefetchMatrix,
     dist: dist,
@@ -11907,6 +12139,7 @@ const OSRM = (function() {
     getRouteGeometry: getRouteGeometry,
     routeGeometryMatchesIds: routeGeometryMatchesIds,
     clearRouteGeometry: clearRouteGeometry,
+    fetchStepByStepDirections: fetchStepByStepDirections,
     ORIGIN_ID: ORIGIN_ID,
   };
 })();
@@ -13991,7 +14224,7 @@ function _attachRouteListListener() {
     if (action === 'pin-end')   { togglePinnedEnd(numId);   return; }
     if (action === 'lock-num')  { toggleStopLocked(numId);  return; }
 
-    if (action === 'nav')        navToStop(addr);
+    if (action === 'nav')        navToStopChoice(numId, addr);
     if (action === 'show-on-map') showStopOnMap(numId);
     if (action === 'prop')       { toggleRouteStopDropdowns(numId); openPropertySearch(addr, parseFloat(btn.dataset.lat)||null, parseFloat(btn.dataset.lng)||null); }
     if (action === 'gis')        { toggleRouteStopDropdowns(numId); openGISMap(parseFloat(btn.dataset.lat)||null, parseFloat(btn.dataset.lng)||null); }
@@ -14687,6 +14920,14 @@ function showMapStopPopup(id) {
   if (!s) return;
   activeMapStopId = id;
 
+  // 2026-08-13: showing a DIFFERENT stop's popup than whatever CityRoute
+  // Map in-app directions are currently active for makes those directions
+  // stale — clear the route line + list rather than leave them sitting
+  // under the wrong stop's card.
+  if (typeof _cityRouteNavStopId !== 'undefined' && _cityRouteNavStopId != null && _cityRouteNavStopId !== id) {
+    try { _clearCityRouteNav(); } catch(_e) {}
+  }
+
   // Map popups render one stop at a time, unlike renderStops/renderRoute's
   // full-list passes. If this stop isn't already in the shared cache
   // (renderStops/renderRoute haven't run yet, or it's a brand-new photo),
@@ -14756,7 +14997,7 @@ function _attachMapPopupListener() {
     if (action === 'pin-end')   { togglePinnedEnd(numId);   _refreshAndReshowPopup(activeMapStopId); return; }
     if (action === 'lock-num')  { toggleStopLocked(numId);  _refreshAndReshowPopup(activeMapStopId); return; }
 
-    if (action === 'nav')        navToStop(addr);
+    if (action === 'nav')        navToStopChoice(numId, addr);
     if (action === 'prop')       { toggleMapStopDropdowns(numId); openPropertySearch(addr, parseFloat(btn.dataset.lat)||null, parseFloat(btn.dataset.lng)||null); }
     if (action === 'gis')        { toggleMapStopDropdowns(numId); openGISMap(parseFloat(btn.dataset.lat)||null, parseFloat(btn.dataset.lng)||null); }
     if (action === 'csb')        { toggleMapStopDropdowns(numId); openCsbForAddress(addr); }
@@ -15354,6 +15595,149 @@ function navToStop(addr) {
     window.open(`https://maps.google.com/maps?daddr=${encoded}&dirflg=d`, '_blank');
   }
 }
+
+// ── Navigation choice: Google Maps vs CityRoute Map (2026-08-13) ─────────
+// The Navigate button on stop cards, in every tab, used to go straight to
+// navToStop (Google/Apple Maps). Now — but ONLY while a survey is active —
+// it opens a small choice modal first. Outside Survey Mode, behavior is
+// completely unchanged: navToStop fires directly, no modal, since the
+// in-app CityRoute Map option only makes sense once there's a route
+// context (Map tab, live position) to plot it onto.
+var _navChoicePending = null;
+
+function navToStopChoice(numId, addr) {
+  var inSurvey = false;
+  try { inSurvey = !!(typeof SurveySession !== 'undefined' && SurveySession.getActive()); } catch(_e) {}
+  if (!inSurvey) { navToStop(addr); return; }
+  var modal = document.getElementById('nav-choice-modal');
+  if (!modal) { navToStop(addr); return; } // defensive fallback if markup's ever missing
+  _navChoicePending = { id: (numId != null && !isNaN(Number(numId))) ? Number(numId) : null, addr: addr };
+  modal.style.display = 'flex';
+  Accessibility.modalOpened(modal, { onEscape: closeNavChoiceModal });
+}
+window.navToStopChoice = navToStopChoice;
+
+function closeNavChoiceModal() {
+  var modal = document.getElementById('nav-choice-modal');
+  if (!modal) return;
+  modal.style.display = 'none';
+  Accessibility.modalClosed(modal);
+}
+window.closeNavChoiceModal = closeNavChoiceModal;
+
+function navChoiceGoogleMaps() {
+  var pending = _navChoicePending;
+  closeNavChoiceModal();
+  if (pending) navToStop(pending.addr);
+}
+window.navChoiceGoogleMaps = navChoiceGoogleMaps;
+
+function navChoiceCityRouteMap() {
+  var pending = _navChoicePending;
+  closeNavChoiceModal();
+  if (pending && pending.id != null) { try { _startCityRouteMapNav(pending.id); } catch(_e) {} }
+  else showToast('This stop has no location to navigate to');
+}
+window.navChoiceCityRouteMap = navChoiceCityRouteMap;
+
+// ── CityRoute Map in-app navigation (2026-08-13) ──────────────────────────
+// Plots a single-leg route (current position → the chosen stop) onto the
+// Map tab and lists OSRM's turn-by-turn steps underneath the stop's card.
+// Reuses OSRM.fetchStepByStepDirections (see that module's own comment)
+// rather than the multi-stop route optimizer — this is a one-off lookup
+// for whichever stop was picked, independent of route order.
+var _cityRouteNavStopId = null;
+var _cityRouteNavLine = null;
+
+async function _startCityRouteMapNav(stopId) {
+  var stop = stops.find(function(s) { return s.id === stopId; });
+  if (!stop) { showToast('Stop not found'); return; }
+  if (typeof stop.lat !== 'number' || typeof stop.lng !== 'number') { showToast('This stop has no map location yet'); return; }
+
+  _cityRouteNavStopId = stopId;
+  showStopOnMap(stopId);
+
+  // Prefer a recent live Survey Mode fix (already updating every few
+  // seconds while tracking — see _startBreadcrumbWatch) over a fresh
+  // one-shot lookup, since it's likely already sitting in memory and
+  // avoids an extra GPS round-trip.
+  var origin = null;
+  if (typeof _surveyLiveLastPos !== 'undefined' && _surveyLiveLastPos && (Date.now() - _surveyLiveLastPos.ts) < 15000) {
+    origin = { lat: _surveyLiveLastPos.lat, lng: _surveyLiveLastPos.lng };
+  }
+  if (!origin) {
+    showToast('📡 Getting your location…');
+    origin = await new Promise(function(resolve) {
+      if (!navigator.geolocation) { resolve(null); return; }
+      navigator.geolocation.getCurrentPosition(
+        function(pos) { resolve({ lat: pos.coords.latitude, lng: pos.coords.longitude }); },
+        function() { resolve(null); },
+        { enableHighAccuracy: true, maximumAge: 10000, timeout: 12000 }
+      );
+    });
+  }
+  if (!origin) { showToast('Could not get your location'); return; }
+
+  showToast('🧭 Getting directions…');
+  var result = await OSRM.fetchStepByStepDirections(origin.lat, origin.lng, stop.lat, stop.lng);
+  if (_cityRouteNavStopId !== stopId) return; // superseded by a newer nav request while this was in flight
+  if (!result) { showToast('Directions unavailable right now'); _renderCityRouteDirections(null); return; }
+  _drawCityRouteNavLine(result.geometry);
+  _renderCityRouteDirections(result);
+}
+window._startCityRouteMapNav = _startCityRouteMapNav;
+
+function _drawCityRouteNavLine(latlngs) {
+  try {
+    if (typeof routeMap === 'undefined' || !routeMap || typeof L === 'undefined') return;
+    if (_cityRouteNavLine) { try { routeMap.removeLayer(_cityRouteNavLine); } catch(_e) {} }
+    if (!Array.isArray(latlngs) || latlngs.length < 2) { _cityRouteNavLine = null; return; }
+    _cityRouteNavLine = L.polyline(latlngs, { color: '#1b7a3a', weight: 5, opacity: 0.85 }).addTo(routeMap);
+    try { routeMap.fitBounds(_cityRouteNavLine.getBounds(), { padding: [30, 30] }); } catch(_e) {}
+  } catch(_e) {}
+}
+
+function _renderCityRouteDirections(result) {
+  var el = document.getElementById('map-citymap-directions');
+  if (!el) return;
+  if (!result) {
+    el.innerHTML = '<div style="background:#fde8e8;border-radius:10px;padding:12px;margin-top:9px;font-family:\'Space Mono\',monospace;font-size:0.6rem;color:#a83232;text-align:center">Directions unavailable — check connection and try again.</div>';
+    el.style.display = 'block';
+    return;
+  }
+  var distMi = (result.distanceM / 1609.34).toFixed(1);
+  var mins = Math.round(result.durationSec / 60);
+  var rows = result.steps.map(function(st) {
+    var distLabel = st.distanceM ? (st.distanceM >= 160 ? (st.distanceM / 1609.34).toFixed(1) + ' mi' : Math.round(st.distanceM * 3.281) + ' ft') : '';
+    return '<div style="display:flex;gap:8px;padding:7px 0;border-bottom:1px solid #eee">' +
+      '<div style="flex:1;font-family:\'Space Mono\',monospace;font-size:0.62rem;color:#333">' + escHtml(st.instruction) + '</div>' +
+      (distLabel ? '<div style="font-family:\'Space Mono\',monospace;font-size:0.58rem;color:#999;white-space:nowrap">' + distLabel + '</div>' : '') +
+    '</div>';
+  }).join('');
+  el.innerHTML =
+    '<div style="background:#fff;border:1px solid #e5e5e0;border-radius:10px;padding:11px 13px;margin-top:9px">' +
+      '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px">' +
+        '<div style="font-family:Syne,sans-serif;font-weight:800;font-size:0.68rem;color:#333">🧭 ' + distMi + ' mi · ' + mins + ' min</div>' +
+        '<button onclick="_clearCityRouteNav()" style="border:none;background:none;color:#999;font-family:Syne,sans-serif;font-weight:700;font-size:0.6rem;cursor:pointer">✕ End</button>' +
+      '</div>' +
+      '<div>' + (rows || '<div style="font-size:0.6rem;color:#999;font-family:\'Space Mono\',monospace">No turn-by-turn steps returned.</div>') + '</div>' +
+    '</div>';
+  el.style.display = 'block';
+}
+
+// Clears the in-app nav route line + directions list — called from the
+// "✕ End" button, and automatically whenever the map popup switches to a
+// DIFFERENT stop than whichever one CityRoute Map directions are active
+// for (see showMapStopPopup), so a stale route/list never lingers under
+// the wrong stop's card.
+function _clearCityRouteNav() {
+  _cityRouteNavStopId = null;
+  try { if (_cityRouteNavLine && typeof routeMap !== 'undefined' && routeMap) routeMap.removeLayer(_cityRouteNavLine); } catch(_e) {}
+  _cityRouteNavLine = null;
+  var el = document.getElementById('map-citymap-directions');
+  if (el) { el.innerHTML = ''; el.style.display = 'none'; }
+}
+window._clearCityRouteNav = _clearCityRouteNav;
 
 function launchGoogleMaps() {
   const pending = routeOrder.length > 0
@@ -20162,6 +20546,7 @@ function startSurveyFromPicker() {
     try { LS.set('survey-resume-prompt-pending', '0'); } catch(_e) {}
     try { _hideSurveyResumeOverlay(); } catch(_e) {}
     try { _startBreadcrumbWatch(); } catch(_e) {}
+    try { _acquireSurveyWakeLock(); } catch(_e) {}
     try { showToast('🧭 Survey started: ' + session.neighborhoodName); } catch(_e) {}
     // New: fit the map to this area's boundary + gray-mask everything
     // outside it, as soon as a survey starts (not just on manual refresh).
@@ -20238,6 +20623,7 @@ function endActiveSurvey() {
   try {
     SurveySession.end();
     try { _stopBreadcrumbWatch(); } catch(_e) {}
+    try { _releaseSurveyWakeLock(); } catch(_e) {}
     try {
       if (typeof routeMap !== 'undefined' && routeMap && _surveyBreadcrumbLayers.length) {
         _surveyBreadcrumbLayers.forEach(function(layer) { try { routeMap.removeLayer(layer); } catch(_e2) {} });
@@ -20561,7 +20947,7 @@ function _initSurveyStrip() {
     var _resumePending = false;
     try { _resumePending = LS.get('survey-resume-prompt-pending') === '1'; } catch(_e) {}
     if (_resumePending) { try { _checkSurveyResumePrompt(); } catch(_e) {} }
-    else if (typeof _startBreadcrumbWatch === 'function') { _startBreadcrumbWatch(); }
+    else if (typeof _startBreadcrumbWatch === 'function') { _startBreadcrumbWatch(); try { _acquireSurveyWakeLock(); } catch(_e) {} }
   } catch(_e) {}
 }
 window._renderSurveyPanel = _renderSurveyPanel;
@@ -20599,6 +20985,10 @@ window.endActiveSurvey       = endActiveSurvey;
 
 var SurveyCoverage = (function() {
   var BREADCRUMB_CAP = 3000;
+  // 2026-08-13: accuracy/plausibility gates — see addBreadcrumbPoint's own
+  // comment for the reasoning split between these two thresholds.
+  var MAX_RECORD_ACCURACY_M = 35;      // reject fixes worse than this from the PERMANENT trail
+  var MAX_PLAUSIBLE_SPEED_MPS = 45;    // ~100 mph; faster implied speed between consecutive fixes = GPS spike, not real movement
   var MIN_POINT_DISTANCE_M = 15; // downsample: only store a point if it's
                                   // moved at least this far from the last
                                   // one — keeps a full shift's trail well
@@ -20674,14 +21064,30 @@ var SurveyCoverage = (function() {
   // [lat, lng, timestampMs, breakBefore] — breakBefore (1) marks that this
   // point starts a new segment because too much time passed since the
   // previous one; omitted (undefined/falsy) means "continues the trail."
-  function addBreadcrumbPoint(areaKey, lat, lng) {
+  //
+  // 2026-08-13: `accuracy` (optional, meters, from GPS coords.accuracy) is
+  // gated at MAX_RECORD_ACCURACY_M — a low-quality fix gets rejected from
+  // the PERMANENT trail entirely rather than burned in, since (unlike the
+  // live "you are here" dot, a separate and more lenient path — see
+  // _startBreadcrumbWatch) a bad point here doesn't self-correct on the
+  // next tick; it sits in the trail, and the coverage report, forever.
+  // Also rejects any point implying an impossible speed from the last
+  // stored point — a GPS multipath spike (routine downtown among
+  // high-rises, under viaducts, or in heavy tree cover) can carry a
+  // deceptively GOOD accuracy value that the threshold above won't catch.
+  function addBreadcrumbPoint(areaKey, lat, lng, accuracy) {
     if (!areaKey || lat == null || lng == null) return false;
+    if (typeof accuracy === 'number' && accuracy > MAX_RECORD_ACCURACY_M) return false;
     var trail = getBreadcrumb(areaKey);
     var last = trail.length ? trail[trail.length - 1] : null;
     var now = Date.now();
     if (last) {
       var dist = _haversineMeters({ lat: last[0], lng: last[1] }, { lat: lat, lng: lng });
       if (dist != null && dist < MIN_POINT_DISTANCE_M) return false;
+      if (dist != null && last[2] != null) {
+        var dtSec = (now - last[2]) / 1000;
+        if (dtSec > 0 && (dist / dtSec) > MAX_PLAUSIBLE_SPEED_MPS) return false;
+      }
     }
     var point = [lat, lng, now];
     if (last && last[2] != null && (now - last[2]) > SEGMENT_GAP_MS) point[3] = 1;
@@ -20734,6 +21140,42 @@ window.SurveyCoverage = SurveyCoverage;
 // itself; disabling the breadcrumb trail is narrower.
 var _surveyWatchId = null;
 
+// ── Screen Wake Lock — keeps the display on during active Survey Mode ────
+// 2026-08-12: reported bug — breadcrumb trail had large gaps in the field.
+// Root cause: the phone's own screen timeout locks the screen mid-drive,
+// which fires visibilitychange → _autoPauseSurveyTracking (see that
+// function's comment below), stopping the GPS watch until the person
+// notices the "Resume Survey" overlay and taps it — easy to miss while
+// driving/navigating. Requesting a Screen Wake Lock while a survey is
+// actively tracking keeps the OS from locking the screen for the ordinary
+// "screen timed out while mounted on the dash" case, so tracking just
+// keeps running. The auto-pause path itself is untouched and still fires
+// for genuine backgrounding (app switch, incoming call, phone put away).
+//
+// Feature-detected — Wake Lock API isn't universal (iOS Safari has it from
+// 16.4+). On unsupported devices this is a silent no-op and behavior is
+// unchanged from before. Never blocks or throws into the survey start/
+// resume flow if unsupported or if the browser denies the request (e.g.
+// some low-power-mode states).
+var _surveyWakeLock = null;
+
+function _acquireSurveyWakeLock() {
+  try {
+    if (!('wakeLock' in navigator)) return;
+    if (_surveyWakeLock) return; // already held
+    navigator.wakeLock.request('screen').then(function(lock) {
+      _surveyWakeLock = lock;
+      try { lock.addEventListener('release', function() { _surveyWakeLock = null; }); } catch(_e) {}
+    }).catch(function(_e) { /* denied or unsupported right now — silent, same as no lock */ });
+  } catch(_e) {}
+}
+window._acquireSurveyWakeLock = _acquireSurveyWakeLock;
+
+function _releaseSurveyWakeLock() {
+  try { if (_surveyWakeLock) { _surveyWakeLock.release(); _surveyWakeLock = null; } } catch(_e) {}
+}
+window._releaseSurveyWakeLock = _releaseSurveyWakeLock;
+
 function _isSurveyTrackingPaused() {
   try { return LS.get('survey-tracking-paused') === '1'; } catch(_e) { return false; }
 }
@@ -20782,6 +21224,16 @@ function _startBreadcrumbWatch() {
       var cur = SurveySession.getActive();
       if (!cur) { _stopBreadcrumbWatch(); return; } // session ended mid-flight
       var lat = pos.coords.latitude, lng = pos.coords.longitude;
+      var acc = typeof pos.coords.accuracy === 'number' ? pos.coords.accuracy : null;
+      // 2026-08-13: only gate the live dot on a genuinely bad fix (150m+)
+      // — a moderate one still beats nothing and the next tick usually
+      // corrects it. Urban St. Louis (downtown high-rises, viaducts, heavy
+      // tree cover) routinely produces occasional 100m+ spikes; a strict
+      // floor here would make the dot flicker in and out constantly in
+      // exactly the areas where it matters most. The trail itself (below)
+      // uses a much stricter gate since a bad point there doesn't
+      // self-correct — see addBreadcrumbPoint's own comment.
+      var LIVE_MAX_ACCURACY_M = 150;
       // 2026-07-24: this watch drives the live "you are here" dot
       // (_updateLiveSurveyMarker, a separate lightweight path from the
       // one-shot ping's plotLocation — see that function's own comment
@@ -20791,13 +21243,15 @@ function _startBreadcrumbWatch() {
       // _surveyLiveLastPos so switching back to the Map tab mid-survey
       // shows the current position immediately rather than waiting on a
       // fresh lookup.
-      _surveyLiveLastPos = { lat: lat, lng: lng, ts: Date.now() };
-      try { _updateLiveSurveyMarker(lat, lng); } catch(_e) {}
+      if (acc == null || acc <= LIVE_MAX_ACCURACY_M) {
+        _surveyLiveLastPos = { lat: lat, lng: lng, ts: Date.now() };
+        try { _updateLiveSurveyMarker(lat, lng); } catch(_e) {}
+      }
       // Recording into the persistent breadcrumb trail is the part that's
       // toggleable — skip it entirely while the feature is off, rather
       // than recording silently in the background with nothing shown.
       if (_isBreadcrumbTrailEnabled()) {
-        var added = SurveyCoverage.addBreadcrumbPoint(SurveySession.areaKey(cur), lat, lng);
+        var added = SurveyCoverage.addBreadcrumbPoint(SurveySession.areaKey(cur), lat, lng, acc);
         if (added) _redrawBreadcrumbLayer();
       }
     },
@@ -20819,14 +21273,14 @@ function toggleSurveyTracking() {
     // auto-pause prompt too — the inspector just did the equivalent thing.
     try { LS.set('survey-resume-prompt-pending', '0'); } catch(_e) {}
     try { _hideSurveyResumeOverlay(); } catch(_e) {}
-    _startBreadcrumbWatch(); showToast('📍 Tracking resumed');
+    _startBreadcrumbWatch(); try { _acquireSurveyWakeLock(); } catch(_e) {} showToast('📍 Tracking resumed');
   }
-  else { _stopBreadcrumbWatch(); showToast('📍 Tracking paused'); }
+  else { _stopBreadcrumbWatch(); try { _releaseSurveyWakeLock(); } catch(_e) {} showToast('📍 Tracking paused'); }
   _renderSurveyPanel();
 }
 window.toggleSurveyTracking = toggleSurveyTracking;
 
-// ── Auto-pause on backgrounding + "Resume Survey" prompt ─────────────────
+// ── Auto-pause on backgrounding + auto-resume on return ──────────────────
 // 2026-07-22: reported bug — leaving Survey Mode on, turning the phone off,
 // and driving home drew a straight highlighted line between wherever
 // tracking was when the screen went off and wherever the phone was when it
@@ -20835,13 +21289,30 @@ window.toggleSurveyTracking = toggleSurveyTracking;
 // very next GPS fix — miles away, whenever it arrived — got treated as a
 // normal continuation of the trail.
 //
-// Fix: pause tracking the moment the app goes to background, and DON'T
-// auto-resume it when the app comes back — surface a simple "Resume
-// Survey" prompt over the Survey Mode button instead, so the inspector
-// explicitly confirms they're back on the route before tracking (and the
-// highlight) picks back up. (_breadcrumbSegments' gap-based segment break,
-// above, is a second independent backstop in case this still gets missed
-// — e.g. the OS kills the tab outright without firing visibilitychange.)
+// Fix (original): pause tracking the moment the app goes to background,
+// and require an explicit tap on a "Resume Survey" prompt before picking
+// back up.
+//
+// 2026-08-13 revision: the explicit-tap requirement is gone. It was solving
+// the SAME problem the gap-based segment break in addBreadcrumbPoint
+// (SurveyCoverage.SEGMENT_GAP_MS) already solves independently — a
+// connecting line is never drawn across a gap regardless of how the watch
+// gets restarted. Requiring a tap was pure extra friction on top of an
+// already-solved problem, and it was actively costing trail coverage every
+// time someone glanced at email or pulled up Google Maps for a stop and
+// didn't notice the prompt when they came back. Now the watch just
+// restarts automatically the moment the app becomes visible again, with a
+// toast noting how long tracking was actually paused.
+//
+// This does NOT mean tracking continues WHILE backgrounded — it can't.
+// Browsers (this is especially strict on iOS Safari, including installed
+// PWAs) suspend JS execution and stop delivering watchPosition callbacks
+// once the tab/app is hidden; there's no web API that keeps a GPS stream
+// running behind another app. That's a platform limitation, not something
+// fixable from inside this file — the only way around it is a native app
+// wrapper with a real background-location entitlement. What changed here
+// is that the gap is now exactly as long as the time actually spent away,
+// instead of that PLUS however long it took to notice the prompt.
 function _showSurveyResumeOverlay() {
   var el = document.getElementById('survey-resume-overlay');
   if (el) el.style.display = 'flex';
@@ -20857,41 +21328,60 @@ window._hideSurveyResumeOverlay = _hideSurveyResumeOverlay;
 // Called when the app is hidden (screen locked, backgrounded, tab
 // switched away) while a survey is actively tracking. Silent — no toast,
 // nothing to interrupt, since the person is walking away from the app
-// right as this fires.
+// right as this fires. Records when the pause started so the resume side
+// can report how long the gap actually was.
 function _autoPauseSurveyTracking() {
   var active = null;
   try { active = SurveySession.getActive(); } catch(_e) {}
   if (!active || _isSurveyTrackingPaused()) return; // nothing active, or already paused (manually or otherwise)
   try { _stopBreadcrumbWatch(); } catch(_e) {}
+  try { _releaseSurveyWakeLock(); } catch(_e) {}
   try { LS.set('survey-tracking-paused', '1'); } catch(_e) {}
   try { LS.set('survey-resume-prompt-pending', '1'); } catch(_e) {}
+  try { LS.set('survey-auto-paused-at', String(Date.now())); } catch(_e) {}
 }
 window._autoPauseSurveyTracking = _autoPauseSurveyTracking;
 
-// Called when the app becomes visible again. Shows the resume prompt if
-// an auto-pause is pending; otherwise makes sure the overlay is hidden.
-// Deliberately does NOT auto-restart the watch — that's the whole point.
+// Called when the app becomes visible again. 2026-08-13: auto-resumes
+// tracking immediately when an auto-pause is pending, instead of blocking
+// on a tap — see the module comment above for why this is safe. The
+// overlay/prompt machinery (_showSurveyResumeOverlay) is kept for now in
+// case a manual confirm step is ever wanted again, but nothing calls it
+// from this path anymore.
 function _checkSurveyResumePrompt() {
   var active = null;
   try { active = SurveySession.getActive(); } catch(_e) {}
   var pending = false;
   try { pending = LS.get('survey-resume-prompt-pending') === '1'; } catch(_e) {}
-  if (active && pending) { try { _showSurveyResumeOverlay(); } catch(_e) {} }
-  else { try { _hideSurveyResumeOverlay(); } catch(_e) {} if (!active) { try { LS.set('survey-resume-prompt-pending', '0'); } catch(_e) {} } }
+  if (active && pending) {
+    try { resumeSurveyAfterPause(true); } catch(_e) {}
+  } else {
+    try { _hideSurveyResumeOverlay(); } catch(_e) {}
+    if (!active) { try { LS.set('survey-resume-prompt-pending', '0'); } catch(_e) {} }
+  }
 }
 window._checkSurveyResumePrompt = _checkSurveyResumePrompt;
 
-// Tap target for the overlay itself — explicitly resumes tracking. The
-// segment-gap logic in addBreadcrumbPoint (SurveyCoverage.SEGMENT_GAP_MS)
-// naturally keeps whatever happened during the pause from being drawn as
-// a connecting line, so no special-casing is needed here beyond just
-// starting the watch back up.
-function resumeSurveyAfterPause() {
+// Restarts the watch. `auto` (true when called from _checkSurveyResumePrompt
+// after an auto-pause) reports how long the gap actually was in the toast;
+// omit/false for the manual "Resume Tracking" tap in the Survey panel,
+// which already knows there was no meaningful gap to report.
+function resumeSurveyAfterPause(auto) {
   try { LS.set('survey-tracking-paused', '0'); } catch(_e) {}
   try { LS.set('survey-resume-prompt-pending', '0'); } catch(_e) {}
   _hideSurveyResumeOverlay();
   try { _startBreadcrumbWatch(); } catch(_e) {}
-  showToast('📍 Survey tracking resumed');
+  try { _acquireSurveyWakeLock(); } catch(_e) {}
+  if (auto) {
+    var pausedAtRaw = null;
+    try { pausedAtRaw = LS.get('survey-auto-paused-at'); } catch(_e) {}
+    var gapSec = pausedAtRaw ? Math.round((Date.now() - Number(pausedAtRaw)) / 1000) : null;
+    var gapLabel = (gapSec != null && gapSec >= 0) ? (gapSec < 60 ? (gapSec + 's') : (Math.round(gapSec / 60) + 'm')) : null;
+    showToast('📍 Tracking resumed' + (gapLabel ? ' (paused ' + gapLabel + ')' : ''));
+  } else {
+    showToast('📍 Survey tracking resumed');
+  }
+  try { LS.set('survey-auto-paused-at', ''); } catch(_e) {}
   try { _renderSurveyPanel(); } catch(_e) {}
 }
 window.resumeSurveyAfterPause = resumeSurveyAfterPause;
