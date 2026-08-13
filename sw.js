@@ -1,9 +1,28 @@
 const CACHE = 'stlcityroute-%%VERSION%%';
 
+// Drop BH (2026-08-12): precache the app shell AND the self-hosted Leaflet
+// build. Previously only './' was precached and Leaflet came from cdnjs, which
+// was in the PASSTHROUGH list below — meaning the service worker deliberately
+// never cached it. Offline, that request fell through to the network, failed,
+// and got handed the 503 JSON stub, which is not executable JavaScript. `L`
+// ended up undefined and the map was dead on any cold start where the
+// browser's own HTTP cache had been evicted (routine on a storage-pressured
+// phone). Serving Leaflet from our own origin and precaching it here closes
+// that hole: the map now works offline on a cold start, which is the entire
+// point of the offline story.
+//
+// If either Leaflet file 404s (e.g. it wasn't copied into the repo root
+// alongside index.html), the install still succeeds — index.html carries a
+// cdnjs fallback for exactly that case. Each add() is caught individually so
+// one missing asset can't abort the whole precache.
+const INSTALL_ASSETS = ['./', './leaflet.min.js', './leaflet.min.css'];
+
 self.addEventListener('install', e => {
   self.skipWaiting();
   e.waitUntil(
-    caches.open(CACHE).then(c => c.add('./').catch(() => {}))
+    caches.open(CACHE).then(c =>
+      Promise.all(INSTALL_ASSETS.map(u => c.add(u).catch(() => {})))
+    )
   );
 });
 
@@ -15,6 +34,13 @@ self.addEventListener('activate', e => {
   );
 });
 
+// Hosts that must always go straight to the network: live API calls, map
+// tiles, OAuth. Caching these would serve stale data or break auth.
+//
+// cdnjs.cloudflare.com was REMOVED from this list in Drop BH. Leaflet is now
+// same-origin, and the remaining cdnjs use (jsPDF, loaded lazily only when a
+// PDF is generated) is better served by the cache-first handler below: PDF
+// export then keeps working offline instead of failing at the CDN fetch.
 const PASSTHROUGH = [
   'script.google.com',
   'googleapis.com',
@@ -27,7 +53,6 @@ const PASSTHROUGH = [
   'maps.arcgis.com',
   'maps6.stlouis-mo.gov',
   'esm.sh',
-  'cdnjs.cloudflare.com',
   'cdn.jsdelivr.net'
 ];
 
