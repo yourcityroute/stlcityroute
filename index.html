@@ -2966,11 +2966,37 @@ body.tool-fullscreen-pdfdocs #cnd-pdf-modal .modal-sheet {
         <div id="area-report-neighborhood-picker-label" style="font-family:'Space Mono',monospace;font-size:0.54rem;color:#999;text-transform:uppercase;letter-spacing:0.4px;margin-bottom:3px">Neighborhood</div>
         <div id="area-report-neighborhood-picker"></div>
       </div>
+      <!-- 2026-08-13: Precincts. Custom Report mode ONLY — deliberately not
+           added to the single-select cascading pickers above. Those three
+           AND-combine, and "Ward 8 AND Ward 2 Precinct 6" is either
+           redundant (the precinct is inside the ward) or empty (it isn't),
+           so a fourth AND dimension has no useful states. As an OR-member
+           in a Custom Report it's genuinely useful: "these four precincts,
+           combined." Hidden entirely in single-select mode. -->
+      <div id="area-report-precinct-row" style="display:none;margin-bottom:6px">
+        <div id="area-report-precinct-picker-label" style="font-family:'Space Mono',monospace;font-size:0.54rem;color:#999;text-transform:uppercase;letter-spacing:0.4px;margin-bottom:3px">Precincts (any number)</div>
+        <div id="area-report-precinct-picker"></div>
+      </div>
       <button data-fn="toggleAreaReportShortlistCurrent" id="area-report-shortlist-toggle" style="display:none;width:100%;padding:6px;margin-bottom:10px;background:none;border:1px dashed #bbb;color:#888;border-radius:6px;font-family:'Space Mono',monospace;font-size:0.56rem;cursor:pointer">☆ Save to My Neighborhoods</button>
       <div id="area-report-custom-clear-row" style="display:none;margin-bottom:10px">
         <button data-fn="clearAreaReportCustomSelections" style="width:100%;padding:6px;background:none;border:1px dashed #bbb;color:#888;border-radius:6px;font-family:'Space Mono',monospace;font-size:0.56rem;cursor:pointer">Clear all selections</button>
       </div>
       <div id="area-report-picker-helptext" style="font-family:'Space Mono',monospace;font-size:0.54rem;color:#aaa;margin-bottom:10px;line-height:1.5">Leave all three on "Any" for a whole-city report. Picking a district narrows Ward to wards inside it; picking a ward narrows Neighborhood to that ward's neighborhoods.</div>
+
+      <!-- 2026-08-13: Apply Changes. The period pills, the ‹ › navigator,
+           the NOW button and the three area pickers now only STAGE a
+           selection; the report body below is rebuilt when this is tapped.
+           Before this, changing Day/Week/Month/Year updated the period
+           label but NOT the report body — setPeriodKind/shiftPeriod only
+           called renderPeriodReport(), which returns early here because
+           this panel has no #period-report-body element — so the preview
+           appeared to refresh only at random, i.e. whenever some unrelated
+           data change happened to call renderDataTab() (which does rebuild
+           it). An explicit apply also avoids kicking off a full async
+           AreaPeriodReport.buildReport() on every single checkbox tick in
+           Custom Report mode. -->
+      <button data-fn="applyAreaReportChanges" id="area-report-apply-btn" style="width:100%;padding:10px;margin-bottom:6px;background:#1a4a8c;color:white;border:none;border-radius:7px;font-family:Syne,sans-serif;font-weight:800;font-size:0.62rem;cursor:pointer">⟳ Apply Changes</button>
+      <div id="area-report-stale-note" style="display:none;font-family:'Space Mono',monospace;font-size:0.54rem;color:#a86a00;margin-bottom:8px;line-height:1.5">Selection changed — tap Apply Changes to rebuild the report below.</div>
 
       <!-- Report body — filled by renderAreaPeriodReport() with KPIs and
            Copy/CSV/HTML/PDF/Share buttons, for whatever combination of
@@ -8491,6 +8517,7 @@ setTimeout(function() {
                     if (s.neighborhoodName == null && meta.neighborhoodName != null) s.neighborhoodName = meta.neighborhoodName;
                     if (s.ward == null && meta.ward != null)                         s.ward             = meta.ward;
                     if (s.policeDistrict == null && meta.policeDistrict != null)     s.policeDistrict   = meta.policeDistrict;
+                    if (typeof s.precinct === 'undefined')                           s.precinct         = meta.precinct || null;
                     s.geoLookedUpAt = s.geoLookedUpAt || new Date().toISOString();
                     if (s.ward == null) s.geoBackfilledAt = new Date().toISOString();
                   }
@@ -10028,7 +10055,13 @@ async function _populateGeoMetadata(stop) {
   var alreadyLookedUp = !!stop.geoLookedUpAt;
   var alreadyBackfilled = !!stop.geoBackfilledAt;
   var wardMissing = stop.ward == null;
-  if (alreadyLookedUp && (!wardMissing || alreadyBackfilled)) return;
+  // 2026-08-13: `precinct` is a new field, so stops saved before this drop
+  // have geoLookedUpAt set but no precinct key at all. Distinguish
+  // "undefined" (never looked up, needs a pass) from "null" (looked up,
+  // genuinely outside every precinct polygon) so the one-time backfill
+  // runs exactly once per stop instead of every boot.
+  var precinctMissing = (typeof stop.precinct === 'undefined');
+  if (alreadyLookedUp && !precinctMissing && (!wardMissing || alreadyBackfilled)) return;
   try {
     const meta = await geoLookup(stop.lat, stop.lng);
     if (!meta) return;
@@ -10038,6 +10071,9 @@ async function _populateGeoMetadata(stop) {
     if (stop.neighborhoodName == null && meta.neighborhoodName != null) { stop.neighborhoodName = meta.neighborhoodName; changed = true; }
     if (stop.ward == null && meta.ward != null)                         { stop.ward             = meta.ward;             changed = true; }
     if (stop.policeDistrict == null && meta.policeDistrict != null)     { stop.policeDistrict   = meta.policeDistrict;   changed = true; }
+    // Written even when the lookup returns null, so `precinct` goes from
+    // undefined -> null and precinctMissing above stops firing.
+    if (typeof stop.precinct === 'undefined')                           { stop.precinct         = meta.precinct || null; changed = true; }
     stop.geoLookedUpAt = stop.geoLookedUpAt || new Date().toISOString();
     if (alreadyLookedUp && wardMissing) stop.geoBackfilledAt = new Date().toISOString();
     if (changed) saveStops();
@@ -17476,7 +17512,8 @@ var PHOTO_STAMP_FIELDS = [
   { id:'notes',      label:'Photo Notes',         desc:'Notes you type for this photo',   defaultOn:false },
   { id:'nbhdName',   label:'Neighborhood Name',   desc:"e.g. 'Tower Grove South'",        defaultOn:false },
   { id:'nbhdNum',    label:'Neighborhood Number', desc:"e.g. '#15'",                      defaultOn:false },
-  { id:'ward',       label:'Ward Number',         desc:"e.g. 'Ward 8'",                   defaultOn:false }
+  { id:'ward',       label:'Ward Number',         desc:"e.g. 'Ward 8'",                   defaultOn:false },
+  { id:'precinct',   label:'Election Precinct',    desc:"e.g. 'Ward 2, Precinct 6'",       defaultOn:false }
 ];
 
 function loadPhotoSettings() {
@@ -19086,8 +19123,8 @@ async function rebuildStampedPreview() {
   // there's no GPS fix at all to look up fresh — better than showing
   // nothing, but stale-by-definition since it wasn't re-verified against
   // this shot's actual location.
-  var nbhdName = null, nbhdNum = null, ward = null;
-  var wantsGeoFields = !!(settings.nbhdName || settings.nbhdNum || settings.ward);
+  var nbhdName = null, nbhdNum = null, ward = null, precinct = null;
+  var wantsGeoFields = !!(settings.nbhdName || settings.nbhdNum || settings.ward || settings.precinct);
   if (wantsGeoFields) {
     if (_photoContext.gps && typeof _photoContext.gps.lat === 'number' && typeof geoLookup === 'function') {
       try {
@@ -19096,6 +19133,7 @@ async function rebuildStampedPreview() {
           nbhdName = _geo.neighborhoodName || null;
           nbhdNum  = _geo.neighborhood     || null;
           ward     = _geo.ward             || null;
+          precinct = _geo.precinct         || null;
           // Backfill the stop too (if any) so future stamps/reports for
           // it don't need to repeat the lookup.
           if (linkedStop) {
@@ -19103,6 +19141,7 @@ async function rebuildStampedPreview() {
             if (linkedStop.neighborhoodName == null && nbhdName != null) { linkedStop.neighborhoodName = nbhdName; _stopChanged = true; }
             if (linkedStop.neighborhood == null && nbhdNum != null) { linkedStop.neighborhood = nbhdNum; _stopChanged = true; }
             if (linkedStop.ward == null && ward != null) { linkedStop.ward = ward; _stopChanged = true; }
+            if (linkedStop.precinct == null && precinct != null) { linkedStop.precinct = precinct; _stopChanged = true; }
             if (_stopChanged) { try { saveStops(); } catch (_e) { _swallow('rebuildStampedPreview', _e); } }
           }
         }
@@ -19115,6 +19154,7 @@ async function rebuildStampedPreview() {
       nbhdName = nbhdName || linkedStop.neighborhoodName || null;
       nbhdNum  = nbhdNum  || linkedStop.neighborhood     || null;
       ward     = ward     || linkedStop.ward             || null;
+      precinct = precinct || linkedStop.precinct         || null;
     }
   }
   // Sequence number: if linked to a stop, derive from the Photo Tracker
@@ -19154,12 +19194,18 @@ async function rebuildStampedPreview() {
     nbhdName:  nbhdName,
     nbhdNum:   nbhdNum,
     ward:      ward,
+    precinct:  precinct,
     heading:   (typeof _photoContext.heading === 'number') ? _photoContext.heading : null,
     caseType:  _photoContext.caseType || null,
     caseNum:   _photoContext.caseNum || '',
     seqNum:    seqNum
   };
   try {
+    // 2026-08-13: keep the exact stamp payload on the context so the
+    // Photo Tracker log can record WHAT was burned into this photo, not
+    // just that a photo happened. Snapshotted (not referenced) because
+    // `meta` is rebuilt on every re-stamp and `settings` is a live object.
+    try { _photoContext.stampSummary = _buildStampSummary(meta); } catch (_e) { _swallow('rebuildStampedPreview', _e); }
     var out = await _stampImageBlob(_photoContext.originalBlob, meta);
     _photoContext.stampedBlob = out.blob;
     _photoContext.stampedDataUrl = out.dataUrl;
@@ -22362,7 +22408,7 @@ var PhotoTrackerIndex = (function() {
     if (!key) return null;
     var entry = _readEntry(key) || {
       displayLabel: null, address: null, gps: null,
-      neighborhoodName: null, ward: null, policeDistrict: null, photos: []
+      neighborhoodName: null, ward: null, policeDistrict: null, precinct: null, photos: []
     };
     // Keep the freshest known metadata — an address that arrives later
     // (e.g. this location was first seen GPS-only) upgrades the entry.
@@ -22371,6 +22417,7 @@ var PhotoTrackerIndex = (function() {
     if (meta.neighborhoodName) entry.neighborhoodName = meta.neighborhoodName;
     if (meta.ward) entry.ward = meta.ward;
     if (meta.policeDistrict) entry.policeDistrict = meta.policeDistrict;
+    if (meta.precinct) entry.precinct = meta.precinct;
     entry.displayLabel = entry.address || (entry.gps ? ('~' + entry.gps.lat.toFixed(4) + ', ' + entry.gps.lng.toFixed(4)) : key);
 
     entry.photos.push({
@@ -22381,7 +22428,13 @@ var PhotoTrackerIndex = (function() {
       // which reads these back out to build the per-device breakdown shown
       // in reports and (eventually) the heatmap layer's popup detail.
       deviceId: meta.deviceId || null,
-      deviceLabel: meta.deviceLabel || null
+      deviceLabel: meta.deviceLabel || null,
+      // 2026-08-13: the stamp payload actually burned into this photo —
+      // array of {label, value}, see _buildStampSummary for what is and
+      // isn't included and why. Events logged before this drop simply
+      // have no `stamp` key; the report treats those as "(stamp detail
+      // not recorded)" rather than pretending the photo was unstamped.
+      stamp: Array.isArray(meta.stamp) ? meta.stamp : null
     });
     if (entry.photos.length > MAX_EVENTS_PER_LOCATION) entry.photos = entry.photos.slice(-MAX_EVENTS_PER_LOCATION);
     _writeEntry(key, entry);
@@ -22827,7 +22880,9 @@ async function _recordPhotoTrackerFromContext() {
       neighborhoodName: geo ? geo.neighborhoodName : null,
       ward: geo ? geo.ward : null,
       policeDistrict: geo ? geo.policeDistrict : null,
+      precinct: geo ? geo.precinct : null,
       caseType: _photoContext.caseType || null,
+      stamp: _photoContext.stampSummary || null,
       stopId: _photoContext.stopId,
       // 2026-08-09: tagged so photo counts can be broken down per device
       // in reports/heatmap (see _computeAllStopPhotoStats). deviceId is
@@ -22880,7 +22935,13 @@ async function _recordPhotoTrackerFromSession() {
           neighborhoodName: geo ? geo.neighborhoodName : null,
           ward: geo ? geo.ward : null,
           policeDistrict: geo ? geo.policeDistrict : null,
+          precinct: geo ? geo.precinct : null,
           caseType: _photoContext.caseType || null,
+          // Session shots all share the address/settings the session was
+          // started with, so the context's snapshot applies to each — the
+          // fields _buildStampSummary keeps are exactly the ones that
+          // don't vary shot-to-shot.
+          stamp: _photoContext.stampSummary || null,
           stopId: _photoSession.stopId,
           deviceId: (typeof _getDeviceId === 'function') ? _getDeviceId() : null,
           deviceLabel: (typeof _getDeviceLabel === 'function') ? _getDeviceLabel() : null
@@ -25263,7 +25324,7 @@ function _pointInGeom(lng, lat, geom) {
 // precision (~1.1 meters) which is finer than GPS resolution anyway.
 async function geoLookup(lat, lng) {
   if (typeof lat !== 'number' || typeof lng !== 'number') {
-    return { neighborhood: null, neighborhoodName: null, ward: null, policeDistrict: null };
+    return { neighborhood: null, neighborhoodName: null, ward: null, policeDistrict: null, precinct: null };
   }
   // Per-point LS cache — short-circuit if we've looked up these coords before.
   // Drop AP.4 (2026-05-09): cache key version bumped from v1 (implicit) to v2
@@ -25277,7 +25338,11 @@ async function geoLookup(lat, lng) {
   // neighborhood/ward but would come back missing the new key if reused
   // as-is — bumping the key is simpler and cheaper than patching every
   // cached entry, same reasoning as the v1->v2 bump.
-  var key = 'geo-pt:v3:' + lat.toFixed(5) + ',' + lng.toFixed(5);
+  // 2026-08-13: bumped v3 -> v4 for the added `precinct` field. Same
+  // reasoning as every prior bump — v3 entries are still correct for the
+  // fields they have, but would come back missing the new key if reused,
+  // and re-keying is cheaper than walking LS to patch them.
+  var key = 'geo-pt:v4:' + lat.toFixed(5) + ',' + lng.toFixed(5);
   try {
     var cached = LS.get(key);
     if (cached) {
@@ -25286,7 +25351,7 @@ async function geoLookup(lat, lng) {
     }
   } catch (_) { _swallow('geoLookup', _); }
 
-  var out = { neighborhood: null, neighborhoodName: null, ward: null, policeDistrict: null };
+  var out = { neighborhood: null, neighborhoodName: null, ward: null, policeDistrict: null, precinct: null };
 
   // Neighborhood lookup
   try {
@@ -25372,6 +25437,27 @@ async function geoLookup(lat, lng) {
         if (_pointInGeom(lng, lat, pf.geometry)) {
           var plabel = (typeof MapLayers !== 'undefined') ? MapLayers.policeDistrictLabelFromProps(pf.properties || {}) : null;
           if (plabel) out.policeDistrict = plabel;
+          break;
+        }
+      }
+    }
+  } catch (_) { _swallow('geoLookup', _); }
+
+  // Election precinct lookup (2026-08-13). Same shape as the police
+  // district block above, reusing MapLayers.precinctLabelFromProps so the
+  // stored string is byte-identical to the map layer's own label
+  // ('Ward 2, Precinct 6') — that string IS the match key the Reports
+  // precinct filter compares against, so one source of truth matters here.
+  // Note precinct polygons are bundled inline (see GeoCache.getPrecincts),
+  // so unlike the other three this lookup never needs the network.
+  try {
+    var precGeo = await GeoCache.getPrecincts();
+    if (precGeo && Array.isArray(precGeo.features)) {
+      for (var pr = 0; pr < precGeo.features.length; pr++) {
+        var prf = precGeo.features[pr];
+        if (_pointInGeom(lng, lat, prf.geometry)) {
+          var prlabel = (typeof MapLayers !== 'undefined') ? MapLayers.precinctLabelFromProps(prf.properties || {}) : null;
+          if (prlabel) out.precinct = prlabel;
           break;
         }
       }
@@ -26154,6 +26240,46 @@ function _buildPhotoFilename(addr, dt, seqNum) {
 // GPS (small), compass (small), case # (small), photo seq (small),
 // neighborhood + ward (small), notes (normal). Each line is conditional
 // on its `meta.fields.<key>` toggle being truthy AND its data being present.
+// 2026-08-13: report-facing snapshot of what was actually burned into a
+// photo. Deliberately NOT the same as _buildStampLines — that one is for
+// pixels, this one is for grouping.
+//
+// Only the STABLE fields are captured: the ones that are identical across
+// every shot of the same subject with the same settings. Date, time, GPS,
+// compass heading and sequence number are excluded on purpose — they vary
+// by definition on every single shot, so including them would make every
+// stamp signature unique and defeat the whole point of the "identical
+// stamps collapse to one row with ×N" grouping in Reports. Nothing is
+// lost by the omission: the per-photo timestamp is already the log
+// event's own `ts`, and the coordinates are already the location's `gps`.
+//
+// Returns an array of {label, value} in stamp order, or [] if nothing
+// stable was enabled. Order matters — it's part of the grouping key.
+function _buildStampSummary(meta) {
+  var fields = (meta && meta.fields) || {};
+  var out = [];
+  function add(label, value) {
+    if (value == null || value === '') return;
+    out.push({ label: label, value: String(value) });
+  }
+  if (fields.address)  add('Address', meta.address);
+  if (fields.username) add('Inspector', meta.inspector);
+  if (fields.title) {
+    var tp = [];
+    if (meta.title) tp.push(meta.title);
+    if (meta.division) tp.push(meta.division);
+    if (meta.department) tp.push(meta.department);
+    if (tp.length) add('Title / Dept', tp.join(' · '));
+  }
+  if (fields.caseNum && meta.caseNum) add('Tracking #', (meta.caseType || 'SR') + ' #' + meta.caseNum);
+  if (fields.nbhdName) add('Neighborhood', meta.nbhdName + ((fields.nbhdNum && meta.nbhdNum) ? ' #' + meta.nbhdNum : ''));
+  else if (fields.nbhdNum && meta.nbhdNum) add('Neighborhood', '#' + meta.nbhdNum);
+  if (fields.ward && meta.ward) add('Ward', 'Ward ' + meta.ward);
+  if (fields.precinct) add('Precinct', meta.precinct);
+  if (fields.notes) add('Notes', meta.notes);
+  return out;
+}
+
 function _buildStampLines(meta) {
   var fields = meta.fields || {};
   var dt = meta.timestamp || new Date();
@@ -26222,6 +26348,14 @@ function _buildStampLines(meta) {
     locParts.push('Ward ' + meta.ward);
   }
   if (locParts.length) lines.push({ text: locParts.join(' · '), size: 'small' });
+
+  // Election precinct (small) — its own line rather than appended to the
+  // neighborhood/ward line above, because the label already reads
+  // 'Ward 2, Precinct 6' and would collide awkwardly with a 'Ward 8'
+  // segment sitting right next to it.
+  if (fields.precinct && meta.precinct) {
+    lines.push({ text: meta.precinct, size: 'small' });
+  }
 
   // Line 5: photo notes (normal, wraps if long)
   if (fields.notes && meta.notes) {
@@ -29238,12 +29372,13 @@ var _SUPPORT_DESK_KNOWLEDGE = (
 "- Marking a stop Arrived starts a visible elapsed-time timer. Closing a stop offers Mark Complete or Flag for Follow-up (with an optional reason field) or Delete.\n\n" +
 
 "MAP & SURVEY MODE\n" +
-"- Map tab shows the current GPS position and optional boundary overlay layers (Wards, Neighborhoods, Police Districts) toggled from a layer panel.\n" +
+"- Map tab shows the current GPS position and optional boundary overlay layers (Wards, Neighborhoods, Police Districts, Precincts) toggled from a layer panel.\n" +
 "- Survey Mode (compass icon on the Map toolbar) draws a GPS breadcrumb trail while driving or walking, covering the whole city — used to show coverage over time. Tapping the button starts tracking immediately (no area to pick). Has its own Pause/Resume control; the Breadcrumb Trail on/off toggle lives in Settings (turning breadcrumbs off stops recording the trail but keeps the live GPS dot moving — useful for plain navigation without leaving a recorded trail). If the phone's screen sleeps or the app is backgrounded mid-survey, tracking auto-pauses and shows a Resume Survey prompt when reopened, rather than drawing a long straight line across town for the gap.\n" +
 "- Clear Path deletes a recorded trail; that is the only way to remove one (the breadcrumb toggle only pauses recording/display).\n\n" +
 
 "PHOTOSTAMP (photo documentation)\n" +
 "- Camera icon opens PhotoStamp: takes a photo and stamps it with the GPS location and street address directly on the image.\n" +
+"- Stamp Settings controls which fields get burned in. Available fields: Address, Date, Time, GPS Coordinates, Compass Direction, Photo Sequence #, Case/SR/WR #, User Name, Title/Department, Photo Notes, Neighborhood Name, Neighborhood Number, Ward Number, and Election Precinct (e.g. 'Ward 2, Precinct 6').\n" +
 "- Before shooting, a small situational map (\"Prepare Photo\") lets the inspector tap the correct parcel/address on a map first, so the stamp is accurate even when standing between two addresses.\n" +
 "- Photos can be marked up (pen, arrow, text, redaction) before saving; the markup is baked into the saved image.\n" +
 "- Stamped photos are cached on the device temporarily (about 48 hours) and then auto-deleted to save space — they need to be uploaded to the city system, exported, or synced (see Google Drive Sync below) to keep them long-term.\n" +
@@ -29257,7 +29392,11 @@ var _SUPPORT_DESK_KNOWLEDGE = (
 
 "REPORTS\n" +
 "- The Reports panel is the one place to generate output: pick a period (Day/Week/Month/Year/Custom) and, optionally, a Ward/Neighborhood/Police District filter (any combination), then Copy, export CSV/HTML/PDF, or use the device's Share sheet to send the report directly to another app (Mail, Drive, Files, etc.).\n" +
-"- Leaving all area filters blank produces a whole-city report.\n\n" +
+"- Leaving all area filters blank produces a whole-city report.\n" +
+"- Changing the period or the area selection stages the change; the report body below rebuilds when Apply Changes is tapped. While a change is pending the button turns blue and the old report dims and cannot be exported, so a downloaded PDF/CSV always matches what is on screen.\n" +
+"- Custom Report (the button above the pickers) switches the three dropdowns to multi-select checklists and adds a fourth for election Precincts, combining every checked area with OR instead of AND — e.g. Wards 3, 6 and 8 plus Dutchtown plus Ward 2 Precinct 6, all in one report. Precincts appear in Custom Report mode only; there is no single-select precinct filter, because combining a precinct with a ward using AND is either redundant or empty.\n" +
+"- Report maps draw each selected area type in its own color, matching the Map tab: Wards teal, Neighborhoods violet dashed, Police Districts orange dashed, Precincts pink dashed. The HTML report's map has a layer toggle in the corner for each type present.\n" +
+"- Reports list the stamp information actually burned into each photo. Identical stamps are collapsed into one line with a multiplier (e.g. '\u00d73'). Photos taken before this feature shipped show 'stamp detail not recorded' instead — the photos and their counts are unaffected, only the per-photo stamp text is missing for them.\n\n" +
 
 "SETTINGS\n" +
 "- Profile: name/role info, install-to-home-screen instructions, backup/restore (export the profile as a file to move it to another device, or import/merge one back in).\n" +
@@ -32357,6 +32496,23 @@ window._computeAreaHierarchy = _computeAreaHierarchy;
 
 const AreaPeriodReport = (function() {
 
+  // 2026-08-13: one styling table for every place a boundary gets drawn —
+  // the live Leaflet map in the HTML report, the static SVG (print + PDF +
+  // offline fallback) and the legend. Colors/weights/dashes are copied
+  // from MapLayers' own layer definitions so a ward outline in a report
+  // looks like a ward outline on the Map tab rather than a generic blue
+  // line. Previously every ring drew as #1a4a8c weight 3, which is why a
+  // Custom Report mixing wards and neighborhoods was unreadable — the two
+  // boundary sets were literally indistinguishable.
+  var AREA_TYPE_STYLE = {
+    neighborhood:   { color: '#7c3aed', weight: 2.5, dash: '10,5', plural: 'Neighborhoods' },
+    ward:           { color: '#0d9488', weight: 4.5, dash: null,   plural: 'Wards' },
+    policeDistrict: { color: '#c2410c', weight: 3.5, dash: '2,6',  plural: 'Police Districts' },
+    precinct:       { color: '#be185d', weight: 2,   dash: '2,5',  plural: 'Precincts' }
+  };
+  var AREA_TYPE_FALLBACK = { color: '#1a4a8c', weight: 3, dash: null, plural: 'Areas' };
+  function _areaTypeStyle(type) { return AREA_TYPE_STYLE[type] || AREA_TYPE_FALLBACK; }
+
   function _wardMatches(stopWard, areaName) {
     if (stopWard == null) return false;
     return String(stopWard) === String(areaName).replace(/^\D+/, '');
@@ -32368,13 +32524,19 @@ const AreaPeriodReport = (function() {
   // three types" like before. No filters set at all = whole city, matches
   // everything (used by every collector below the same way).
   function _hasAnyFilter(filters) {
-    return !!(filters && (filters.ward || filters.neighborhood || filters.policeDistrict));
+    return !!(filters && (filters.ward || filters.neighborhood || filters.policeDistrict || filters.precinct));
   }
   function _matchesFilters(rec, filters) {
     if (!rec) return false;
     if (filters.ward && !_wardMatches(rec.ward, filters.ward)) return false;
     if (filters.neighborhood && rec.neighborhoodName !== filters.neighborhood) return false;
     if (filters.policeDistrict && rec.policeDistrict !== filters.policeDistrict) return false;
+    // 2026-08-13: no precinct picker exists in single-select mode (see the
+    // markup comment on #area-report-precinct-row for why a fourth AND
+    // dimension has no useful states), so filters.precinct is never set by
+    // the UI. Handled anyway so the predicate stays complete for any
+    // programmatic caller of buildReport({precinct: ...}).
+    if (filters.precinct && rec.precinct !== filters.precinct) return false;
     return true;
   }
 
@@ -32390,6 +32552,11 @@ const AreaPeriodReport = (function() {
     if (area.type === 'ward') return _wardMatches(rec.ward, area.name);
     if (area.type === 'neighborhood') return rec.neighborhoodName === area.name;
     if (area.type === 'policeDistrict') return rec.policeDistrict === area.name;
+    // 2026-08-13: precincts. rec.precinct is the same 'Ward 2, Precinct 6'
+    // string MapLayers.precinctLabelFromProps produces, written by
+    // geoLookup — so this is a plain equality check like the other two,
+    // not a parse.
+    if (area.type === 'precinct') return rec.precinct === area.name;
     return false;
   }
   function _matchesAnyArea(rec, areas) {
@@ -32441,11 +32608,14 @@ const AreaPeriodReport = (function() {
   // independently-configured rolling window — a weekly ward report
   // should reflect that week's activity, not an all-time or differently-
   // windowed severity figure.
-  function _photosInRange(entry, startMs, endMs) {
+  function _photosInRangeList(entry, startMs, endMs) {
     return (entry.photos || []).filter(function(p) {
       var t = new Date(p.ts).getTime();
       return isFinite(t) && t >= startMs && t < endMs;
-    }).length;
+    });
+  }
+  function _photosInRange(entry, startMs, endMs) {
+    return _photosInRangeList(entry, startMs, endMs).length;
   }
   function _collectPhotoTrackerLocations(startMs, endMs, matchFn) {
     if (typeof PhotoTrackerIndex === 'undefined') return [];
@@ -32453,16 +32623,23 @@ const AreaPeriodReport = (function() {
     return PhotoTrackerIndex.getAll()
       .filter(function(loc) { return matchFn(loc); })
       .map(function(loc) {
-        var countInPeriod = _photosInRange(loc, startMs, endMs);
-        return { loc: loc, countInPeriod: countInPeriod };
+        var inPeriod = _photosInRangeList(loc, startMs, endMs);
+        return { loc: loc, inPeriod: inPeriod, countInPeriod: inPeriod.length };
       })
       .filter(function(x) { return x.countInPeriod > 0; })
       .map(function(x) {
         var sev = PhotoTrackerIndex.severityFor(x.countInPeriod, settings);
         return {
           displayLabel: x.loc.displayLabel, address: x.loc.address, gps: x.loc.gps,
+          precinct: x.loc.precinct || null,
           countInPeriod: x.countInPeriod, totalPhotosEver: (x.loc.photos || []).length,
-          severityLabel: sev ? sev.label : null, severityColor: sev ? sev.color : null
+          severityLabel: sev ? sev.label : null, severityColor: sev ? sev.color : null,
+          // 2026-08-13: the actual stamp payloads burned into this
+          // location's photos this period, deduplicated with counts —
+          // grouped over the in-period events only, so a weekly report
+          // reflects that week's stamps, matching how countInPeriod and
+          // severity are already scoped.
+          stampGroups: _groupStamps(x.inPeriod)
         };
       })
       .sort(function(a, b) { return b.countInPeriod - a.countInPeriod; });
@@ -32494,6 +32671,13 @@ const AreaPeriodReport = (function() {
         if (!fcP || !Array.isArray(fcP.features)) return null;
         return fcP.features.find(function(f) {
           return MapLayers.policeDistrictLabelFromProps(f.properties || {}) === areaName;
+        }) || null;
+      }
+      if (areaType === 'precinct') {
+        var fcPr = await GeoCache.getPrecincts();
+        if (!fcPr || !Array.isArray(fcPr.features)) return null;
+        return fcPr.features.find(function(f) {
+          return MapLayers.precinctLabelFromProps(f.properties || {}) === areaName;
         }) || null;
       }
       // neighborhood — matches the same fallback chain geoLookup() uses
@@ -32532,6 +32716,7 @@ const AreaPeriodReport = (function() {
     if (filters.ward) wants.push({ type: 'ward', name: filters.ward });
     if (filters.neighborhood) wants.push({ type: 'neighborhood', name: filters.neighborhood });
     if (filters.policeDistrict) wants.push({ type: 'policeDistrict', name: filters.policeDistrict });
+    if (filters.precinct) wants.push({ type: 'precinct', name: filters.precinct });
     return wants;
   }
   async function _findAreaFeatures(filters) {
@@ -32662,7 +32847,7 @@ const AreaPeriodReport = (function() {
           });
         }
       } catch (_e) { _swallow('_collectBreadcrumb', _e); }
-      return { points: allPoints, clipped: true, boundaryRings: [] };
+      return { points: allPoints, clipped: true, boundaryRings: [], boundaryGroups: [] };
     }
 
     var areaList = useCustom ? customAreas : _filtersToAreaList(filters);
@@ -32670,6 +32855,20 @@ const AreaPeriodReport = (function() {
     var wantedCount = areaList.length;
     var ringSets = resolved.map(function(r) { return _geoJsonPolygonRingsLatLng(r.feature.geometry); }).filter(function(r) { return r.length; });
     var flatRings = [].concat.apply([], ringSets);
+    // 2026-08-13: boundaryRings above is a FLAT list — every selected
+    // area's rings concatenated with no record of which area or which
+    // TYPE each ring came from. That's why a Custom Report combining, say,
+    // Ward 3 and Dutchtown drew both outlines in the same blue: the map
+    // renderer only ever had one undifferentiated array to draw. Keep the
+    // flat list (the point-in-polygon tests and the fit-bounds math still
+    // want it) and add a parallel typed grouping alongside it, so the
+    // renderers can color and label per area type. Built from `resolved`
+    // rather than `ringSets` so type/name stay index-aligned with rings.
+    var boundaryGroups = [];
+    resolved.forEach(function(r) {
+      var rings = _geoJsonPolygonRingsLatLng(r.feature.geometry);
+      if (rings.length) boundaryGroups.push({ type: r.type, name: r.name, rings: rings });
+    });
 
     if (useCustom) {
       // Union mode: whichever areas DID resolve still contribute their
@@ -32678,7 +32877,7 @@ const AreaPeriodReport = (function() {
       // that at least one selected area's boundary is missing, so the
       // total may be an undercount.
       var allResolved = ringSets.length === wantedCount;
-      if (!ringSets.length) return { points: [], clipped: allResolved, boundaryRings: flatRings };
+      if (!ringSets.length) return { points: [], clipped: allResolved, boundaryRings: flatRings, boundaryGroups: boundaryGroups };
       var uPoints = [];
       try {
         SurveyCoverage.getAllTrails().forEach(function(trail) {
@@ -32689,14 +32888,14 @@ const AreaPeriodReport = (function() {
           });
         });
       } catch (_e) { _swallow('_collectBreadcrumb', _e); }
-      return { points: uPoints, clipped: allResolved, boundaryRings: flatRings };
+      return { points: uPoints, clipped: allResolved, boundaryRings: flatRings, boundaryGroups: boundaryGroups };
     }
 
     if (ringSets.length !== wantedCount || !ringSets.length) {
       // Not every active filter resolved a boundary — can't reliably
       // AND-clip, so no points, but still hand back whatever partial
       // boundary geometry did resolve for the map to at least outline.
-      return { points: [], clipped: false, boundaryRings: flatRings };
+      return { points: [], clipped: false, boundaryRings: flatRings, boundaryGroups: boundaryGroups };
     }
 
     var points = [];
@@ -32709,7 +32908,7 @@ const AreaPeriodReport = (function() {
         });
       });
     } catch (_e) { _swallow('_collectBreadcrumb', _e); }
-    return { points: points, clipped: true, boundaryRings: flatRings };
+    return { points: points, clipped: true, boundaryRings: flatRings, boundaryGroups: boundaryGroups };
   }
 
   // Human-readable label for an arbitrary [startMs, endMs) range — same
@@ -32764,7 +32963,8 @@ const AreaPeriodReport = (function() {
     var filters = {
       ward: opts.ward || null,
       neighborhood: opts.neighborhood || null,
-      policeDistrict: opts.policeDistrict || null
+      policeDistrict: opts.policeDistrict || null,
+      precinct: opts.precinct || null
     };
     var customAreas = Array.isArray(opts.customAreas)
       ? opts.customAreas.filter(function(a) { return a && a.type && a.name; })
@@ -32790,6 +32990,7 @@ const AreaPeriodReport = (function() {
       if (filters.ward) labelParts.push('Ward ' + String(filters.ward).replace(/^\D+/, ''));
       if (filters.neighborhood) labelParts.push(filters.neighborhood);
       if (filters.policeDistrict) labelParts.push(filters.policeDistrict);
+      if (filters.precinct) labelParts.push(filters.precinct);
     }
     var areaLabel = labelParts.length ? labelParts.join(useCustom ? ' + ' : ' ∩ ') : 'Entire City';
 
@@ -32798,10 +32999,16 @@ const AreaPeriodReport = (function() {
       period: { startMs: startMs, endMs: endMs, label: _periodLabel(startMs, endMs) },
       area: {
         ward: filters.ward, neighborhood: filters.neighborhood, policeDistrict: filters.policeDistrict,
+        precinct: filters.precinct,
         custom: useCustom, customAreas: useCustom ? customAreas : null,
         hasFilter: hasFilter,
         label: areaLabel,
-        boundaryRings: breadcrumb.boundaryRings.length ? breadcrumb.boundaryRings : null
+        boundaryRings: breadcrumb.boundaryRings.length ? breadcrumb.boundaryRings : null,
+        // 2026-08-13: parallel to boundaryRings but retaining {type, name}
+        // per area, so the HTML/SVG/PDF map renderers can style each
+        // boundary by its layer type and offer per-type toggles instead
+        // of drawing one undifferentiated blue outline for everything.
+        boundaryGroups: (breadcrumb.boundaryGroups && breadcrumb.boundaryGroups.length) ? breadcrumb.boundaryGroups : null
       },
       stops: {
         list: areaStops,
@@ -32850,20 +33057,35 @@ const AreaPeriodReport = (function() {
     rows.push([]);
 
     rows.push(['STOPS'].join(','));
-    rows.push(['Address', 'Type', 'Status', 'Neighborhood', 'AddedAt', 'CompletedAt', 'Notes'].join(','));
+    rows.push(['Address', 'Type', 'Status', 'Neighborhood', 'Ward', 'Precinct', 'AddedAt', 'CompletedAt', 'Notes'].join(','));
     report.stops.list.forEach(function(s) {
       var status = s.done ? 'Completed' : (s.followup ? 'Followup' : 'Open');
       rows.push([
-        esc(s.address), esc(s.type), esc(status), esc(s.neighborhoodName),
+        esc(s.address), esc(s.type), esc(status), esc(s.neighborhoodName), esc(s.ward), esc(s.precinct),
         esc(s.addedAt), esc(s.completedAt), esc((s.notes || '').slice(0, 280))
       ].join(','));
     });
     rows.push([]);
 
     rows.push(['PHOTO TRACKER LOCATIONS'].join(','));
-    rows.push(['Location', 'PhotosThisPeriod', 'TotalPhotosEver', 'Severity'].join(','));
+    rows.push(['Location', 'Precinct', 'PhotosThisPeriod', 'TotalPhotosEver', 'Severity'].join(','));
     report.photoTracker.locations.forEach(function(loc) {
-      rows.push([esc(loc.displayLabel), esc(loc.countInPeriod), esc(loc.totalPhotosEver), esc(loc.severityLabel || '')].join(','));
+      rows.push([esc(loc.displayLabel), esc(loc.precinct), esc(loc.countInPeriod), esc(loc.totalPhotosEver), esc(loc.severityLabel || '')].join(','));
+    });
+    rows.push([]);
+
+    // 2026-08-13: one row per unique stamp payload per location, with the
+    // repeat count in its own column so the CSV stays sortable/pivotable
+    // rather than burying "×3" inside a text blob. Fields are flattened to
+    // "Label: value · Label: value" in stamp order.
+    rows.push(['PHOTO STAMPS'].join(','));
+    rows.push(['Location', 'Count', 'StampFields'].join(','));
+    report.photoTracker.locations.forEach(function(loc) {
+      (loc.stampGroups || []).forEach(function(g) {
+        var txt = g.unrecorded ? '(not recorded)' :
+          (g.fields || []).map(function(f) { return f.label + ': ' + f.value; }).join(' \u00b7 ');
+        rows.push([esc(loc.displayLabel), esc(g.count), esc(txt)].join(','));
+      });
     });
     return rows.join('\n');
   }
@@ -32884,6 +33106,14 @@ const AreaPeriodReport = (function() {
       lines.push('PHOTO TRACKER LOCATIONS (' + ch.locations.length + ')');
       ch.locations.slice(0, 10).forEach(function(loc) {
         lines.push('  ' + loc.displayLabel + ' — ' + loc.countInPeriod + ' photo' + (loc.countInPeriod === 1 ? '' : 's') + ' this period' + (loc.severityLabel ? ' · ' + loc.severityLabel : ''));
+        // Stamp payloads under each location, ×N-collapsed. Indented two
+        // extra spaces so a pasted summary still reads as a hierarchy in
+        // a plain-text email body.
+        (loc.stampGroups || []).forEach(function(g) {
+          var txt = g.unrecorded ? '(stamp detail not recorded)' :
+            (g.fields || []).map(function(f) { return f.label + ': ' + f.value; }).join(' · ');
+          lines.push('      ' + (g.count > 1 ? '\u00d7' + g.count + ' ' : '') + txt);
+        });
       });
       lines.push('');
     }
@@ -32968,7 +33198,29 @@ const AreaPeriodReport = (function() {
       }).join(' ') + ' Z';
     }
 
-    var boundaryPath = rings.length ? rings.map(ringPath).join(' ') : '';
+    // 2026-08-13: one <path> per area TYPE rather than a single merged
+    // path for every ring, so the printed/PDF map distinguishes a ward
+    // outline from a neighborhood outline the same way the live map does.
+    // fill-rule="evenodd" is kept per-path (it's what makes a multi-ring
+    // polygon with holes render correctly); grouping by type instead of
+    // by individual area keeps the ring count per path low enough that
+    // evenodd still behaves for donut shapes within one type.
+    var groups = (report.area.boundaryGroups || []);
+    var boundaryPathsByType = {};
+    groups.forEach(function(g) {
+      if (!g.rings || !g.rings.length) return;
+      var d = g.rings.map(ringPath).join(' ');
+      boundaryPathsByType[g.type] = (boundaryPathsByType[g.type] ? boundaryPathsByType[g.type] + ' ' : '') + d;
+    });
+    var boundarySvg = Object.keys(boundaryPathsByType).map(function(t) {
+      var bs = _areaTypeStyle(t);
+      return '<path d="' + boundaryPathsByType[t] + '" fill="' + bs.color + '" fill-opacity="0.05" stroke="' + bs.color +
+        '" stroke-width="' + bs.weight + '"' + (bs.dash ? ' stroke-dasharray="' + bs.dash + '"' : '') + ' fill-rule="evenodd"/>';
+    }).join('');
+    // Fallback for a report object with no typed groups (older drop).
+    if (!boundarySvg && rings.length) {
+      boundarySvg = '<path d="' + rings.map(ringPath).join(' ') + '" fill="#eef4e9" stroke="#5c8a3e" stroke-width="2.5" fill-rule="evenodd"/>';
+    }
 
     var breadcrumbPath = '';
     if (breadcrumbPts.length > 1) {
@@ -33034,10 +33286,52 @@ const AreaPeriodReport = (function() {
         '<stop offset="75%" stop-color="#ffcf40" stop-opacity="0.22"/>' +
         '<stop offset="100%" stop-color="#ffcf40" stop-opacity="0"/>' +
       '</radialGradient></defs>' +
-      (boundaryPath ? '<path d="' + boundaryPath + '" fill="#eef4e9" stroke="#5c8a3e" stroke-width="2.5" fill-rule="evenodd"/>' : '') +
+      boundarySvg +
       (breadcrumbPath ? '<path d="' + breadcrumbPath + '" fill="none" stroke="#f5c518" stroke-width="4" stroke-linecap="round" stroke-linejoin="round" opacity="0.85"/>' : '') +
       heatBlobs + heatDots + completedMarkers +
       '</svg>';
+  }
+
+  // Legend swatches for whichever boundary types this report actually
+  // drew — a short dashed/solid line per type in that type's own color,
+  // so the reader can tell which outline is which without hovering.
+  function _boundaryLegendHtml(report) {
+    var groups = report.area.boundaryGroups || [];
+    if (!groups.length) return '';
+    var seen = {};
+    var out = '';
+    groups.forEach(function(g) {
+      var bs = _areaTypeStyle(g.type);
+      if (seen[bs.plural]) return;
+      seen[bs.plural] = true;
+      out += '<span><i style="width:16px;height:0;border-radius:0;border-top:' + bs.weight + 'px ' +
+        (bs.dash ? 'dashed' : 'solid') + ' ' + bs.color + '"></i>' + bs.plural + '</span>';
+    });
+    return out;
+  }
+
+  // 2026-08-13: collapses a location's photo events into unique stamp
+  // payloads with a count. Two events group together when the exact
+  // ordered list of {label, value} pairs matches — see _buildStampSummary
+  // for which fields are in that list and why the per-shot varying ones
+  // (time, GPS, sequence, compass) are deliberately excluded. Events
+  // logged before this drop carry no `stamp` key at all and collect into
+  // a single "not recorded" bucket rather than being silently dropped or
+  // misrepresented as unstamped photos.
+  function _groupStamps(photos) {
+    var buckets = {};
+    var order = [];
+    (photos || []).forEach(function(pv) {
+      var arr = Array.isArray(pv.stamp) ? pv.stamp : null;
+      var sig = arr ? JSON.stringify(arr) : '__none__';
+      if (!buckets[sig]) {
+        buckets[sig] = { fields: arr, count: 0, unrecorded: !arr };
+        order.push(sig);
+      }
+      buckets[sig].count++;
+    });
+    return order.map(function(k) { return buckets[k]; })
+      .sort(function(a, b) { return b.count - a.count; });
   }
 
   function formatAsHTML(report) {
@@ -33047,10 +33341,33 @@ const AreaPeriodReport = (function() {
     };
     var st = report.stops, ch = report.photoTracker, cov = report.coverage;
 
+    // 2026-08-13: each location now gets a second row listing the stamp
+    // payloads actually burned into its photos, one line per UNIQUE stamp
+    // with a ×N multiplier — so five identical Docu-Stamps at one address
+    // read as one line "×5" rather than five repeated blocks.
+    function stampDetailHtml(loc) {
+      var groups = loc.stampGroups || [];
+      if (!groups.length) return '';
+      var items = groups.map(function(g) {
+        var mult = g.count > 1 ? '<b style="color:#1a4a8c">&times;' + g.count + '</b> ' : '';
+        if (g.unrecorded) {
+          return '<div style="padding:2px 0;color:#999">' + mult + '<i>Stamp detail not recorded (photo predates stamp logging)</i></div>';
+        }
+        var pairs = g.fields.map(function(f) {
+          return '<span style="color:#888">' + safe(f.label) + ':</span> ' + safe(f.value);
+        }).join(' &nbsp;·&nbsp; ');
+        return '<div style="padding:2px 0">' + mult + (pairs || '<i style="color:#999">No stamp fields enabled</i>') + '</div>';
+      }).join('');
+      return '<tr><td colspan="3" style="padding:2px 8px 10px 20px;font-size:11px;color:#444;border-bottom:1px solid #eee">' +
+        '<div style="color:#888;font-size:10px;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:3px">Photo stamps</div>' +
+        items + '</td></tr>';
+    }
     var photoTrackerRows = ch.locations.map(function(loc) {
-      return '<tr><td style="padding:4px 8px">' + safe(loc.displayLabel) + '</td>' +
+      return '<tr><td style="padding:4px 8px">' + safe(loc.displayLabel) +
+          (loc.precinct ? '<br><span style="font-size:10px;color:#999">' + safe(loc.precinct) + '</span>' : '') + '</td>' +
         '<td style="padding:4px 8px;text-align:right"><b>' + loc.countInPeriod + '</b></td>' +
-        '<td style="padding:4px 8px;color:' + safe(loc.severityColor || '#888') + ';font-weight:700">' + safe(loc.severityLabel || '') + '</td></tr>';
+        '<td style="padding:4px 8px;color:' + safe(loc.severityColor || '#888') + ';font-weight:700">' + safe(loc.severityLabel || '') + '</td></tr>' +
+        stampDetailHtml(loc);
     }).join('');
 
     var stopRows = st.list.slice().sort(function(a, b) {
@@ -33140,6 +33457,7 @@ const AreaPeriodReport = (function() {
     if (hasMapContent) {
       html += '<h2>Map</h2><div id="area-map"></div>' +
         '<div class="map-legend">' +
+          _boundaryLegendHtml(report) +
           (mapMarkers.length ? '<span><i style="background:#ff6a00"></i>Photo activity (heat = density)</span>' : '') +
           (completedStopMarkers.length ? '<span><i style="background:#2d7d3f"></i>Completed stops</span>' : '') +
           (cov.breadcrumbPointCount ? '<span><i style="background:#f5c518"></i>Survey path</span>' : '') +
@@ -33159,6 +33477,18 @@ const AreaPeriodReport = (function() {
     html += '</div>';
 
     if (hasMapContent) {
+      // 2026-08-13: ship the TYPED grouping to the live map instead of the
+      // flat ring list, so each area type draws in its own color/dash and
+      // gets its own entry in a Leaflet layer control (the "layer overlay
+      // like the Map tab" ask). Only the types actually selected for this
+      // report appear — a Ward-only report gets one Wards toggle, not four
+      // toggles three of which are empty. Falls back to the flat list under
+      // the generic style if boundaryGroups is somehow absent (a report
+      // object built by an older drop and re-rendered by a newer one).
+      var boundaryGroupsJson = JSON.stringify((report.area.boundaryGroups || []).map(function(g) {
+        var bst = _areaTypeStyle(g.type);
+        return { name: g.name, rings: g.rings, color: bst.color, weight: bst.weight, dash: bst.dash, plural: bst.plural };
+      }));
       var boundaryLatLngsJson = JSON.stringify(report.area.boundaryRings || []);
       var breadcrumbLatLngsJson = JSON.stringify((cov.breadcrumbPoints || []).map(function(p) { return [p[0], p[1]]; }));
       var heatPointsJson = JSON.stringify(mapMarkers.map(function(l) {
@@ -33188,6 +33518,7 @@ const AreaPeriodReport = (function() {
           '}' +
           'if (typeof L === "undefined" || navigator.onLine === false) { useFallback(); return; }' +
           'var boundaryRings = ' + boundaryLatLngsJson + ';' +
+          'var boundaryGroups = ' + boundaryGroupsJson + ';' +
           'var breadcrumb = ' + breadcrumbLatLngsJson + ';' +
           'var heatPts = ' + heatPointsJson + ';' +
           'var markers = ' + markersJson + ';' +
@@ -33199,7 +33530,18 @@ const AreaPeriodReport = (function() {
             'tiles.on("tileload", function(){ tilesOk = true; });' +
             'tiles.on("tileerror", function(){ if (!tilesOk) useFallback(); });' +
             'var fitGroup = L.featureGroup();' +
-            'if (boundaryRings.length) { L.polygon(boundaryRings, {color:"#1a4a8c", weight:3, fillOpacity:0.04}).addTo(map).addTo(fitGroup); }' +
+            'var overlays = {};' +
+            'if (boundaryGroups.length) {' +
+              'boundaryGroups.forEach(function(g){' +
+                'var grp = overlays[g.plural] || (overlays[g.plural] = L.layerGroup().addTo(map));' +
+                'var opts = {color:g.color, weight:g.weight, fillColor:g.color, fillOpacity:0.05, opacity:0.9};' +
+                'if (g.dash) opts.dashArray = g.dash;' +
+                'var poly = L.polygon(g.rings, opts);' +
+                'poly.bindTooltip(String(g.name).replace(/</g,"&lt;"), {sticky:true});' +
+                'poly.addTo(grp); poly.addTo(fitGroup);' +
+              '});' +
+              'if (Object.keys(overlays).length) { L.control.layers(null, overlays, {collapsed:false, position:"topright"}).addTo(map); }' +
+            '} else if (boundaryRings.length) { L.polygon(boundaryRings, {color:"#1a4a8c", weight:3, fillOpacity:0.04}).addTo(map).addTo(fitGroup); }' +
             'if (breadcrumb.length > 1) { L.polyline(breadcrumb, {color:"#f5c518", weight:8, opacity:0.5, lineCap:"round"}).addTo(map).addTo(fitGroup); }' +
             'if (heatPts.length && typeof L.heatLayer === "function") { L.heatLayer(heatPts, {radius:32, blur:24, maxZoom:17, gradient:{0.2:"#ffcf40",0.5:"#ff6a00",1.0:"#ff2b00"}}).addTo(map); }' +
             'markers.forEach(function(p){' +
@@ -33329,7 +33671,16 @@ const AreaPeriodReport = (function() {
           ensureRoom(imgSizeMm + 8);
           doc.addImage(pngDataUrl, 'PNG', margin, y, imgSizeMm, imgSizeMm);
           y += imgSizeMm + 3;
-          line('Orange heat = photo activity density · Green = completed stops · Yellow = survey path', { size: 7.5, color: [150, 150, 150] });
+          // 2026-08-13: name the boundary colors actually used, so the
+          // printed map's outlines are readable without the interactive
+          // tooltips the live map has.
+          var bLegend = (report.area.boundaryGroups || []).reduce(function(acc, g) {
+            var bs = _areaTypeStyle(g.type);
+            if (acc.indexOf(bs.plural) === -1) acc.push(bs.plural);
+            return acc;
+          }, []);
+          line('Orange heat = photo activity density · Green = completed stops · Yellow = survey path' +
+            (bLegend.length ? ' · Outlines: ' + bLegend.join(', ') : ''), { size: 7.5, color: [150, 150, 150] });
           y += 2;
         } catch(_e) {
           line('(Map image could not be generated for this PDF.)', { size: 8, color: [180, 60, 60] });
@@ -33343,7 +33694,15 @@ const AreaPeriodReport = (function() {
       y += 1;
       ch.locations.forEach(function(loc) {
         line('• ' + loc.displayLabel + ' — ' + loc.countInPeriod + ' photo' + (loc.countInPeriod === 1 ? '' : 's') +
-          (loc.severityLabel ? ' · ' + loc.severityLabel : ''), { size: 9 });
+          (loc.severityLabel ? ' · ' + loc.severityLabel : '') +
+          (loc.precinct ? ' · ' + loc.precinct : ''), { size: 9 });
+        // Stamp payloads, indented under their location. Same ×N
+        // collapsing the HTML/CSV use — see _groupStamps.
+        (loc.stampGroups || []).forEach(function(g) {
+          var txt = g.unrecorded ? '(stamp detail not recorded)' :
+            (g.fields || []).map(function(f) { return f.label + ': ' + f.value; }).join(' · ');
+          line('     ' + (g.count > 1 ? '\u00d7' + g.count + '  ' : '') + txt, { size: 7.5, color: [110, 110, 110] });
+        });
       });
     }
 
@@ -33359,7 +33718,8 @@ const AreaPeriodReport = (function() {
         return ta - tb;
       }).forEach(function(s) {
         var mark = s.done ? '✓' : (s.followup ? '⚑' : '○');
-        line(mark + ' ' + (s.address || '(no address)') + (s.neighborhoodName ? ' · ' + s.neighborhoodName : ''), { size: 9 });
+        line(mark + ' ' + (s.address || '(no address)') + (s.neighborhoodName ? ' · ' + s.neighborhoodName : '') +
+          (s.precinct ? ' · ' + s.precinct : ''), { size: 9 });
       });
     }
 
@@ -33664,7 +34024,7 @@ function renderDataTab() {
   // report, same trigger point the old separate Period Reports panel
   // used. Full rebuild (not just the preview) since the picker <select>
   // elements themselves need to reflect current state too.
-  try { if (typeof _renderAreaPeriodReportModal === 'function') _renderAreaPeriodReportModal(); } catch (_e) { _swallow('renderDataTab', _e); }
+  try { if (typeof _renderAreaPeriodReportModal === 'function') _renderAreaPeriodReportModal('render'); } catch (_e) { _swallow('renderDataTab', _e); }
 
   // Storage info
   var storageEl = document.getElementById('data-storage-info');
@@ -33761,6 +34121,7 @@ function setPeriodKind(kind) {
   if (btn) btn.classList.add('active-period');
   _savePeriodState();
   renderPeriodReport();
+  _markAreaReportPending();
 }
 
 function shiftPeriod(dirStr) {
@@ -33781,12 +34142,14 @@ function shiftPeriod(dirStr) {
   _periodAnchor = nextAnchor;
   _savePeriodState();
   renderPeriodReport();
+  _markAreaReportPending();
 }
 
 function resetPeriodToNow() {
   _periodAnchor = new Date();
   _savePeriodState();
   renderPeriodReport();
+  _markAreaReportPending();
 }
 
 function togglePeriodReportSettings() {
@@ -33808,6 +34171,7 @@ function setPeriodWeekStart(val) {
   if (typeof PeriodReports === 'undefined') return;
   if (PeriodReports.setWeekStart(val)) {
     renderPeriodReport();
+    _markAreaReportPending();
     showToast('Week start updated');
   }
 }
@@ -34039,6 +34403,52 @@ var _areaReportNeighborhood = '';
 var _areaReportPoliceDistrict = '';
 var _lastAreaPeriodReport = null;
 
+// 2026-08-13: Apply Changes gate. Every control that affects the report
+// (period kind, period navigation, week start, the three single-select
+// area pickers, the Custom Report checklists) now marks the report stale
+// instead of rebuilding it. _lastAreaPeriodReport still holds the OLD
+// report while stale, which is why the preview is dimmed AND has pointer
+// events disabled below — otherwise Copy/CSV/PDF would silently export a
+// report for the previously-applied selection.
+var _areaReportPending = false;
+
+function _markAreaReportPending() {
+  _areaReportPending = true;
+  _updateAreaReportApplyUI();
+}
+function _updateAreaReportApplyUI() {
+  var btn = document.getElementById('area-report-apply-btn');
+  var note = document.getElementById('area-report-stale-note');
+  var preview = document.getElementById('area-report-preview');
+  if (btn) {
+    btn.textContent = _areaReportPending ? '⟳ Apply Changes' : '✓ Report is up to date';
+    btn.style.background = _areaReportPending ? '#1a4a8c' : 'none';
+    btn.style.color = _areaReportPending ? 'white' : '#999';
+    btn.style.border = _areaReportPending ? 'none' : '1.5px solid #ddd';
+  }
+  if (note) note.style.display = _areaReportPending ? 'block' : 'none';
+  if (preview) {
+    preview.style.opacity = _areaReportPending ? '0.4' : '';
+    preview.style.pointerEvents = _areaReportPending ? 'none' : '';
+  }
+}
+// Always rebuilds, even when nothing is flagged stale — the button doubles
+// as a manual refresh if a build ever stalls (offline polygon fetch, etc).
+function applyAreaReportChanges() {
+  renderAreaPeriodReport();
+}
+window.applyAreaReportChanges = applyAreaReportChanges;
+
+// What _renderAreaPeriodReportModal does once the pickers themselves have
+// been rebuilt. 'render' = rebuild the report now (tab arrival / data
+// change), 'none' = pickers changed but the SELECTION didn't (the
+// shortlist star), default = selection changed, so flag it stale.
+function _afterAreaPickerRender(mode) {
+  if (mode === 'render') { renderAreaPeriodReport(); return; }
+  if (mode === 'none') { _updateAreaReportApplyUI(); return; }
+  _markAreaReportPending();
+}
+
 // 2026-08-09: Custom Report — a second, mutually-exclusive selection mode
 // alongside the single-select AND-filter pickers above. Instead of "at
 // most one district AND one ward AND one neighborhood," this lets Silly
@@ -34052,6 +34462,41 @@ var _areaReportCustomMode = false;
 var _areaReportCustomDistricts = [];
 var _areaReportCustomWards = [];
 var _areaReportCustomNeighborhoods = [];
+var _areaReportCustomPrecincts = [];
+
+// Precinct option list, derived from the bundled precinct GeoJSON rather
+// than hardcoded — there are 209 of them and they change with
+// redistricting. Labels come from MapLayers.precinctLabelFromProps so they
+// are byte-identical to what geoLookup writes onto stops/photos, which is
+// what makes the equality match in _matchesArea work. Sorted numerically by
+// ward then precinct (not lexically — otherwise 'Precinct 10' sorts before
+// 'Precinct 2'). Cached after the first successful build; the source is
+// inline so there is no network cost, just parse + sort.
+var _areaReportPrecinctOptions = null;
+async function _getAreaReportPrecinctOptions() {
+  if (_areaReportPrecinctOptions) return _areaReportPrecinctOptions;
+  var names = [];
+  try {
+    var fc = (typeof GeoCache !== 'undefined') ? await GeoCache.getPrecincts() : null;
+    if (fc && Array.isArray(fc.features) && typeof MapLayers !== 'undefined') {
+      var seen = {};
+      fc.features.forEach(function(f) {
+        var label = MapLayers.precinctLabelFromProps(f.properties || {});
+        if (label && !seen[label]) { seen[label] = true; names.push(label); }
+      });
+      names.sort(function(a, b) {
+        function parse(x) {
+          var m = /Ward\s+(\d+),\s*Precinct\s+(\d+)([A-Za-z]*)/.exec(x);
+          return m ? [parseInt(m[1], 10), parseInt(m[2], 10), m[3] || ''] : [9999, 9999, x];
+        }
+        var pa = parse(a), pb = parse(b);
+        return (pa[0] - pb[0]) || (pa[1] - pb[1]) || String(pa[2]).localeCompare(String(pb[2]));
+      });
+    }
+  } catch (_e) { _swallow('_getAreaReportPrecinctOptions', _e); }
+  if (names.length) _areaReportPrecinctOptions = names;
+  return names;
+}
 
 var AREA_REPORT_WARD_OPTIONS = (function() {
   var out = [];
@@ -34087,7 +34532,7 @@ function toggleAreaReportShortlistCurrent() {
     if (!_saveAreaReportShortlist(list)) { showToast('Could not save — storage full?'); return; }
     showToast('Removed from My Neighborhoods');
   }
-  _renderAreaPeriodReportModal();
+  _renderAreaPeriodReportModal('none');
 }
 window.toggleAreaReportShortlistCurrent = toggleAreaReportShortlistCurrent;
 
@@ -34108,7 +34553,7 @@ window.setAreaReportWard = setAreaReportWard;
 
 function setAreaReportNeighborhood(val) {
   _areaReportNeighborhood = val || '';
-  renderAreaPeriodReport();
+  _markAreaReportPending();
   _updateAreaReportShortlistToggle();
 }
 window.setAreaReportNeighborhood = setAreaReportNeighborhood;
@@ -34142,23 +34587,29 @@ function _toggleInArray(arr, val) {
 // itself doesn't need rebuilding.
 function toggleAreaReportCustomDistrict(name) {
   _toggleInArray(_areaReportCustomDistricts, name);
-  renderAreaPeriodReport();
+  _markAreaReportPending();
 }
 window.toggleAreaReportCustomDistrict = toggleAreaReportCustomDistrict;
 function toggleAreaReportCustomWard(name) {
   _toggleInArray(_areaReportCustomWards, name);
-  renderAreaPeriodReport();
+  _markAreaReportPending();
 }
 window.toggleAreaReportCustomWard = toggleAreaReportCustomWard;
 function toggleAreaReportCustomNeighborhood(name) {
   _toggleInArray(_areaReportCustomNeighborhoods, name);
-  renderAreaPeriodReport();
+  _markAreaReportPending();
 }
 window.toggleAreaReportCustomNeighborhood = toggleAreaReportCustomNeighborhood;
+function toggleAreaReportCustomPrecinct(name) {
+  _toggleInArray(_areaReportCustomPrecincts, name);
+  _markAreaReportPending();
+}
+window.toggleAreaReportCustomPrecinct = toggleAreaReportCustomPrecinct;
 function clearAreaReportCustomSelections() {
   _areaReportCustomDistricts = [];
   _areaReportCustomWards = [];
   _areaReportCustomNeighborhoods = [];
+  _areaReportCustomPrecincts = [];
   _renderAreaPeriodReportModal();
 }
 window.clearAreaReportCustomSelections = clearAreaReportCustomSelections;
@@ -34170,6 +34621,7 @@ function _areaReportCustomAreaList() {
   _areaReportCustomDistricts.forEach(function(n) { out.push({ type: 'policeDistrict', name: n }); });
   _areaReportCustomWards.forEach(function(n) { out.push({ type: 'ward', name: n }); });
   _areaReportCustomNeighborhoods.forEach(function(n) { out.push({ type: 'neighborhood', name: n }); });
+  _areaReportCustomPrecincts.forEach(function(n) { out.push({ type: 'precinct', name: n }); });
   return out;
 }
 
@@ -34202,7 +34654,7 @@ function _updateAreaReportShortlistToggle() {
 //   - If the currently-selected ward or neighborhood is no longer valid
 //     under a newly-picked higher-level filter, it resets to "Any"
 //     rather than silently staying selected-but-hidden.
-async function _renderAreaPeriodReportModal() {
+async function _renderAreaPeriodReportModal(after) {
   var shortlistRow = document.getElementById('area-report-shortlist-row');
   var wardPicker = document.getElementById('area-report-ward-picker');
   var nbhdPicker = document.getElementById('area-report-neighborhood-picker');
@@ -34212,6 +34664,8 @@ async function _renderAreaPeriodReportModal() {
   var nbhdLabel = document.getElementById('area-report-neighborhood-picker-label');
   var shortlistToggleBtn = document.getElementById('area-report-shortlist-toggle');
   var clearRow = document.getElementById('area-report-custom-clear-row');
+  var precinctRow = document.getElementById('area-report-precinct-row');
+  var precinctPicker = document.getElementById('area-report-precinct-picker');
   var helpText = document.getElementById('area-report-picker-helptext');
   var modeBtn = document.getElementById('area-report-custom-toggle-btn');
   if (!wardPicker || !nbhdPicker || !districtPicker) return;
@@ -34231,7 +34685,7 @@ async function _renderAreaPeriodReportModal() {
     if (shortlistRow) { shortlistRow.style.display = 'none'; shortlistRow.innerHTML = ''; }
     if (shortlistToggleBtn) shortlistToggleBtn.style.display = 'none';
     if (clearRow) clearRow.style.display = 'block';
-    if (helpText) helpText.textContent = 'Check any combination of districts, wards, and neighborhoods — the report covers all of them together (e.g. Wards 3, 6, 8 plus Dutchtown and Mount Pleasant).';
+    if (helpText) helpText.textContent = 'Check any combination of districts, wards, neighborhoods, and precincts — the report covers all of them together (e.g. Wards 3, 6, 8 plus Dutchtown and Ward 2 Precinct 6).';
     if (districtLabel) districtLabel.textContent = 'Police Districts (any number)';
     if (wardLabel) wardLabel.textContent = 'Wards (any number)';
     if (nbhdLabel) nbhdLabel.textContent = 'Neighborhoods (any number)';
@@ -34241,11 +34695,28 @@ async function _renderAreaPeriodReportModal() {
     var allNamesCustom = Object.keys(STL_NEIGHBORHOODS_BY_NAME).sort();
     nbhdPicker.innerHTML = _customChecklistHtml(allNamesCustom, _areaReportCustomNeighborhoods, 'toggleAreaReportCustomNeighborhood', null);
 
-    renderAreaPeriodReport();
+    // Precincts: shown in Custom mode only. The option list is built from
+    // the bundled GeoJSON, so render a placeholder first and fill it in
+    // when the (fast, inline-sourced) build resolves — awaiting here would
+    // hold up the three lists above for no reason.
+    if (precinctRow) precinctRow.style.display = 'block';
+    if (precinctPicker) {
+      precinctPicker.innerHTML = '<div style="font-family:\'Space Mono\',monospace;font-size:0.56rem;color:#aaa;padding:4px 0">Loading precincts…</div>';
+      _getAreaReportPrecinctOptions().then(function(opts) {
+        var el = document.getElementById('area-report-precinct-picker');
+        // Re-check the mode: the user may have switched back to
+        // single-select while this was resolving.
+        if (!el || !_areaReportCustomMode) return;
+        el.innerHTML = _customChecklistHtml(opts, _areaReportCustomPrecincts, 'toggleAreaReportCustomPrecinct', null);
+      }).catch(function(_e) { _swallow('_renderAreaPeriodReportModal', _e); });
+    }
+
+    _afterAreaPickerRender(after);
     return;
   }
 
   // Single-select AND-filter mode (original behavior, unchanged).
+  if (precinctRow) precinctRow.style.display = 'none';
   if (shortlistToggleBtn) shortlistToggleBtn.style.display = _areaReportNeighborhood ? 'block' : 'none';
   if (clearRow) clearRow.style.display = 'none';
   if (helpText) helpText.textContent = 'Leave all three on "Any" for a whole-city report. Picking a district narrows Ward to wards inside it; picking a ward narrows Neighborhood to that ward\'s neighborhoods.';
@@ -34307,7 +34778,7 @@ async function _renderAreaPeriodReportModal() {
     '</select>';
 
   _updateAreaReportShortlistToggle();
-  renderAreaPeriodReport();
+  _afterAreaPickerRender(after);
 }
 window._renderAreaPeriodReportModal = _renderAreaPeriodReportModal;
 
@@ -34335,11 +34806,60 @@ function _customChecklistHtml(options, selectedArr, toggleFnName, labelFn) {
 // lightweight loading state so a slow/offline GeoCache fetch doesn't look
 // like a frozen modal. No "pick something first" guard anymore — empty
 // selectors are a valid state (whole city), always renders.
+// 2026-08-13: count of DISTINCT stamp payloads across every photo
+// tracker location in the report — the headline number for the new
+// stamp breakdown. Distinct, not total: five identical stamps at one
+// address are one payload, which is the whole point of the grouping.
+function _areaReportStampTotal(report) {
+  try {
+    return (report.photoTracker.locations || []).reduce(function(n, loc) {
+      return n + ((loc.stampGroups || []).length);
+    }, 0);
+  } catch (_e) { return 0; }
+}
+
+// Collapsed-by-default stamp breakdown for the in-app preview. The full
+// listing lives in the HTML/CSV/PDF exports; this is a scannable
+// in-field summary, so it caps at the busiest few locations rather than
+// rendering every one into a panel the user has to scroll past to reach
+// the download buttons.
+var _areaReportStampsExpanded = false;
+function toggleAreaReportStamps() {
+  _areaReportStampsExpanded = !_areaReportStampsExpanded;
+  renderAreaPeriodReport();
+}
+window.toggleAreaReportStamps = toggleAreaReportStamps;
+
+function _areaReportStampPreviewHtml(report) {
+  var locs = (report.photoTracker.locations || []).filter(function(l) { return (l.stampGroups || []).length; });
+  if (!locs.length) return '';
+  var header = '<button data-fn="toggleAreaReportStamps" style="width:100%;text-align:left;padding:8px 10px;margin-bottom:8px;background:#f5f7fb;border:1px solid #dde3ee;border-radius:7px;font-family:\'Space Mono\',monospace;font-size:0.58rem;color:#1a4a8c;cursor:pointer">' +
+    (_areaReportStampsExpanded ? '\u25be' : '\u25b8') + ' Photo stamp detail (' + _areaReportStampTotal(report) + ')</button>';
+  if (!_areaReportStampsExpanded) return header;
+  var MAX_LOCS = 8;
+  var shown = locs.slice(0, MAX_LOCS);
+  var body = shown.map(function(loc) {
+    var rows = (loc.stampGroups || []).map(function(g) {
+      var mult = g.count > 1 ? '<b style="color:#1a4a8c">&times;' + g.count + '</b> ' : '';
+      if (g.unrecorded) return '<div style="padding:1px 0;color:#aaa">' + mult + 'stamp detail not recorded</div>';
+      var txt = (g.fields || []).map(function(f) { return escHtml(f.label) + ': ' + escHtml(f.value); }).join(' \u00b7 ');
+      return '<div style="padding:1px 0">' + mult + (txt || '<span style="color:#aaa">no stamp fields enabled</span>') + '</div>';
+    }).join('');
+    return '<div style="margin-bottom:7px"><div style="font-weight:700;color:#333">' + escHtml(loc.displayLabel || '') + '</div>' + rows + '</div>';
+  }).join('');
+  var more = locs.length > MAX_LOCS
+    ? '<div style="color:#999;padding-top:2px">+ ' + (locs.length - MAX_LOCS) + ' more location(s) \u2014 see the downloaded report</div>'
+    : '';
+  return header + '<div style="background:#fafafa;border:1px solid #eee;border-radius:7px;padding:9px 10px;margin-bottom:10px;font-family:\'Space Mono\',monospace;font-size:0.55rem;color:#555;line-height:1.6;max-height:220px;overflow-y:auto">' + body + more + '</div>';
+}
+
 var _areaReportRenderToken = 0;
 async function renderAreaPeriodReport() {
   var preview = document.getElementById('area-report-preview');
   if (!preview || typeof AreaPeriodReport === 'undefined' || typeof PeriodReports === 'undefined') return;
   var myToken = ++_areaReportRenderToken;
+  _areaReportPending = false;
+  _updateAreaReportApplyUI();
   preview.innerHTML = '<div style="font-family:\'Space Mono\',monospace;font-size:0.6rem;color:#999;padding:12px 2px;text-align:center">Building report…</div>';
 
   var bounds = PeriodReports.periodBoundsFor(_periodKind, _periodAnchor);
@@ -34366,14 +34886,17 @@ async function renderAreaPeriodReport() {
 
   _lastAreaPeriodReport = report;
   var st = report.stops, ch = report.photoTracker, cov = report.coverage;
+  var _stampTotal = _areaReportStampTotal(report);
   preview.innerHTML =
     '<div style="background:#fafafa;border:1.5px solid #e5e7eb;border-radius:9px;padding:12px;margin-bottom:12px;font-family:\'Space Mono\',monospace;font-size:0.62rem;color:#444;line-height:1.9">' +
       '<div style="font-family:Syne,sans-serif;font-weight:800;font-size:0.66rem;color:#1a4a8c;margin-bottom:4px">' + escHtml(report.area.label) + '</div>' +
       '<div>' + st.total + ' stop' + (st.total === 1 ? '' : 's') + ' · ' + st.completed + ' completed</div>' +
-      '<div>' + ch.locations.length + ' photo tracker location' + (ch.locations.length === 1 ? '' : 's') + '</div>' +
+      '<div>' + ch.locations.length + ' photo tracker location' + (ch.locations.length === 1 ? '' : 's') +
+        (_stampTotal ? ' <span style="color:#1a4a8c">· ' + _stampTotal + ' distinct stamp' + (_stampTotal === 1 ? '' : 's') + '</span>' : '') + '</div>' +
       '<div>' + cov.sessionCount + ' survey session' + (cov.sessionCount === 1 ? '' : 's') + (cov.activeInPeriod ? ' <span style="color:#7a5000">(1 in progress)</span>' : '') + '</div>' +
       '<div>' + cov.breadcrumbPointCount + ' breadcrumb point' + (cov.breadcrumbPointCount === 1 ? '' : 's') + (cov.breadcrumbClipped ? '' : ' <span style="color:#999">(boundary unavailable — points omitted)</span>') + '</div>' +
     '</div>' +
+    _areaReportStampPreviewHtml(report) +
     '<div style="display:flex;flex-direction:column;gap:7px">' +
       '<button data-fn="copyAreaPeriodReport" style="width:100%;padding:10px;background:#444;color:white;border:none;border-radius:7px;font-family:Syne,sans-serif;font-weight:800;font-size:0.62rem;cursor:pointer">📋 Copy Text Summary</button>' +
       '<button data-fn="downloadAreaPeriodReportCSV" style="width:100%;padding:10px;background:none;border:1.5px solid #444;color:#444;border-radius:7px;font-family:Syne,sans-serif;font-weight:800;font-size:0.62rem;cursor:pointer">⬇ Download CSV</button>' +
