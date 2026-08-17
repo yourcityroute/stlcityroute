@@ -25726,6 +25726,7 @@ function openCndPdfModal() {
   modal.style.display = 'flex';
   cndPdfSwitchTab('simple');
   _cndPdfRenderPeopleList();
+  _cndPdfRenderReasonOptions();
   _cndPdfLoadSavedFolder();
   _cndPdfSetupDropzones();
 }
@@ -25779,14 +25780,302 @@ function _cndPdfExpandYear(dateStr) {
   }
   return dateStr;
 }
+// Today's date as MM/DD/YYYY — the last-resort fallback in
+// _cndPdfBuildFilename when neither Posted On nor Dated is filled in.
+function _cndPdfTodayDateStr() {
+  var d = new Date();
+  var mm = String(d.getMonth() + 1).padStart(2, '0');
+  var dd = String(d.getDate()).padStart(2, '0');
+  return mm + '/' + dd + '/' + d.getFullYear();
+}
 
-// ---- reason dropdown (Custom reveals a free-text field) ----
+// ---- mini calendar popup for Dated/Posted On (2026-08-17) ----
+// Supplements, doesn't replace, the type-to-mask entry above — the small
+// 📅 button beside each field opens this. Picking a day writes back in the
+// same MM/DD/YY (2-digit year) shape _cndPdfFormatDateDigits already
+// produces from typing, so _cndPdfExpandYear / _cndPdfBuildHeaderLines
+// don't need to know or care which entry method was used.
+//
+// Positioned via fixed (not absolute): the Dated/Posted fields sit in a
+// narrow 2-column grid, and the modal-sheet only declares overflow-y:auto
+// — per the CSS overflow spec, a 'visible' overflow-x paired with a
+// non-visible overflow-y resolves to 'auto' too, which would silently
+// clip a popup wide enough to need to overhang its column. Fixed
+// positioning + JS-computed placement (clamped to the viewport) sidesteps
+// that entirely.
+var _cndPdfCalTargetId = null;
+var _cndPdfCalYear = null;
+var _cndPdfCalMonth = null; // 0-based
+
+function _cndPdfCalParseDate(dateStr) {
+  var m = /^(\d{1,2})\/(\d{1,2})\/(\d{2,4})$/.exec((dateStr || '').trim());
+  if (!m) return null;
+  var mo = parseInt(m[1], 10) - 1, da = parseInt(m[2], 10), yr = parseInt(m[3], 10);
+  if (yr < 100) yr += Math.floor(new Date().getFullYear() / 100) * 100;
+  var d = new Date(yr, mo, da);
+  return isNaN(d.getTime()) ? null : d;
+}
+
+function cndPdfOpenCalendar(fieldId) {
+  var popup = document.getElementById('cndpdf-calendar-popup');
+  var btn = document.querySelector('[data-fn="cndPdfOpenCalendar"][data-arg="' + fieldId + '"]');
+  if (!popup || !btn) return;
+  // Tapping the same field's button again toggles it closed.
+  if (popup.style.display !== 'none' && _cndPdfCalTargetId === fieldId) {
+    cndPdfCloseCalendar();
+    return;
+  }
+  _cndPdfCalTargetId = fieldId;
+  var input = document.getElementById(fieldId);
+  var seed = (input && _cndPdfCalParseDate(input.value)) || new Date();
+  _cndPdfCalYear = seed.getFullYear();
+  _cndPdfCalMonth = seed.getMonth();
+  popup.style.display = 'block';
+  _cndPdfPositionCalendar(btn);
+  _cndPdfRenderCalendar();
+  // Bound once per open; both are idempotent re-adds if already bound
+  // (same function reference), so re-opening for a different field while
+  // already open doesn't leak listeners.
+  setTimeout(function() {
+    document.addEventListener('click', _cndPdfCalOutsideClick, true);
+    window.addEventListener('scroll', cndPdfCloseCalendar, true);
+  }, 0);
+}
+
+function _cndPdfCalOutsideClick(e) {
+  var popup = document.getElementById('cndpdf-calendar-popup');
+  if (!popup) return;
+  if (popup.contains(e.target)) return;
+  if (e.target.closest && e.target.closest('[data-fn="cndPdfOpenCalendar"]')) return;
+  cndPdfCloseCalendar();
+}
+
+function cndPdfCloseCalendar() {
+  var popup = document.getElementById('cndpdf-calendar-popup');
+  if (popup) popup.style.display = 'none';
+  _cndPdfCalTargetId = null;
+  document.removeEventListener('click', _cndPdfCalOutsideClick, true);
+  window.removeEventListener('scroll', cndPdfCloseCalendar, true);
+}
+
+function _cndPdfPositionCalendar(btn) {
+  var popup = document.getElementById('cndpdf-calendar-popup');
+  if (!popup || !btn) return;
+  var r = btn.getBoundingClientRect();
+  var w = 232, margin = 10;
+  var left = Math.min(Math.max(margin, r.right - w), window.innerWidth - w - margin);
+  var top = r.bottom + 4;
+  var estHeight = 300; // flip above the field if there isn't room below
+  if (top + estHeight > window.innerHeight - margin) top = Math.max(margin, r.top - estHeight - 4);
+  popup.style.left = left + 'px';
+  popup.style.top = top + 'px';
+}
+
+function cndPdfCalendarNav(dir) {
+  dir = parseInt(dir, 10);
+  _cndPdfCalMonth += dir;
+  if (_cndPdfCalMonth < 0) { _cndPdfCalMonth = 11; _cndPdfCalYear--; }
+  if (_cndPdfCalMonth > 11) { _cndPdfCalMonth = 0; _cndPdfCalYear++; }
+  _cndPdfRenderCalendar();
+}
+
+function _cndPdfRenderCalendar() {
+  var label = document.getElementById('cndpdf-calendar-label');
+  var grid = document.getElementById('cndpdf-calendar-grid');
+  if (!label || !grid) return;
+  var MONTHS = ['January','February','March','April','May','June','July','August','September','October','November','December'];
+  label.textContent = MONTHS[_cndPdfCalMonth] + ' ' + _cndPdfCalYear;
+
+  var firstDow = new Date(_cndPdfCalYear, _cndPdfCalMonth, 1).getDay();
+  var daysInMonth = new Date(_cndPdfCalYear, _cndPdfCalMonth + 1, 0).getDate();
+  var today = new Date();
+  var input = _cndPdfCalTargetId ? document.getElementById(_cndPdfCalTargetId) : null;
+  var selected = (input && input.value.trim()) ? _cndPdfCalParseDate(input.value) : null;
+
+  var html = '';
+  for (var i = 0; i < firstDow; i++) html += '<div></div>';
+  for (var day = 1; day <= daysInMonth; day++) {
+    var isToday = today.getFullYear() === _cndPdfCalYear && today.getMonth() === _cndPdfCalMonth && today.getDate() === day;
+    var isSelected = selected && selected.getFullYear() === _cndPdfCalYear && selected.getMonth() === _cndPdfCalMonth && selected.getDate() === day;
+    var bg = isSelected ? '#28323f' : (isToday ? '#eae7de' : 'transparent');
+    var fg = isSelected ? '#fff' : '#1b2430';
+    html += '<button type="button" data-fn="cndPdfCalendarPick" data-arg="' + day + '" style="background:' + bg + ';border:none;color:' + fg + ';font-size:0.62rem;padding:5px 0;cursor:pointer">' + day + '</button>';
+  }
+  grid.innerHTML = html;
+}
+
+function cndPdfCalendarPick(day) {
+  if (!_cndPdfCalTargetId) return;
+  var input = document.getElementById(_cndPdfCalTargetId);
+  if (!input) return;
+  day = parseInt(day, 10);
+  var yr2 = String(_cndPdfCalYear).slice(-2);
+  var mo2 = String(_cndPdfCalMonth + 1).padStart(2, '0');
+  var da2 = String(day).padStart(2, '0');
+  input.value = mo2 + '/' + da2 + '/' + yr2;
+  cndPdfUpdatePreview();
+  cndPdfCloseCalendar();
+}
+
+function cndPdfCalendarToday() {
+  var today = new Date();
+  _cndPdfCalYear = today.getFullYear();
+  _cndPdfCalMonth = today.getMonth();
+  cndPdfCalendarPick(today.getDate());
+}
+
+function cndPdfCalendarClear() {
+  if (!_cndPdfCalTargetId) return;
+  var input = document.getElementById(_cndPdfCalTargetId);
+  if (input) input.value = '';
+  cndPdfUpdatePreview();
+  cndPdfCloseCalendar();
+}
+
+// ---- reason dropdown (Custom reveals a free-text field + saved reasons) ----
+// 2026-08-17: category list replaced (see markup comment for the full
+// before/after) and custom reasons became savable. Saved reasons are just
+// stored as an array of strings in LS and re-injected as real <option>
+// elements ahead of "Custom…" — deliberately NOT a separate chip/list UI,
+// so picking one is a normal native-select interaction like any built-in
+// reason, and _cndPdfGetReasonInfo() below doesn't need a third code path
+// to handle them.
+var CNDPDF_CUSTOM_REASONS_KEY = 'cndpdf-custom-reasons';
+// value -> filename token, for the 5 built-in categories only. Anything
+// else (typed-but-unsaved custom, or a saved custom reason) falls through
+// to _cndPdfReasonFilenameToken's sanitize-and-uppercase path instead.
+var CNDPDF_REASON_FILENAME_TOKENS = {
+  'C&D': 'C&D',
+  'Survey': 'SURVEY',
+  'Canvas': 'CANVAS',
+  'Violation': 'VIOLATION',
+  'Inspection': 'INSPECTION'
+};
+
+function _cndPdfLoadSavedReasons() {
+  try {
+    var raw = LS.get(CNDPDF_CUSTOM_REASONS_KEY);
+    var arr = raw ? JSON.parse(raw) : [];
+    return Array.isArray(arr) ? arr : [];
+  } catch (_) { _swallow('_cndPdfLoadSavedReasons', _); return []; }
+}
+function _cndPdfSaveSavedReasons(arr) {
+  LS.set(CNDPDF_CUSTOM_REASONS_KEY, JSON.stringify(arr));
+}
+
+// Rebuilds the saved-reason <option>s between the 5 built-ins and
+// "Custom…", preserving the current selection where possible. Safe to
+// call repeatedly (e.g. every modal open) — it always removes any
+// previously-injected saved options first via the data-saved-reason marker
+// rather than assuming a fixed prior count.
+function _cndPdfRenderReasonOptions() {
+  var select = document.getElementById('cndpdf-reason');
+  if (!select) return;
+  var prevValue = select.value;
+  var toRemove = [];
+  for (var i = 0; i < select.options.length; i++) {
+    if (select.options[i].getAttribute('data-saved-reason')) toRemove.push(select.options[i]);
+  }
+  toRemove.forEach(function(opt) { select.removeChild(opt); });
+
+  var customOpt = select.querySelector('option[value="__custom"]');
+  var saved = _cndPdfLoadSavedReasons();
+  saved.forEach(function(text) {
+    var opt = document.createElement('option');
+    opt.value = text;
+    opt.text = text;
+    opt.setAttribute('data-saved-reason', '1');
+    select.insertBefore(opt, customOpt);
+  });
+
+  // Restore selection if the previously-selected value still exists as an
+  // option (e.g. re-rendering after a save shouldn't silently reset to Blank).
+  var stillExists = Array.prototype.some.call(select.options, function(o) { return o.value === prevValue; });
+  select.value = stillExists ? prevValue : select.value;
+}
+
 function cndPdfReasonChanged() {
   var select = document.getElementById('cndpdf-reason');
-  var custom = document.getElementById('cndpdf-reason-custom');
-  if (!select || !custom) return;
-  custom.style.display = (select.value === '__custom') ? '' : 'none';
+  var wrap = document.getElementById('cndpdf-reason-custom-wrap');
+  if (!select || !wrap) return;
+  wrap.style.display = (select.value === '__custom') ? '' : 'none';
+  var status = document.getElementById('cndpdf-reason-save-status');
+  if (status) status.textContent = '';
   cndPdfUpdatePreview();
+}
+
+// Persists the currently-typed custom reason so it shows up as a normal
+// option on future documents. Dedupes case-insensitively against already-
+// saved reasons (and against the 5 built-in category names, so someone
+// typing "survey" in lowercase doesn't create a redundant near-duplicate
+// entry) — in either case it just re-selects the existing match rather than
+// adding a new one.
+function cndPdfSaveCustomReason() {
+  var customInput = document.getElementById('cndpdf-reason-custom');
+  var status = document.getElementById('cndpdf-reason-save-status');
+  var text = customInput ? customInput.value.trim() : '';
+  if (!text) {
+    if (status) { status.textContent = 'Type a reason first.'; status.style.color = '#a3402f'; }
+    return;
+  }
+  var builtins = Object.keys(CNDPDF_REASON_FILENAME_TOKENS);
+  var lower = text.toLowerCase();
+  var builtinMatch = builtins.filter(function(b) { return b.toLowerCase() === lower; })[0];
+  if (builtinMatch) {
+    // Already one of the built-in categories — just select it instead of saving a duplicate.
+    var select = document.getElementById('cndpdf-reason');
+    if (select) { select.value = builtinMatch; cndPdfReasonChanged(); }
+    return;
+  }
+  var saved = _cndPdfLoadSavedReasons();
+  var existingMatch = saved.filter(function(s) { return s.toLowerCase() === lower; })[0];
+  var finalText = existingMatch || text;
+  if (!existingMatch) {
+    saved.push(text);
+    _cndPdfSaveSavedReasons(saved);
+  }
+  _cndPdfRenderReasonOptions();
+  var selectEl = document.getElementById('cndpdf-reason');
+  if (selectEl) selectEl.value = finalText;
+  cndPdfReasonChanged();
+  if (status) { status.textContent = existingMatch ? 'Already saved — selected.' : 'Saved for reuse.'; status.style.color = '#3c4a5c'; }
+}
+
+// Single source of truth for "what reason is currently selected" — used by
+// both the stamp header (_cndPdfBuildHeaderLines) and the filename builder
+// (_cndPdfBuildFilename) so they can never disagree. value is the raw
+// <option> value ('' for Blank, '__custom' for an unsaved typed reason, or
+// the literal reason text for a built-in or saved-custom pick); label is
+// always the human-readable text, empty for Blank/empty-Custom.
+function _cndPdfGetReasonInfo() {
+  var select = document.getElementById('cndpdf-reason');
+  var customInput = document.getElementById('cndpdf-reason-custom');
+  if (!select) return { value: '', label: '' };
+  if (select.value === '__custom') {
+    var txt = (customInput && customInput.value.trim()) || '';
+    return { value: txt ? '__custom' : '', label: txt };
+  }
+  if (!select.value) return { value: '', label: '' }; // Blank
+  var opt = select.options[select.selectedIndex];
+  return { value: select.value, label: opt ? opt.text : select.value };
+}
+
+// Filename token for a reason: the 5 built-ins get their fixed uppercase
+// token (C&D keeps its ampersand rather than being forced through the
+// alnum-only slug below — Drop BO already confirmed '&' is safe across
+// every save path this filename feeds). Anything else — an unsaved typed
+// reason or a saved custom one — gets sanitized the same way the address
+// segment already is (split on whitespace, strip to alnum, rejoin with
+// underscores) and uppercased.
+function _cndPdfReasonFilenameToken(reasonInfo) {
+  if (!reasonInfo || !reasonInfo.label) return '';
+  if (CNDPDF_REASON_FILENAME_TOKENS.hasOwnProperty(reasonInfo.value)) {
+    return CNDPDF_REASON_FILENAME_TOKENS[reasonInfo.value];
+  }
+  var slug = reasonInfo.label.split(/\s+/).map(function(part) {
+    return part.replace(/[^a-zA-Z0-9]/g, '');
+  }).filter(Boolean).join('_');
+  return slug.toUpperCase();
 }
 
 // ---- dynamic "who's on this" people list (title + name per row) ----
@@ -25841,17 +26130,8 @@ function _cndPdfBuildHeaderLines() {
   var policeDistrict = (document.getElementById('cndpdf-police-district').value || '').trim();
   var dated = _cndPdfExpandYear((document.getElementById('cndpdf-dated').value || '').trim());
   var posted = _cndPdfExpandYear((document.getElementById('cndpdf-posted').value || '').trim());
-  var reasonSelect = document.getElementById('cndpdf-reason');
-  var reasonCustom = document.getElementById('cndpdf-reason-custom');
-  var reasonLabel = '';
-  if (reasonSelect) {
-    if (reasonSelect.value === '__custom') {
-      reasonLabel = (reasonCustom && reasonCustom.value.trim()) || '';
-    } else if (reasonSelect.value) { // non-empty === not the Blank option
-      var reasonOpt = reasonSelect.options[reasonSelect.selectedIndex];
-      reasonLabel = reasonOpt ? reasonOpt.text : '';
-    }
-  }
+  var reasonInfo = _cndPdfGetReasonInfo();
+  var reasonLabel = reasonInfo.label;
 
   var lines = [];
 
@@ -26060,21 +26340,41 @@ function cndPdfSimpleClearAll() {
   if (statusEl) statusEl.textContent = '';
 }
 
-// Builds C&D_<address>_PostedOn_<MMDDYYYY>_<photo#>.pdf.
-// 2026-08-17: prefix changed from "CND" to "C&D" per request. This is a
-// display-facing filename, not an internal identifier, so no other code
-// depends on the exact prefix string — the internal id/data-arg values
-// ('cnd', 'cndpdf-*') are unrelated and deliberately untouched, same as
-// every prior drop's naming-cleanup note explains.
+// Builds <address>[_<REASONTOKEN>]_PostedOn_<MMDDYYYY>_<photo#>.pdf.
+// 2026-08-17 (later same day): rebuilt per request —
+//   1. The reason segment is no longer hardcoded to "C&D". It's omitted
+//      entirely when no reason is selected (Blank), and otherwise uses
+//      _cndPdfReasonFilenameToken — "C&D" only for the C&D reason, the
+//      fixed SURVEY/CANVAS/VIOLATION/INSPECTION tokens for the other 4
+//      built-ins, or a sanitized-uppercased slug of the label for any
+//      custom (typed or saved) reason. Same _cndPdfGetReasonInfo() the
+//      stamp header uses, so the two can't disagree about what's selected.
+//   2. The reason segment now sits right after the address, not before it
+//      — filename shape changed from "C&D_<address>_..." to
+//      "<address>_C&D_...".
+//   3. The date behind "PostedOn_" is no longer allowed to fall back to
+//      the literal string "Unknown". It's Posted On if supplied, else
+//      Dated if supplied, else today's date — the "PostedOn_" label text
+//      stays as-is regardless of which of the three actually supplied it,
+//      per the request (it's a filename segment name, not a claim about
+//      which field the date came from).
 function _cndPdfBuildFilename(index) {
   var address = (document.getElementById('cndpdf-address').value || '').trim();
   var addressSlug = address.split(/\s+/).map(function(part) {
     return part.replace(/[^a-zA-Z0-9]/g, '');
   }).filter(Boolean).join('_');
+
+  var reasonToken = _cndPdfReasonFilenameToken(_cndPdfGetReasonInfo());
+
   var postedRaw = _cndPdfExpandYear((document.getElementById('cndpdf-posted').value || '').trim());
-  var postedDigits = postedRaw.replace(/\D/g, '');
-  var postedPart = postedDigits || 'Unknown';
-  return 'C&D_' + (addressSlug || 'property') + '_PostedOn_' + postedPart + '_' + index + '.pdf';
+  var datedRaw = _cndPdfExpandYear((document.getElementById('cndpdf-dated').value || '').trim());
+  var effectiveDateRaw = postedRaw || datedRaw || _cndPdfTodayDateStr();
+  var dateDigits = effectiveDateRaw.replace(/\D/g, '');
+
+  var parts = [addressSlug || 'property'];
+  if (reasonToken) parts.push(reasonToken);
+  parts.push('PostedOn', dateDigits, String(index));
+  return parts.join('_') + '.pdf';
 }
 
 async function cndPdfGenerate() {
@@ -35848,24 +36148,80 @@ function wizSaveRole() {
            the list) — picking it, or leaving Custom's text field empty,
            means no reason at all, and per the omit-if-empty rule in
            _cndPdfBuildHeaderLines that drops the reason from the stamp
-           entirely rather than falling back to a placeholder label. -->
+           entirely rather than falling back to a placeholder label.
+           2026-08-17 (later same day): category list replaced per request
+           — was C&D / Survey / Area Canvas / Code Violation / Vacant
+           Property / Housing Conservation / Weights & Measures. Now the
+           five requested categories (C&D, Canvas, Inspection, Survey,
+           Violation — alphabetized; Survey and Area Canvas are now two
+           separate reasons, not one combined option), followed by any
+           saved custom reasons (see cndPdfSaveCustomReason), with
+           Custom… staying last. Blank was NOT part of the request's
+           literal list but is kept as the default first option — dropping
+           it would regress the omit-if-empty behavior added earlier the
+           same day. Flagged for review in the version notes; easy to
+           remove later if Reason should always be required. -->
       <div style="margin-bottom:12px">
         <label style="display:block;font-size:0.56rem;text-transform:uppercase;color:#3c4a5c;margin-bottom:5px;font-weight:600">Reason</label>
         <select id="cndpdf-reason" onchange="cndPdfReasonChanged()" style="width:100%;padding:9px 10px;border:1px solid #c7c3b8;background:#fdfcfa;font-size:0.72rem;color:#1b2430;box-sizing:border-box">
           <option value="" selected>Blank</option>
-          <option value="C&amp;D">C&amp;D (Cease and Desist)</option>
-          <option value="Survey">Survey / Area Canvas</option>
-          <option value="Code Violation">Code Violation</option>
-          <option value="Vacant Property">Vacant Property</option>
-          <option value="Housing Conservation">Housing Conservation</option>
-          <option value="Weights &amp; Measures">Weights &amp; Measures</option>
+          <option value="C&amp;D">C&amp;D</option>
+          <option value="Canvas">Canvas</option>
+          <option value="Inspection">Inspection</option>
+          <option value="Survey">Survey</option>
+          <option value="Violation">Violation</option>
+          <!-- saved custom reasons are injected here by _cndPdfRenderReasonOptions -->
           <option value="__custom">Custom…</option>
         </select>
-        <input type="text" id="cndpdf-reason-custom" placeholder="Enter a custom reason" oninput="cndPdfUpdatePreview()" style="display:none;width:100%;margin-top:6px;padding:9px 10px;border:1px solid #c7c3b8;background:#fdfcfa;font-size:0.72rem;box-sizing:border-box">
+        <div id="cndpdf-reason-custom-wrap" style="display:none;margin-top:6px">
+          <div style="display:flex;gap:6px">
+            <input type="text" id="cndpdf-reason-custom" placeholder="Enter a custom reason" oninput="cndPdfUpdatePreview()" style="flex:1;padding:9px 10px;border:1px solid #c7c3b8;background:#fdfcfa;font-size:0.72rem;box-sizing:border-box">
+            <button type="button" data-fn="cndPdfSaveCustomReason" title="Save this reason for reuse" style="flex-shrink:0;background:none;border:1px dashed #b9b5a8;color:#3c4a5c;cursor:pointer;font-size:0.58rem;font-weight:600;padding:0 10px">💾 Save</button>
+          </div>
+          <div id="cndpdf-reason-save-status" style="font-size:0.55rem;color:#8a8577;margin-top:4px"></div>
+        </div>
       </div>
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:12px">
-        <div><label style="display:block;font-size:0.56rem;text-transform:uppercase;color:#3c4a5c;margin-bottom:5px;font-weight:600">Dated</label><input type="text" id="cndpdf-dated" placeholder="MM/DD/YY" oninput="cndPdfDateMask('cndpdf-dated')" style="width:100%;padding:9px 10px;border:1px solid #c7c3b8;background:#fdfcfa;font-size:0.72rem;box-sizing:border-box"></div>
-        <div><label style="display:block;font-size:0.56rem;text-transform:uppercase;color:#3c4a5c;margin-bottom:5px;font-weight:600">Posted On</label><input type="text" id="cndpdf-posted" placeholder="MM/DD/YY" oninput="cndPdfDateMask('cndpdf-posted')" style="width:100%;padding:9px 10px;border:1px solid #c7c3b8;background:#fdfcfa;font-size:0.72rem;box-sizing:border-box"></div>
+        <div><label style="display:block;font-size:0.56rem;text-transform:uppercase;color:#3c4a5c;margin-bottom:5px;font-weight:600">Dated</label>
+          <div style="position:relative">
+            <input type="text" id="cndpdf-dated" placeholder="MM/DD/YY" oninput="cndPdfDateMask('cndpdf-dated')" style="width:100%;padding:9px 28px 9px 10px;border:1px solid #c7c3b8;background:#fdfcfa;font-size:0.72rem;box-sizing:border-box">
+            <button type="button" data-fn="cndPdfOpenCalendar" data-arg="cndpdf-dated" aria-label="Pick a date" style="position:absolute;right:2px;top:50%;transform:translateY(-50%);background:none;border:none;font-size:0.8rem;cursor:pointer;padding:4px 6px;line-height:1;color:#3c4a5c">📅</button>
+          </div>
+        </div>
+        <div><label style="display:block;font-size:0.56rem;text-transform:uppercase;color:#3c4a5c;margin-bottom:5px;font-weight:600">Posted On</label>
+          <div style="position:relative">
+            <input type="text" id="cndpdf-posted" placeholder="MM/DD/YY" oninput="cndPdfDateMask('cndpdf-posted')" style="width:100%;padding:9px 28px 9px 10px;border:1px solid #c7c3b8;background:#fdfcfa;font-size:0.72rem;box-sizing:border-box">
+            <button type="button" data-fn="cndPdfOpenCalendar" data-arg="cndpdf-posted" aria-label="Pick a date" style="position:absolute;right:2px;top:50%;transform:translateY(-50%);background:none;border:none;font-size:0.8rem;cursor:pointer;padding:4px 6px;line-height:1;color:#3c4a5c">📅</button>
+          </div>
+        </div>
+      </div>
+      <!-- 2026-08-17: shared mini calendar popup for both date fields above.
+           position:fixed + JS-computed placement — see the JS comment near
+           cndPdfOpenCalendar for why absolute positioning inside the narrow
+           2-col grid wasn't safe here. z-index 10010 clears the cnd-pdf-modal
+           overlay itself (9998), which is the only stacking context this
+           popup ever needs to sit above. -->
+      <div id="cndpdf-calendar-popup" style="display:none;position:fixed;z-index:10010;width:232px;background:#fdfcfa;border:1px solid #c7c3b8;box-shadow:0 8px 24px rgba(0,0,0,0.22);padding:10px;font-family:'Space Mono',monospace">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">
+          <button type="button" data-fn="cndPdfCalendarNav" data-arg="-1" aria-label="Previous month" style="background:none;border:none;font-size:0.85rem;cursor:pointer;color:#28323f;padding:2px 8px">‹</button>
+          <div id="cndpdf-calendar-label" style="font-family:'Syne',sans-serif;font-weight:700;font-size:0.68rem;color:#28323f"></div>
+          <button type="button" data-fn="cndPdfCalendarNav" data-arg="1" aria-label="Next month" style="background:none;border:none;font-size:0.85rem;cursor:pointer;color:#28323f;padding:2px 8px">›</button>
+        </div>
+        <div style="display:grid;grid-template-columns:repeat(7,1fr);gap:2px;margin-bottom:2px">
+          <div style="text-align:center;font-size:0.5rem;color:#8a8577;font-weight:600">S</div>
+          <div style="text-align:center;font-size:0.5rem;color:#8a8577;font-weight:600">M</div>
+          <div style="text-align:center;font-size:0.5rem;color:#8a8577;font-weight:600">T</div>
+          <div style="text-align:center;font-size:0.5rem;color:#8a8577;font-weight:600">W</div>
+          <div style="text-align:center;font-size:0.5rem;color:#8a8577;font-weight:600">T</div>
+          <div style="text-align:center;font-size:0.5rem;color:#8a8577;font-weight:600">F</div>
+          <div style="text-align:center;font-size:0.5rem;color:#8a8577;font-weight:600">S</div>
+        </div>
+        <div id="cndpdf-calendar-grid" style="display:grid;grid-template-columns:repeat(7,1fr);gap:2px"></div>
+        <div style="display:flex;justify-content:space-between;gap:6px;margin-top:8px;border-top:1px solid #eae7de;padding-top:8px">
+          <button type="button" data-fn="cndPdfCalendarToday" style="background:none;border:1px dashed #b9b5a8;color:#3c4a5c;cursor:pointer;font-size:0.56rem;font-weight:600;padding:5px 8px">Today</button>
+          <button type="button" data-fn="cndPdfCalendarClear" style="background:none;border:1px dashed #b9b5a8;color:#3c4a5c;cursor:pointer;font-size:0.56rem;font-weight:600;padding:5px 8px">Clear</button>
+          <button type="button" data-fn="cndPdfCloseCalendar" style="background:#28323f;border:1px solid #28323f;color:#fff;cursor:pointer;font-size:0.56rem;font-weight:600;padding:5px 10px">Done</button>
+        </div>
       </div>
       <div style="margin-bottom:12px">
         <label style="display:block;font-size:0.56rem;text-transform:uppercase;color:#3c4a5c;margin-bottom:5px;font-weight:600">Who's on this</label>
