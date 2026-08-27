@@ -61,7 +61,7 @@
        - 'self' data: blob:                  — inline icons (data:), camera
                                                capture (blob:), local imgs
        - *.tile.openstreetmap.org            — OSM tile fallback
-       - *.basemaps.cartocdn.com             — Carto Positron tiles (default)
+       - *.basemaps.cartocdn.com             — (unused, CARTO now requires an API key; CSP kept in case of future re-adoption)
        - api.qrserver.com                    — QR code image generation
 
      If you add a new fetch destination, ADD IT HERE TOO. CSP failures are
@@ -1337,6 +1337,19 @@ body.tool-fullscreen-pdfdocs #cnd-pdf-modal .modal-sheet {
   .btn-add:hover { filter: brightness(1.08); }
   .btn-sm:hover { filter: brightness(1.08); }
   .cndpdf-tab:hover:not(.active) { background: #e0ddd2 !important; }
+}
+/* 2026-08-26: OSM standard tiles (swapped in after CartoDB started
+   requiring an API key) are much busier/higher-contrast than the old
+   Positron basemap — dense black street labels and saturated road
+   colors made our own overlays (routes, parcel address labels) hard
+   to pick out. This mutes only the basemap tile images (not markers,
+   routes, or labels, which live in separate Leaflet panes) toward a
+   calmer, Positron-like palette. No API key or tile-source change
+   needed. Applied identically in the two report-generator style
+   blocks below (#photo-tracker-map, #area-map) so exported/printed
+   maps match. */
+.leaflet-tile-pane img {
+  filter: grayscale(0.55) brightness(1.15) contrast(0.85) saturate(0.6);
 }
 </style>
 </head>
@@ -3643,6 +3656,14 @@ body.tool-fullscreen-pdfdocs #cnd-pdf-modal .modal-sheet {
     <div id="photo-email-hint" style="display:none;font-family:'Space Mono',monospace;font-size:0.52rem;color:rgba(0,0,0,0.5);line-height:1.45;margin-bottom:10px;padding:0 2px">
       Opens your share sheet with the stop summary and the photos from this session attached. Works only while this preview is open — once you tap Done, the photos stay in your gallery but can\u2019t be re-attached from inside the app.
     </div>
+
+    <!-- 2026-08-26: CSB Request — same copy-address-then-open-CSB flow as
+         the stop card recon button (openCsbForAddress), just reachable
+         directly from the Stamped Photo screen so the inspector doesn't
+         have to back out to the stop card first. Uses the address burned
+         into THIS shot (_photoContext.address), which may differ from the
+         linked stop's address if it was edited in "Edit stamp" above. -->
+    <button id="photo-csb-btn" data-fn="csbRequestFromStampedPhoto" style="width:100%;padding:12px;background:linear-gradient(135deg,#b34700,#e65100);border:none;border-radius:10px;color:white;font-family:Syne,sans-serif;font-weight:800;font-size:0.72rem;cursor:pointer;margin-bottom:10px">📞 CSB Request</button>
   </div>
 </div>
 
@@ -7821,6 +7842,28 @@ function addRegularStopAsStop(id) {
 //   "📍 Ward 8"  (no neighborhood)
 //   ""           (no metadata at all — caller suppresses the row)
 // The followup flag, if present, gets its own bright row above this one.
+// Compact "P <precinct>" from the full "Ward X, Precinct Y" string that
+// geoLookup()/MapLayers.precinctLabelFromProps produces (see that function's
+// comment for the source format). Used anywhere space is tight — stop
+// cards, the Add Stop suggestion dropdown, photo stamps — so those three
+// surfaces don't each re-implement the same regex. The full "Ward X,
+// Precinct Y" string is still what's stored on the stop and matched
+// against Reports filters elsewhere; this is purely a display shim.
+function shortPrecinctLabel(precinct) {
+  if (!precinct) return '';
+  var m = String(precinct).match(/Precinct\s+(\S+)/i);
+  return 'P ' + (m ? m[1] : precinct);
+}
+
+// Compact "D <number>" from the "District N" string that
+// MapLayers.policeDistrictLabelFromProps produces. Same reasoning as
+// shortPrecinctLabel above.
+function shortPoliceDistrictLabel(pd) {
+  if (!pd) return '';
+  var m = String(pd).match(/District\s+(\S+)/i);
+  return 'D ' + (m ? m[1] : pd);
+}
+
 function renderStopGeoLine(s) {
   if (!s) return '';
   var parts = [];
@@ -7830,6 +7873,12 @@ function renderStopGeoLine(s) {
     parts.push(label);
   }
   if (s.ward) parts.push('Ward ' + s.ward);
+  // 2026-08-26: precinct + police district added to the stop-card geo line
+  // (previously ward/neighborhood only). Compact forms via the shared
+  // helpers above — the full "Ward X, Precinct Y" / "District N" strings
+  // would crowd this line out on narrow screens.
+  if (s.precinct) parts.push(shortPrecinctLabel(s.precinct));
+  if (s.policeDistrict) parts.push(shortPoliceDistrictLabel(s.policeDistrict));
   if (!parts.length) return '';
   return '<div class="addr-sub" style="color:#5a7c4a;font-family:\'Space Mono\',monospace;font-size:0.56rem;margin-top:2px">📍 ' + parts.join(' · ') + '</div>';
 }
@@ -9655,13 +9704,47 @@ const AddressAutocomplete = (function() {
     }];
   }
 
+  // Enrich verified house-level suggestions with our own authoritative
+  // boundary data — neighborhood name+number, ward, precinct, police
+  // district — via geoLookup(lat,lng) against each candidate's coordinates.
+  // Deliberately NOT the same as formatSuggestion's Nominatim
+  // suburb/neighbourhood guess (see that function): geoLookup hits our own
+  // baked polygons and gives the numbered/official form the city actually
+  // uses, e.g. "Southwest Garden 13, W 05, P 10, D 2". Only touches this
+  // module's own dropdown — geocodeRaw itself (shared by the Regular Stops
+  // editor and Docu-Stamp's address field) is untouched, so their suggestion
+  // labels are unaffected. Runs in parallel; geoLookup has its own
+  // per-coordinate LS cache so repeat lookups near the same spot are free
+  // after the first. Street-level ("house number not confirmed") and
+  // offline/unverified suggestions have no reliable lat/lng and are skipped.
+  async function _enrichWithBoundaries(suggestions) {
+    if (typeof geoLookup !== 'function') return suggestions;
+    await Promise.all(suggestions.map(async function(s) {
+      if (!s.verified || typeof s.lat !== 'number' || typeof s.lng !== 'number') return;
+      try {
+        var geo = await geoLookup(s.lat, s.lng);
+        var parts = [];
+        if (geo.neighborhoodName) {
+          parts.push(geo.neighborhoodName + (geo.neighborhood != null ? ' ' + geo.neighborhood : ''));
+        }
+        if (geo.ward != null) parts.push('W ' + (geo.ward < 10 ? '0' + geo.ward : '' + geo.ward));
+        if (geo.precinct) parts.push(shortPrecinctLabel(geo.precinct));
+        if (geo.policeDistrict) parts.push(shortPoliceDistrictLabel(geo.policeDistrict));
+        if (parts.length) s.label = s.address + ', ' + parts.join(', ');
+      } catch (_e) { _swallow('_enrichWithBoundaries', _e); }
+    }));
+    return suggestions;
+  }
+
   // ── Orchestrator: two-pass search → populate _suggestions ─────────────────
   async function fetchSuggestions(raw) {
     _fetchCtrl = new AbortController();
     const signal = _fetchCtrl.signal;
 
     try {
-      _suggestions = await geocodeRaw(raw, signal);
+      const results = await geocodeRaw(raw, signal);
+      await _enrichWithBoundaries(results);
+      _suggestions = results;
       _fetchCtrl = null;
       render();
       const preview = document.getElementById('addr-preview');
@@ -11573,11 +11656,17 @@ const StopCard = (function() {
     // isn't a map-tab workflow. Stops/Route tab cards keep it.
     const isMapTab = menuIdPrefix.indexOf('map') === 0;
 
+    // 2026-08-26: Share Summary removed from the utility menu on every tab
+    // (it was already absent on the Map tab — see isMapTab note above,
+    // now moot since no tab shows it). showShareEmailChooser /
+    // _shareSummaryClipboardFallback and the 'share' action handlers in
+    // the three data-fn dispatchers are left in place — Email Summary +
+    // Photos on the Close Stop screen and the Stamped Photo screen still
+    // route through the same summary-building code.
     const rows = [];
     if (showArrive) rows.push(_utilRow('arrive', s.id, arriveColor, arriveIcon, arriveLabel));
     rows.push(_utilRow('notes', s.id, '#6b21a8', NOTES_ICON_URI, 'Notes'));
     rows.push(_utilRow('edit', s.id, '#1a3320', EDIT_ICON_URI, 'Edit Stop'));
-    if (!isMapTab) rows.push(_utilRow('share', s.id, '#1a4a8c', SHARE_ICON_URI, 'Share Summary'));
     if (showDelete) rows.push(_utilRow('del', s.id, '#c0392b', DELETE_ICON_URI, 'Delete Stop'));
 
     // Dividers between rows (between each pair, not after the last)
@@ -11908,6 +11997,17 @@ function renderStops() {
       <button data-action="clear-completed" style="font-family:Syne,sans-serif;font-weight:700;font-size:0.55rem;color:rgba(200,100,100,0.6);background:none;border:none;cursor:pointer;padding:2px 6px">🗑 DELETE ALL COMPLETED</button>
     </div>`;
     html += done.map((s, i) => StopCard.forStops(s, pending.length + i, clusterIds)).join('');
+  }
+  // 2026-08-26: link to the Stop Archive ("Completed" folder) below today's
+  // completed list. Completed stops from earlier fiscal days already move
+  // here automatically (see StopArchive.migrate, called at boot) — this is
+  // just a direct path to view them without going through Settings. Shown
+  // whenever the archive has anything in it, not just when done.length>0,
+  // since a day with zero completions today can still have prior days archived.
+  if (typeof StopArchive !== 'undefined' && StopArchive.count() > 0) {
+    html += `<div style="text-align:center;padding:10px 4px 4px">
+      <button data-fn="openArchiveModal" style="font-family:Syne,sans-serif;font-weight:700;font-size:0.58rem;color:rgba(200,230,201,0.55);background:none;border:none;cursor:pointer;padding:6px 10px;text-decoration:underline;text-underline-offset:3px">📦 View Completed Archive (${StopArchive.count()})</button>
+    </div>`;
   }
   list.innerHTML = html;
   // Restore scroll captured at the top of this function (see comment there).
@@ -14635,6 +14735,14 @@ function renderRoute() {
     </div>`;
     html += done.map((s,i) => renderRouteStopHtml(s, pending.length + i, pending.length, clusterIds)).join('');
   }
+  // 2026-08-26: same "View Completed Archive" link as the Stops tab — see
+  // that render function's comment for why it's gated on StopArchive.count()
+  // rather than done.length.
+  if (typeof StopArchive !== 'undefined' && StopArchive.count() > 0) {
+    html += `<div style="text-align:center;padding:10px 4px 4px">
+      <button data-fn="openArchiveModal" style="font-family:Syne,sans-serif;font-weight:700;font-size:0.58rem;color:rgba(200,230,201,0.55);background:none;border:none;cursor:pointer;padding:6px 10px;text-decoration:underline;text-underline-offset:3px">📦 View Completed Archive (${StopArchive.count()})</button>
+    </div>`;
+  }
   list.innerHTML = html;
   // Restore scroll captured at the top of this function (see comment there).
   if (_scroller) _scroller.scrollTop = _scrollY;
@@ -15804,6 +15912,17 @@ function openCsbForAddress(addr) {
     showToast('📋 Opening CSB — paste address manually');
   }
   window.open(csbUrl, '_blank', 'noopener');
+}
+
+// 2026-08-26: CSB Request button on the Stamped Photo screen. Reuses
+// openCsbForAddress() — same copy-to-clipboard + open-CSB flow the stop
+// card's recon button uses — with the address that's actually burned into
+// the current shot (_photoContext.address), so an edit made in "Edit stamp"
+// above is respected even before the re-stamp is saved.
+function csbRequestFromStampedPhoto() {
+  var addr = (typeof _photoContext !== 'undefined' && _photoContext && _photoContext.address) ? _photoContext.address.trim() : '';
+  if (!addr) { showToast('⚠ No address on this photo — add one in Edit stamp first'); return; }
+  openCsbForAddress(addr);
 }
 
 
@@ -17310,37 +17429,17 @@ function initRouteMap() {
     }
   } catch (_) { _swallow('stamp', _); }
 
-  // Primary: CartoDB Positron — lightweight, reliable, no token needed
-  const cartoTiles = L.tileLayer(
-    'https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png',
-    {
-      attribution: '© OpenStreetMap © CartoDB',
-      subdomains: 'abcd',
-      maxZoom: 19,
-      minZoom: 11,
-      keepBuffer: 6,
-      updateWhenIdle: false,
-      crossOrigin: true
-    }
-  );
-
-  // Fallback: OSM if CartoDB fails
+  // Primary: OSM standard tiles — CartoDB raster basemaps (basemaps.cartocdn.com)
+  // now require a paid/free-tier API key as of Aug 2026 (unkeyed requests get a
+  // watermarked "API key required" tile, not an HTTP error, so tileerror-based
+  // fallback never fired). Switched to OSM as primary to restore service with
+  // no signup required. Revisit if a CARTO key is obtained later.
   const osmTiles = L.tileLayer(
     'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',
-    { attribution: '© OpenStreetMap', maxZoom: 19, minZoom: 11, keepBuffer: 6 }
+    { attribution: '© OpenStreetMap', subdomains: 'abc', maxZoom: 19, minZoom: 11, keepBuffer: 6 }
   );
 
-  cartoTiles.addTo(routeMap);
-
-  // Auto-retry: if tiles fail to load, switch to OSM fallback
-  cartoTiles.on('tileerror', function() {
-    if (!routeMap._tileswitched) {
-      routeMap._tileswitched = true;
-      routeMap.removeLayer(cartoTiles);
-      osmTiles.addTo(routeMap);
-      console.warn('[Map] CartoDB tiles failed, switched to OSM fallback');
-    }
-  });
+  osmTiles.addTo(routeMap);
 
   // Prevent content scroll while panning map
   const contentEl = document.getElementById('main-content');
@@ -17521,7 +17620,8 @@ var PHOTO_STAMP_FIELDS = [
   { id:'nbhdName',   label:'Neighborhood Name',   desc:"e.g. 'Tower Grove South'",        defaultOn:false },
   { id:'nbhdNum',    label:'Neighborhood Number', desc:"e.g. '#15'",                      defaultOn:false },
   { id:'ward',       label:'Ward Number',         desc:"e.g. 'Ward 8'",                   defaultOn:false },
-  { id:'precinct',   label:'Election Precinct',    desc:"e.g. 'Ward 2, Precinct 6'",       defaultOn:false }
+  { id:'precinct',   label:'Election Precinct',    desc:"e.g. 'Ward 2, Precinct 6'",       defaultOn:false },
+  { id:'policeDistrict', label:'Police District',  desc:"e.g. 'District 2'",               defaultOn:false }
 ];
 
 function loadPhotoSettings() {
@@ -18267,8 +18367,8 @@ function _initPhotoSetupMap() {
     // in the app.
     _photoSetupMap = L.map('photo-setup-map', { zoomControl: true, tap: false, attributionControl: false, minZoom: 12, preferCanvas: true })
       .setView(STL_CENTER, 16);
-    L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', {
-      subdomains: 'abcd', maxZoom: 20, minZoom: 12
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+      subdomains: 'abc', maxZoom: 19, minZoom: 12
     }).addTo(_photoSetupMap);
     setTimeout(function(){ try { _photoSetupMap.invalidateSize(); } catch (_e) { _swallow('_initPhotoSetupMap', _e); } }, 60);
 
@@ -19131,8 +19231,8 @@ async function rebuildStampedPreview() {
   // there's no GPS fix at all to look up fresh — better than showing
   // nothing, but stale-by-definition since it wasn't re-verified against
   // this shot's actual location.
-  var nbhdName = null, nbhdNum = null, ward = null, precinct = null;
-  var wantsGeoFields = !!(settings.nbhdName || settings.nbhdNum || settings.ward || settings.precinct);
+  var nbhdName = null, nbhdNum = null, ward = null, precinct = null, policeDistrict = null;
+  var wantsGeoFields = !!(settings.nbhdName || settings.nbhdNum || settings.ward || settings.precinct || settings.policeDistrict);
   if (wantsGeoFields) {
     if (_photoContext.gps && typeof _photoContext.gps.lat === 'number' && typeof geoLookup === 'function') {
       try {
@@ -19142,6 +19242,7 @@ async function rebuildStampedPreview() {
           nbhdNum  = _geo.neighborhood     || null;
           ward     = _geo.ward             || null;
           precinct = _geo.precinct         || null;
+          policeDistrict = _geo.policeDistrict || null;
           // Backfill the stop too (if any) so future stamps/reports for
           // it don't need to repeat the lookup.
           if (linkedStop) {
@@ -19150,6 +19251,7 @@ async function rebuildStampedPreview() {
             if (linkedStop.neighborhood == null && nbhdNum != null) { linkedStop.neighborhood = nbhdNum; _stopChanged = true; }
             if (linkedStop.ward == null && ward != null) { linkedStop.ward = ward; _stopChanged = true; }
             if (linkedStop.precinct == null && precinct != null) { linkedStop.precinct = precinct; _stopChanged = true; }
+            if (linkedStop.policeDistrict == null && policeDistrict != null) { linkedStop.policeDistrict = policeDistrict; _stopChanged = true; }
             if (_stopChanged) { try { saveStops(); } catch (_e) { _swallow('rebuildStampedPreview', _e); } }
           }
         }
@@ -19163,6 +19265,7 @@ async function rebuildStampedPreview() {
       nbhdNum  = nbhdNum  || linkedStop.neighborhood     || null;
       ward     = ward     || linkedStop.ward             || null;
       precinct = precinct || linkedStop.precinct         || null;
+      policeDistrict = policeDistrict || linkedStop.policeDistrict || null;
     }
   }
   // Sequence number: if linked to a stop, derive from the Photo Tracker
@@ -19203,6 +19306,7 @@ async function rebuildStampedPreview() {
     nbhdNum:   nbhdNum,
     ward:      ward,
     precinct:  precinct,
+    policeDistrict: policeDistrict,
     heading:   (typeof _photoContext.heading === 'number') ? _photoContext.heading : null,
     caseType:  _photoContext.caseType || null,
     caseNum:   _photoContext.caseNum || '',
@@ -22822,6 +22926,7 @@ const PhotoTrackerReport = (function() {
         '.kpi-label{font-size:11px;color:#666;text-transform:uppercase;letter-spacing:0.5px;margin-top:2px}' +
         'table{border-collapse:collapse;width:100%;font-size:13px}' +
         '#photo-tracker-map{height:420px;border-radius:10px;margin-top:6px;background:#eee}' +
+        '.leaflet-tile-pane img{filter:grayscale(0.55) brightness(1.15) contrast(0.85) saturate(0.6)}' +
         '@media print{body{background:white;padding:0}.report{box-shadow:none;border-radius:0;padding:18mm 16mm;max-width:none}#photo-tracker-map{height:300px}}' +
       '</style></head><body><div class="report">';
 
@@ -22840,7 +22945,7 @@ const PhotoTrackerReport = (function() {
         '(function(){' +
           'var pts = ' + mapPointsJson + ';' +
           'var map = L.map("photo-tracker-map", {zoomControl:true, attributionControl:true});' +
-          'L.tileLayer("https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png", {subdomains:"abcd", maxZoom:20}).addTo(map);' +
+          'L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {subdomains:"abc", maxZoom:19}).addTo(map);' +
           'if (pts.length) {' +
             'var group = L.featureGroup();' +
             'pts.forEach(function(p){' +
@@ -26785,6 +26890,7 @@ function _buildStampSummary(meta) {
   else if (fields.nbhdNum && meta.nbhdNum) add('Neighborhood', '#' + meta.nbhdNum);
   if (fields.ward && meta.ward) add('Ward', 'Ward ' + meta.ward);
   if (fields.precinct) add('Precinct', meta.precinct);
+  if (fields.policeDistrict) add('Police District', meta.policeDistrict);
   if (fields.notes) add('Notes', meta.notes);
   return out;
 }
@@ -26858,13 +26964,17 @@ function _buildStampLines(meta) {
   }
   if (locParts.length) lines.push({ text: locParts.join(' · '), size: 'small' });
 
-  // Election precinct (small) — its own line rather than appended to the
-  // neighborhood/ward line above, because the label already reads
-  // 'Ward 2, Precinct 6' and would collide awkwardly with a 'Ward 8'
-  // segment sitting right next to it.
-  if (fields.precinct && meta.precinct) {
-    lines.push({ text: meta.precinct, size: 'small' });
-  }
+  // Election precinct + police district (small) — own line rather than
+  // appended to the neighborhood/ward line above, because the precinct
+  // label already reads 'Ward 2, Precinct 6' and would collide awkwardly
+  // with a 'Ward 8' segment sitting right next to it. Police district
+  // ('District 2') shares this line with precinct when both are on —
+  // unlike precinct, it doesn't repeat the ward number, so it doesn't
+  // have the same collision problem.
+  var precinctParts = [];
+  if (fields.precinct && meta.precinct) precinctParts.push(meta.precinct);
+  if (fields.policeDistrict && meta.policeDistrict) precinctParts.push(meta.policeDistrict);
+  if (precinctParts.length) lines.push({ text: precinctParts.join(' · '), size: 'small' });
 
   // Line 5: photo notes (normal, wraps if long)
   if (fields.notes && meta.notes) {
@@ -33961,6 +34071,7 @@ const AreaPeriodReport = (function() {
         '.kpi-label{font-size:11px;color:#666;text-transform:uppercase;letter-spacing:0.5px;margin-top:2px}' +
         'table{border-collapse:collapse;width:100%;font-size:13px}' +
         '#area-map{height:420px;border-radius:10px;margin-top:6px;background:#eee}' +
+        '.leaflet-tile-pane img{filter:grayscale(0.55) brightness(1.15) contrast(0.85) saturate(0.6)}' +
         '.map-legend{display:flex;gap:14px;flex-wrap:wrap;margin-top:8px;font-size:11px;color:#666}' +
         '.map-legend span{display:inline-flex;align-items:center;gap:5px}' +
         '.map-legend i{width:10px;height:10px;border-radius:50%;display:inline-block}' +
@@ -34055,7 +34166,7 @@ const AreaPeriodReport = (function() {
           'var completed = ' + completedJson + ';' +
           'try {' +
             'var map = L.map("area-map", {zoomControl:true, attributionControl:true});' +
-            'var tiles = L.tileLayer("https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png", {subdomains:"abcd", maxZoom:20}).addTo(map);' +
+            'var tiles = L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {subdomains:"abc", maxZoom:19}).addTo(map);' +
             'var tilesOk = false;' +
             'tiles.on("tileload", function(){ tilesOk = true; });' +
             'tiles.on("tileerror", function(){ if (!tilesOk) useFallback(); });' +
