@@ -462,6 +462,23 @@ header{
    from landing underneath it — height kept current in _initTopbarOffset(). */
 #app-topbar{position:sticky;top:0;z-index:900;background:linear-gradient(160deg,#0d2b6b 0%,#0a2257 100%);box-shadow:0 2px 8px rgba(0,0,0,0.35)}
 html{scroll-padding-top:var(--topbar-h,0px)}
+/* Drop CB: pinned tab rows — Map tab button row (#map-toolbar-pin),
+   Stops tab Add Stop panel (#stops-add-pin), Route tab Optimize row
+   (#route-toolbar-pin). Each sticks flush under #app-topbar.
+   Root cause of the Drop CA "row cuts the map in half" bug: .content was
+   overflow-y:auto, which made it the sticky element's scroll container
+   even though it never scrolls (the document does). Sticky then simply
+   pushed the row down by `top` (the top bar's height) inside .content,
+   onto the map. CA tried to release that with :has() on the Map tab only;
+   evidently that didn't take on the test device. .content is now never a
+   scroll container on any tab (see the .content rule: overflow-x:clip,
+   y visible) — nothing ever scrolled it, and the renderStops/renderRoute
+   scrollTop reads on it were already always 0.
+   Full-bleed across .content's 14px side padding, same opaque navy as the
+   top bar. z-index 1100 is inside .content's own stacking context
+   (will-change:transform): clears Leaflet (≤1000), stays under the top
+   bar and every modal. */
+.tab-pin{position:sticky;top:var(--topbar-h,0px);z-index:1100;margin:-12px -14px 0;padding:8px 14px 1px;background:linear-gradient(160deg,#0d2b6b 0%,#0a2257 100%);box-shadow:0 2px 6px rgba(0,0,0,0.3)}
 
 /* TABS */
 .tab-nav{display:flex;gap:2px;padding:2px 6px;background:rgba(0,0,0,0.2)}
@@ -540,7 +557,7 @@ html{scroll-padding-top:var(--topbar-h,0px)}
 .info-img-tile img{display:block;width:100%;height:auto;max-width:100%}
 
 /* CONTENT */
-.content{flex:1;padding:12px 14px;overflow-y:auto}
+.content{flex:1;padding:12px 14px;overflow-x:clip}
 .screen{display:none}.screen.active{display:block}
 .section-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:10px}
 .section-title{font-family:'Syne',sans-serif;font-weight:700;font-size:0.78rem;color:var(--lime);letter-spacing:2px;text-transform:uppercase}
@@ -1040,7 +1057,14 @@ html{scroll-padding-top:var(--topbar-h,0px)}
 /* Let the map screen scroll vertically so the toolbar stays reachable even
    when the map is taller than one thumb-reach. The inner map still eats
    touch gestures (pan/zoom) but the area around it scrolls normally. */
-#screen-map{overflow-y:auto;padding:0 2px;-webkit-overflow-scrolling:touch}
+/* Drop CC: overflow-y:auto removed. #screen-map has no bounded height, so it
+   never actually scrolled (the document does) — but being a scroll
+   container made it the pinned toolbar's sticky container, and sticky then
+   pushed the toolbar down by the header's height, onto the map. This was
+   the real cause of the "row cuts the map in half" bug in CA/CB. */
+#screen-map{padding:0 2px}
+/* #screen-map's own 2px side padding: widen the pinned band to match */
+#map-toolbar-pin{margin-left:-16px;margin-right:-16px;padding-left:16px;padding-right:16px}
 
 /* CASE EDITOR MODAL */
 .modal-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,0.75);z-index:998;align-items:flex-end;justify-content:center;padding:0}
@@ -1334,6 +1358,26 @@ body.tool-fullscreen-pdfdocs #cnd-pdf-modal .modal-sheet {
   body.app-fullscreen #btn-optimize,
   body.app-fullscreen #btn-survey-mode-wrap {
     flex: 0 0 170px !important;
+  }
+
+  /* Drop BZ: Info tab buttons keep their phone size in the wide layout.
+     The tab-row icons never grow (40px max-height in both layouts), but
+     these image buttons are width-driven (flex:1 / 1fr), so on a wide
+     window they ballooned to several times the tab icons. Pinned to the
+     sizes they have in the 480px phone column — recon buttons ~147px,
+     tiles ~222px — which keeps the same proportion to the tab icons as on
+     a phone. Tiles flow in as many centered columns as fit instead of a
+     stretched 2-column grid. The ID card above them is not a button and
+     is left full-width. */
+  body.app-fullscreen #screen-creds .recon-img-btn {
+    flex: 0 0 147px;
+  }
+  body.app-fullscreen #screen-creds .recon-row {
+    justify-content: center;
+  }
+  body.app-fullscreen #screen-creds .info-grid {
+    grid-template-columns: repeat(auto-fill, 222px);
+    justify-content: center;
   }
 }
 @media (hover: hover) and (pointer: fine) {
@@ -2448,6 +2492,8 @@ body.tool-fullscreen-pdfdocs #cnd-pdf-modal .modal-sheet {
 
 <!-- ===== STOPS SCREEN ===== -->
 <div class="screen active" id="screen-stops">
+  <!-- Drop CB: Add Stop panel pinned under the top bar (see .tab-pin). -->
+  <div class="tab-pin" id="stops-add-pin">
   <div class="add-form">
     <div class="form-title">➕ Add Stop</div>
     <!-- Address autocomplete — type to get live suggestions -->
@@ -2521,6 +2567,7 @@ body.tool-fullscreen-pdfdocs #cnd-pdf-modal .modal-sheet {
     </div>
     <button class="btn-add" data-fn="addStop">ADD STOP</button>
   </div>
+  </div><!-- /#stops-add-pin -->
 
   <div class="section-header">
     <span class="section-title">Stops</span>
@@ -2589,6 +2636,9 @@ body.tool-fullscreen-pdfdocs #cnd-pdf-modal .modal-sheet {
     fixed-width 68px (square at the row height) using background:contain
     so the icon stays centered and undistorted.
   -->
+  <!-- Drop CB: Optimize row pinned under the top bar (see .tab-pin).
+       margin-top -6px: #screen-route already pulls up 6px itself. -->
+  <div class="tab-pin" id="route-toolbar-pin" style="margin-top:-6px">
   <div style="display:flex;gap:4px;margin-bottom:5px;align-items:stretch;height:68px">
     <button data-fn="optimizeRoute" id="btn-optimize" title="Compute optimal route order from your location" aria-label="Optimize route order"
       style="flex:1;min-width:0;border:none;background:transparent 100% 100% no-repeat;background-size:100% 100%;padding:0;cursor:pointer"></button>
@@ -2621,6 +2671,7 @@ body.tool-fullscreen-pdfdocs #cnd-pdf-modal .modal-sheet {
       </button>
     </div>
   </div>
+  </div><!-- /#route-toolbar-pin -->
   <!-- Drop X.2 (2026-04-30): Route Algorithm panel replaces the old SET BEGIN/END.
        The Set Begin/End functionality was supplanted by the start/end pin buttons
        on the stop cards (Drop X.1). This panel surfaces the optimizer's algorithm
@@ -2731,6 +2782,10 @@ body.tool-fullscreen-pdfdocs #cnd-pdf-modal .modal-sheet {
                    button (btn-survey-mode) — one survey, reachable from
                    either tab, not two separate flows to keep in sync
   -->
+  <!-- Drop CA: pinned just under #app-topbar while the page scrolls (see
+       .tab-pin CSS). The GPS status line is inside the pin too so
+       "Getting location…" stays visible next to the button that set it. -->
+  <div class="tab-pin" id="map-toolbar-pin">
   <div style="display:flex;gap:5px;margin-bottom:6px;align-items:stretch;height:38px">
     <button data-fn="optimizeRoute" id="map-btn-optimize" title="Optimize route order"
       style="flex:1;min-width:0;border:none;background:transparent 100% 100% no-repeat;background-size:100% 100%;padding:0;cursor:pointer" aria-label="Optimize"></button>
@@ -2744,6 +2799,7 @@ body.tool-fullscreen-pdfdocs #cnd-pdf-modal .modal-sheet {
       style="flex:1;min-width:0;border:none;background:transparent 100% 100% no-repeat;background-size:100% 100%;border-radius:8px;padding:0;cursor:pointer;transition:box-shadow 0.15s"></button>
   </div>
   <div id="map-gps-status" style="display:none;font-size:0.62rem;color:var(--warn);font-family:'Syne',sans-serif;font-weight:700;margin-bottom:7px;text-align:center">📡 Getting location…</div>
+  </div><!-- /#map-toolbar-pin -->
   <div id="visual-route-map-row">
     <div id="visual-route-map"></div>
     <div id="visual-route-map-thumb-gutter" aria-hidden="true" title="Scroll here"></div>
@@ -2765,7 +2821,7 @@ body.tool-fullscreen-pdfdocs #cnd-pdf-modal .modal-sheet {
 
   <!-- ── RECON SHORTCUTS — Case.net / CSB / Property Search, always visible.
        Image buttons with baked-in artwork; chrome stays out of the way. -->
-  <div style="display:flex;gap:6px;margin-bottom:10px">
+  <div class="recon-row" style="display:flex;gap:6px;margin-bottom:10px">
     <button class="recon-img-btn" onclick="window.open('https://www.courts.mo.gov/casenet/welcome.do','_blank','noopener')" title="Case.net — Missouri court records" aria-label="Case.net — Missouri court records"><img src="" id="btn-img-casenet" alt="Case.net — St Louis Court Records"></button>
     <button class="recon-img-btn" onclick="openCsbNav(null)" title="CSB / 311 — file a city service request" aria-label="Citizens Service Bureau / 311"><img src="" id="btn-img-csb" alt="Citizens Service Bureau / 311"></button>
     <button class="recon-img-btn" onclick="openPropertySearch(null)" title="Property Search — city assessor + records" aria-label="Address and Property Search"><img src="" id="btn-img-property" alt="Address and Property Search"></button>
@@ -17572,11 +17628,14 @@ function initRouteMap() {
   osmTiles.addTo(routeMap);
 
   // Prevent content scroll while panning map
-  const contentEl = document.getElementById('main-content');
-  if (mapEl && contentEl) {
-    mapEl.addEventListener('touchstart', () => { contentEl.style.overflow = 'hidden'; }, { passive: true });
-    mapEl.addEventListener('touchend', () => { setTimeout(() => { contentEl.style.overflow = 'auto'; }, 300); }, { passive: true });
-  }
+  // Drop CA: removed the old touchstart/touchend handlers that set
+  // #main-content's inline overflow to 'hidden' then 'auto'. The page
+  // scrolls on the document, not #main-content, so they never blocked
+  // anything — Leaflet's own touch-action:none on the map container is
+  // what stops the page scrolling during a pan — and the inline
+  // overflow:auto they left behind would have turned #main-content back
+  // into a scroll container and un-pinned the Map tab's button row after
+  // the first touch on the map.
 }
 
 // ============================================================
