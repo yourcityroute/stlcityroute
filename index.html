@@ -9646,7 +9646,15 @@ const AddressAutocomplete = (function() {
   // back. Docu-Stamp's ZIP field reads this (see cndPdfSelectAddrSuggestion);
   // any other caller of geocodeRaw can now use it too.
   async function geocodeRaw(raw, signal) {
-    const houses = await _fetchNominatimHouses(raw, signal);
+    // Drop BX: de-dupe — Nominatim often returns the same address twice
+    // (building outline + address node), which showed up as identical rows.
+    const _seenHouse = {};
+    const houses = (await _fetchNominatimHouses(raw, signal)).filter(d => {
+      const k = normAddrKey(cleanAddress(d));
+      if (_seenHouse[k]) return false;
+      _seenHouse[k] = true;
+      return true;
+    });
     if (houses.length > 0) {
       return houses.slice(0, 5).map(d => ({
         label:    formatSuggestion(d),
@@ -9660,7 +9668,13 @@ const AddressAutocomplete = (function() {
       }));
     }
     // Pass 2: street-level — house number not confirmed
-    const streetResults = await _fetchNominatimStreets(raw, signal);
+    const _seenRoad = {};
+    const streetResults = (await _fetchNominatimStreets(raw, signal)).filter(d => {
+      const k = normAddrKey((d.address && d.address.road) || cleanAddress(d));
+      if (_seenRoad[k]) return false;
+      _seenRoad[k] = true;
+      return true;
+    });
     if (streetResults.length > 0) {
       return streetResults.map(d => ({
         label:    '\u26a0 ' + raw + ' (' + (d.address?.road || cleanAddress(d)) + ')',
@@ -9700,7 +9714,7 @@ const AddressAutocomplete = (function() {
     await Promise.all(suggestions.map(async function(s) {
       if (!s.verified || typeof s.lat !== 'number' || typeof s.lng !== 'number') return;
       try {
-        var geo = await geoLookup(s.lat, s.lng);
+        var geo = await geoLookup(s.lat, s.lng, s.source === 'parcel' ? { noPersist: true } : undefined);
         var parts = [];
         if (geo.neighborhoodName) {
           parts.push(geo.neighborhoodName + (geo.neighborhood != null ? ' ' + geo.neighborhood : ''));
@@ -9714,19 +9728,103 @@ const AddressAutocomplete = (function() {
     return suggestions;
   }
 
+  // ── Drop BX: house-number search against the city's parcel records ──────
+  // "2801" lists every city address with house number 2801; "2801 Dal"
+  // narrows to streets matching "Dal". Only runs when the input starts with
+  // a number. Every query word must match (as a prefix) some word of the
+  // parcel's street; common suffix/directional spellings are normalized
+  // first (Avenue/Ave -> AV, South -> S, …) so "2801 Dalton Avenue" still
+  // matches the assessor's "2801 DALTON AV".
+  const MAX_PARCEL_SUGGESTIONS = 100;
+  const _DIR_WORDS = { NORTH: 'N', SOUTH: 'S', EAST: 'E', WEST: 'W' };
+  function _tokenMatchesWord(tok, word) {
+    if (word.startsWith(tok)) return true;
+    // Suffix typed past the city's abbreviation: "AVEN" vs "AV", "STREE" vs "ST"
+    if (word.length >= 2 && tok.startsWith(word)) return true;
+    // Partially typed directional: "SOU" vs "S"
+    if (word.length === 1 && tok.length >= 2 && Object.keys(_DIR_WORDS).some(d => _DIR_WORDS[d] === word && d.startsWith(tok))) return true;
+    return false;
+  }
+  function _titleCaseAddr(a) {
+    return String(a).toLowerCase().replace(/(^|[\s-])([a-z])/g, (m, pre, ch) => pre + ch.toUpperCase());
+  }
+  async function _parcelSuggestions(raw) {
+    const m = /^\s*(\d{1,6})(?:[\s-]+(.*))?$/.exec(raw);
+    if (!m || typeof ParcelLookup === 'undefined' || !ParcelLookup.searchByHouseNumber) return { list: [], total: 0 };
+    let rows;
+    try { rows = await ParcelLookup.searchByHouseNumber(m[1]); }
+    catch (e) { _swallow('_parcelSuggestions', e); return { list: [], total: 0 }; }
+    const toks = normAddrKey(m[2] || '').split(' ').filter(Boolean);
+    const hits = rows.filter(r => {
+      if (!toks.length) return true;
+      const words = normAddrKey(r.address).split(' ').slice(1); // drop the number
+      return toks.every(t => words.some(w => _tokenMatchesWord(t, w)));
+    });
+    const list = hits.slice(0, MAX_PARCEL_SUGGESTIONS).map(r => {
+      const addr = _titleCaseAddr(r.address);
+      return {
+        label: addr, address: addr, full: addr + ', St. Louis, MO',
+        lat: r.lat, lng: r.lng, zip: null, verified: true, note: '',
+        source: 'parcel',
+      };
+    });
+    return { list: list, total: hits.length };
+  }
+
+  // Combined search used by the Add Stop box and Docu-Stamp: city parcel
+  // house-number matches first (authoritative), then any Nominatim house
+  // results that aren't already in the parcel list, all tagged with
+  // neighborhood/ward/precinct/district. With no parcel match this is
+  // exactly the old geocodeRaw + enrichment behavior. The returned array
+  // carries `.parcelTotal` (matches before the display cap). Throws
+  // AbortError if `signal` was aborted meanwhile, so a superseded
+  // keystroke's results never overwrite a newer one's.
+  async function suggest(raw, signal) {
+    const both = await Promise.all([_parcelSuggestions(raw), geocodeRaw(raw, signal)]);
+    if (signal && signal.aborted) throw new DOMException('Aborted', 'AbortError');
+    const parcel = both[0], nom = both[1];
+    let results;
+    if (parcel.list.length) {
+      const byKey = {};
+      parcel.list.forEach(s => { byKey[normAddrKey(s.address)] = s; });
+      const extra = [];
+      nom.forEach(s => {
+        if (!s.verified) return; // parcel records already confirm the number exists
+        const same = byKey[normAddrKey(s.address)];
+        if (same) { if (!same.zip && s.zip) same.zip = s.zip; return; }
+        extra.push(s);
+      });
+      results = parcel.list.concat(extra);
+    } else {
+      results = nom;
+    }
+    await _enrichWithBoundaries(results);
+    if (signal && signal.aborted) throw new DOMException('Aborted', 'AbortError');
+    results.parcelTotal = parcel.total;
+    return results;
+  }
+
   // ── Orchestrator: two-pass search → populate _suggestions ─────────────────
   async function fetchSuggestions(raw) {
     _fetchCtrl = new AbortController();
     const signal = _fetchCtrl.signal;
 
     try {
-      const results = await geocodeRaw(raw, signal);
-      await _enrichWithBoundaries(results);
+      const results = await suggest(raw, signal);
       _suggestions = results;
       _fetchCtrl = null;
       render();
       const preview = document.getElementById('addr-preview');
-      if (preview) preview.style.display = 'none';
+      if (preview) {
+        if (results.parcelTotal > MAX_PARCEL_SUGGESTIONS) {
+          preview.textContent = 'Showing ' + MAX_PARCEL_SUGGESTIONS + ' of ' + results.parcelTotal + ' addresses — type the street to narrow';
+          preview.style.background = '#eef6f0';
+          preview.style.color = '#2d6a4f';
+          preview.style.display = 'block';
+        } else {
+          preview.style.display = 'none';
+        }
+      }
 
     } catch(e) {
       _fetchCtrl = null;
@@ -9893,6 +9991,8 @@ const AddressAutocomplete = (function() {
     highlight: highlight,
     fetchSuggestions: fetchSuggestions,
     geocodeRaw: geocodeRaw,
+    suggest: suggest,
+    MAX_PARCEL_SUGGESTIONS: MAX_PARCEL_SUGGESTIONS,
     render: render,
     reset: reset,
     cancel: cancel,
@@ -9931,6 +10031,21 @@ function cleanAddress(d) {
   const a = d.address || {};
   const parts = [a.house_number, a.road].filter(Boolean);
   return parts.length ? parts.join(' ') : d.display_name.split(',')[0];
+}
+
+// Drop BX: comparison key for an address — uppercase, punctuation stripped,
+// common suffix/directional spellings collapsed to the city assessor's
+// abbreviations, so "2801 Dalton Avenue" and "2801 DALTON AV" compare equal.
+// Used for de-duping suggestions and matching typed street words.
+const _ADDR_WORD_MAP = {
+  AVENUE: 'AV', AVE: 'AV', STREET: 'ST', BOULEVARD: 'BLVD', DRIVE: 'DR',
+  PLACE: 'PL', COURT: 'CT', ROAD: 'RD', LANE: 'LN', TERRACE: 'TER',
+  PARKWAY: 'PKWY', HIGHWAY: 'HWY', CIRCLE: 'CIR', SQUARE: 'SQ',
+  NORTH: 'N', SOUTH: 'S', EAST: 'E', WEST: 'W',
+};
+function normAddrKey(a) {
+  return String(a || '').toUpperCase().replace(/[^A-Z0-9 ]+/g, ' ')
+    .split(/\s+/).filter(Boolean).map(w => _ADDR_WORD_MAP[w] || w).join(' ');
 }
 
 // Note if the result has a directional the user didn't type
@@ -18243,7 +18358,59 @@ var ParcelLookup = (function() {
     return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
   }
 
-  return { queryParcels: queryParcels, queryStreets: queryStreets, haversineM: haversineM, RADIUS_M: RADIUS_M };
+  // Drop BX: every city parcel whose site address starts with a given house
+  // number ("2801" -> 2801 Dalton Av, 2801 S Grand Blvd, …). Powers the
+  // house-number search in the Add Stop and Docu-Stamp address boxes.
+  // Queries by number ONLY and caches the result in memory per number, so
+  // "2801", "2801 D", "2801 Dal"… are one network request — street
+  // narrowing happens client-side in AddressAutocomplete. Also sidesteps
+  // server-side UPPER()/LIKE quirks on the street part entirely. Matches
+  // "2801 …" and hyphenated ranges "2801-03 …"; parcels with a blank
+  // SITEADDR are not found (same assessor data gap noted in queryParcels).
+  var _numCache = {};          // num -> { t, p: Promise<[{address,lat,lng}]> }
+  var NUM_CACHE_TTL_MS = 10 * 60 * 1000;
+  async function _fetchByHouseNumber(num) {
+    var where = "SITEADDR LIKE '" + num + " %' OR SITEADDR LIKE '" + num + "-%'";
+    var url = PARCELS_URL + '?where=' + encodeURIComponent(where) +
+      '&outFields=SITEADDR&returnGeometry=true&outSR=4326' +
+      '&geometryPrecision=6&maxAllowableOffset=0.00002' +
+      '&orderByFields=SITEADDR&f=geojson';
+    var resp = await fetchWithTimeout(url, {}, 8000);
+    if (!resp.ok) throw new Error('parcel number query failed: ' + resp.status);
+    var gj = await resp.json();
+    if (gj && gj.error) throw new Error('parcel number query error');
+    var seen = {};
+    var out = [];
+    ((gj && gj.features) || []).forEach(function(f) {
+      var p = f.properties || {};
+      var addr = String(p.SITEADDR || '').replace(/\s+/g, ' ').trim();
+      if (!addr || seen[addr]) return;   // condo/multi-parcel buildings share one SITEADDR
+      var geom = f.geometry, center = null;
+      if (geom && geom.type === 'Polygon') center = _polygonCentroid(geom.coordinates);
+      else if (geom && geom.type === 'MultiPolygon' && geom.coordinates.length) center = _polygonCentroid(geom.coordinates[0]);
+      if (!center || !isFinite(center.lat) || !isFinite(center.lng)) return;
+      seen[addr] = true;
+      out.push({ address: addr, lat: center.lat, lng: center.lng });
+    });
+    return out;
+  }
+  function searchByHouseNumber(num) {
+    num = String(num || '').replace(/\D/g, '');
+    if (!num) return Promise.resolve([]);
+    var hit = _numCache[num];
+    if (hit && (Date.now() - hit.t) < NUM_CACHE_TTL_MS) return hit.p;
+    var keys = Object.keys(_numCache);
+    if (keys.length > 30) delete _numCache[keys[0]];
+    var entry = { t: Date.now(), p: null };
+    entry.p = _fetchByHouseNumber(num).catch(function(e) {
+      if (_numCache[num] === entry) delete _numCache[num];  // failures aren't cached
+      throw e;
+    });
+    _numCache[num] = entry;
+    return entry.p;
+  }
+
+  return { queryParcels: queryParcels, queryStreets: queryStreets, haversineM: haversineM, RADIUS_M: RADIUS_M, searchByHouseNumber: searchByHouseNumber };
 })();
 window.ParcelLookup = ParcelLookup;
 
@@ -25469,7 +25636,12 @@ function _pointInGeom(lng, lat, geom) {
 // Result is also written to LS as a small per-coordinate cache so subsequent
 // lookups for the exact same coords are instant. Cache key uses 5-decimal
 // precision (~1.1 meters) which is finer than GPS resolution anyway.
-async function geoLookup(lat, lng) {
+// Drop BX: optional third arg { noPersist: true } skips the per-point LS
+// cache write (the read still happens). Used by the Add Stop / Docu-Stamp
+// house-number search, which can tag ~100 parcel points per keystroke —
+// persisting all of those would bloat localStorage with points the user
+// never picks.
+async function geoLookup(lat, lng, opts) {
   if (typeof lat !== 'number' || typeof lng !== 'number') {
     return { neighborhood: null, neighborhoodName: null, ward: null, policeDistrict: null, precinct: null };
   }
@@ -25613,7 +25785,9 @@ async function geoLookup(lat, lng) {
 
   // Cache the result, even if all fields are null (avoids retrying the
   // network round-trip every time the user opens this stop).
-  try { LS.set(key, JSON.stringify(out)); } catch (_) { _swallow('geoLookup', _); }
+  if (!(opts && opts.noPersist)) {
+    try { LS.set(key, JSON.stringify(out)); } catch (_) { _swallow('geoLookup', _); }
+  }
   return out;
 }
 
@@ -26647,10 +26821,16 @@ function cndPdfAddrInputChanged() {
 
   _cndPdfAddrDebounce = setTimeout(function() {
     _cndPdfAddrFetchCtrl = new AbortController();
-    AddressAutocomplete.geocodeRaw(val, _cndPdfAddrFetchCtrl.signal).then(function(suggestions) {
+    // Drop BX: same combined parcel house-number + Nominatim search as the
+    // Add Stop box (was geocodeRaw only).
+    AddressAutocomplete.suggest(val, _cndPdfAddrFetchCtrl.signal).then(function(suggestions) {
       _cndPdfAddrFetchCtrl = null;
       _cndPdfAddrSuggestions = suggestions;
       _cndPdfRenderAddrSuggestions();
+      var st = document.getElementById('cndpdf-geo-status');
+      if (st && suggestions.parcelTotal > AddressAutocomplete.MAX_PARCEL_SUGGESTIONS) {
+        st.textContent = 'Showing ' + AddressAutocomplete.MAX_PARCEL_SUGGESTIONS + ' of ' + suggestions.parcelTotal + ' addresses — type the street to narrow.';
+      }
     }).catch(function(e) {
       _cndPdfAddrFetchCtrl = null;
       if (e && e.name === 'AbortError') return;
@@ -26671,6 +26851,16 @@ function _cndPdfHideAddrSuggestions() {
   var box = document.getElementById('cndpdf-addr-suggestions');
   if (box) box.style.display = 'none';
 }
+async function _cndPdfReverseZip(lat, lng) {
+  try {
+    var r = await fetchWithTimeout('https://nominatim.openstreetmap.org/reverse?format=json&zoom=18&addressdetails=1&lat=' + lat + '&lon=' + lng,
+      { headers: { 'Accept': 'application/json' } }, 6000);
+    if (!r.ok) return null;
+    var d = await r.json();
+    var z = d && d.address && d.address.postcode;
+    return z ? String(z).slice(0, 5) : null;
+  } catch (e) { _swallow('_cndPdfReverseZip', e); return null; }
+}
 async function cndPdfSelectAddrSuggestion(i) {
   i = Number(i); // matches the app-wide convention: index args always arrive as strings
   var s = _cndPdfAddrSuggestions[i];
@@ -26686,6 +26876,14 @@ async function cndPdfSelectAddrSuggestion(i) {
   // up before; the field just always came back empty.
   var zipEl = document.getElementById('cndpdf-zip');
   if (zipEl) zipEl.value = s.zip || '';
+  // Drop BX: city parcel matches carry no ZIP (the assessor query only asks
+  // for SITEADDR). Best-effort Nominatim reverse lookup at the parcel's
+  // centroid; leaves the field empty on any failure, as before.
+  if (zipEl && !s.zip && typeof s.lat === 'number' && typeof s.lng === 'number') {
+    _cndPdfReverseZip(s.lat, s.lng).then(function(z) {
+      if (z && inputEl && inputEl.value === s.address && !zipEl.value) { zipEl.value = z; cndPdfUpdatePreview(); }
+    });
+  }
   var geoStatusEl = document.getElementById('cndpdf-geo-status');
   if (typeof s.lat !== 'number' || typeof s.lng !== 'number') {
     if (geoStatusEl) geoStatusEl.textContent = 'Address not verified on map — enter neighborhood/ward/district manually if needed.';
