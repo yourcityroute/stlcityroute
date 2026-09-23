@@ -21,7 +21,11 @@ self.addEventListener('install', e => {
   self.skipWaiting();
   e.waitUntil(
     caches.open(CACHE).then(c =>
-      Promise.all(INSTALL_ASSETS.map(u => c.add(u).catch(() => {})))
+      // Drop BY: cache:'reload' bypasses the browser HTTP cache. GitHub
+      // Pages serves index.html with max-age=600, so for ~10 min after a
+      // deploy a plain add('./') could precache the OLD page under the NEW
+      // cache name — the update "installed" but the app never changed.
+      Promise.all(INSTALL_ASSETS.map(u => c.add(new Request(u, { cache: 'reload' })).catch(() => {})))
     )
   );
 });
@@ -67,6 +71,29 @@ self.addEventListener('fetch', e => {
         })
       )
     );
+    return;
+  }
+  // Drop BY: page loads are network-first (fresh copy, bypassing the HTTP
+  // cache) with a 4s cutoff, falling back to the cached shell when offline
+  // or on a dead connection. Previously they were stale-while-revalidate,
+  // so the first open after every deploy ran the previous version.
+  if (e.request.mode === 'navigate') {
+    e.respondWith((async () => {
+      const cached = await caches.match(e.request) || await caches.match('./');
+      try {
+        const net = fetch(e.request.url, { cache: 'no-cache', credentials: 'same-origin' });
+        const r = await (cached
+          ? Promise.race([net, new Promise((_, rej) => setTimeout(() => rej(new Error('slow')), 4000))])
+          : net);
+        if (r && r.status === 200) {
+          const clone = r.clone();
+          caches.open(CACHE).then(c => c.put('./', clone));
+        }
+        return r;
+      } catch (_) {
+        return cached || new Response('Offline', { status: 503 });
+      }
+    })());
     return;
   }
   e.respondWith(

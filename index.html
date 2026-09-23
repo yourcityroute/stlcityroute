@@ -453,6 +453,16 @@ header{
 .date-badge .day{font-family:'Syne',sans-serif;font-weight:700;font-size:0.68rem;color:var(--lime);line-height:1}
 .date-badge .date-str{font-size:0.52rem;color:rgba(180,205,255,0.55);letter-spacing:0.5px}
 
+/* Drop BY: pinned header + tab row. Opaque background (the header used to be
+   transparent over body::before's gradient, which would let scrolled cards
+   show through). z-index 900: above .content (its own stacking context via
+   will-change:transform, so Leaflet panes/dropdowns inside it can't poke
+   through) and below every modal overlay (lowest is .modal-overlay at 998)
+   and the toast (999). html scroll-padding keeps scrollIntoView targets
+   from landing underneath it — height kept current in _initTopbarOffset(). */
+#app-topbar{position:sticky;top:0;z-index:900;background:linear-gradient(160deg,#0d2b6b 0%,#0a2257 100%);box-shadow:0 2px 8px rgba(0,0,0,0.35)}
+html{scroll-padding-top:var(--topbar-h,0px)}
+
 /* TABS */
 .tab-nav{display:flex;gap:2px;padding:2px 6px;background:rgba(0,0,0,0.2)}
 .tab-btn{flex:1;padding:1px 2px;border:1px solid transparent;border-radius:8px;background:transparent;cursor:pointer;transition:all 0.15s;display:flex;align-items:center;justify-content:center;min-width:0}
@@ -2351,6 +2361,10 @@ body.tool-fullscreen-pdfdocs #cnd-pdf-modal .modal-sheet {
   <span style="color:rgba(255,255,255,0.5);font-size:0.7rem">✕</span>
 </div>
 
+<!-- Drop BY: header + tab row wrapped so they stay pinned to the top of the
+     viewport while the page scrolls (see #app-topbar CSS). Stop-count bar,
+     survey strip and the PWA prompt above stay in normal flow. -->
+<div id="app-topbar">
 <header>
   <!--
     Row 1: Logo + right cluster.
@@ -2417,6 +2431,7 @@ body.tool-fullscreen-pdfdocs #cnd-pdf-modal .modal-sheet {
   <button class="tab-btn" data-fn="switchTab" data-arg="map" id="tab-map" aria-label="Map"><img class="tab-img" src="" alt="Map"></button>
   <button class="tab-btn" data-fn="switchTab" data-arg="creds" id="tab-creds" aria-label="Info"><img class="tab-img" src="" alt="Info"></button>
 </nav>
+</div><!-- /#app-topbar -->
 
 <!-- Stop count summary — visible on every tab. Two flex groups:
      LEFT: day/date + Supercharge link (when no API key set)
@@ -9254,6 +9269,7 @@ function _initBody() {
   // replaces the Drop AT manual #fullscreen-btn toggle. No-op on
   // phones/tablets.
   _applyDesktopLayout();
+  _initTopbarOffset();
 }
 
 // ============================================================
@@ -9750,10 +9766,11 @@ const AddressAutocomplete = (function() {
   }
   async function _parcelSuggestions(raw) {
     const m = /^\s*(\d{1,6})(?:[\s-]+(.*))?$/.exec(raw);
-    if (!m || typeof ParcelLookup === 'undefined' || !ParcelLookup.searchByHouseNumber) return { list: [], total: 0 };
+    if (!m || typeof ParcelLookup === 'undefined' || !ParcelLookup.searchByHouseNumber) return { list: [], total: 0, numberOnly: false };
+    const numberOnly = !(m[2] || '').trim();
     let rows;
     try { rows = await ParcelLookup.searchByHouseNumber(m[1]); }
-    catch (e) { _swallow('_parcelSuggestions', e); return { list: [], total: 0 }; }
+    catch (e) { _swallow('_parcelSuggestions', e); return { list: [], total: 0, numberOnly: numberOnly, error: true }; }
     const toks = normAddrKey(m[2] || '').split(' ').filter(Boolean);
     const hits = rows.filter(r => {
       if (!toks.length) return true;
@@ -9768,7 +9785,7 @@ const AddressAutocomplete = (function() {
         source: 'parcel',
       };
     });
-    return { list: list, total: hits.length };
+    return { list: list, total: hits.length, numberOnly: numberOnly };
   }
 
   // Combined search used by the Add Stop box and Docu-Stamp: city parcel
@@ -9779,8 +9796,15 @@ const AddressAutocomplete = (function() {
   // carries `.parcelTotal` (matches before the display cap). Throws
   // AbortError if `signal` was aborted meanwhile, so a superseded
   // keystroke's results never overwrite a newer one's.
+  //
+  // Drop BY: a bare number ("2801") never goes to Nominatim. Its query is
+  // "2801, St. Louis City, MO", and Nominatim reads the "St. Louis" as a
+  // street — every bare-number search came back as 2801 St Louis Ave. If
+  // the city search fails on a bare number, the result is empty with
+  // `.parcelError` set so the box can say so instead of showing nothing.
   async function suggest(raw, signal) {
-    const both = await Promise.all([_parcelSuggestions(raw), geocodeRaw(raw, signal)]);
+    const bare = /^\s*\d{1,6}\s*$/.test(raw);
+    const both = await Promise.all([_parcelSuggestions(raw), bare ? Promise.resolve([]) : geocodeRaw(raw, signal)]);
     if (signal && signal.aborted) throw new DOMException('Aborted', 'AbortError');
     const parcel = both[0], nom = both[1];
     let results;
@@ -9801,7 +9825,16 @@ const AddressAutocomplete = (function() {
     await _enrichWithBoundaries(results);
     if (signal && signal.aborted) throw new DOMException('Aborted', 'AbortError');
     results.parcelTotal = parcel.total;
+    results.parcelError = !!parcel.error;
     return results;
+  }
+  function _statusText(results) {
+    if (results.parcelTotal > MAX_PARCEL_SUGGESTIONS) {
+      return 'Showing ' + MAX_PARCEL_SUGGESTIONS + ' of ' + results.parcelTotal + ' addresses — type the street to narrow';
+    }
+    if (results.parcelError && !results.length) return 'City address list unavailable — type the street name too';
+    if (!results.length) return 'No city address with that number — check it, or add the street';
+    return '';
   }
 
   // ── Orchestrator: two-pass search → populate _suggestions ─────────────────
@@ -9816,10 +9849,12 @@ const AddressAutocomplete = (function() {
       render();
       const preview = document.getElementById('addr-preview');
       if (preview) {
-        if (results.parcelTotal > MAX_PARCEL_SUGGESTIONS) {
-          preview.textContent = 'Showing ' + MAX_PARCEL_SUGGESTIONS + ' of ' + results.parcelTotal + ' addresses — type the street to narrow';
-          preview.style.background = '#eef6f0';
-          preview.style.color = '#2d6a4f';
+        const msg = _statusText(results);
+        if (msg) {
+          preview.textContent = msg;
+          const warn = !results.length;
+          preview.style.background = warn ? '#fff3cd' : '#eef6f0';
+          preview.style.color = warn ? '#856404' : '#2d6a4f';
           preview.style.display = 'block';
         } else {
           preview.style.display = 'none';
@@ -9992,6 +10027,7 @@ const AddressAutocomplete = (function() {
     fetchSuggestions: fetchSuggestions,
     geocodeRaw: geocodeRaw,
     suggest: suggest,
+    statusText: _statusText,
     MAX_PARCEL_SUGGESTIONS: MAX_PARCEL_SUGGESTIONS,
     render: render,
     reset: reset,
@@ -10042,6 +10078,7 @@ const _ADDR_WORD_MAP = {
   PLACE: 'PL', COURT: 'CT', ROAD: 'RD', LANE: 'LN', TERRACE: 'TER',
   PARKWAY: 'PKWY', HIGHWAY: 'HWY', CIRCLE: 'CIR', SQUARE: 'SQ',
   NORTH: 'N', SOUTH: 'S', EAST: 'E', WEST: 'W',
+  SAINT: 'ST',  // Drop BY: "2801 Saint Louis Avenue" == "2801 St. Louis Ave"
 };
 function normAddrKey(a) {
   return String(a || '').toUpperCase().replace(/[^A-Z0-9 ]+/g, ' ')
@@ -18369,16 +18406,36 @@ var ParcelLookup = (function() {
   // SITEADDR are not found (same assessor data gap noted in queryParcels).
   var _numCache = {};          // num -> { t, p: Promise<[{address,lat,lng}]> }
   var NUM_CACHE_TTL_MS = 10 * 60 * 1000;
+  // Drop BY: one retry with bare-minimum parameters — if the service
+  // rejects any of the optional ones (orderByFields, maxAllowableOffset,
+  // geometryPrecision), the plain query still works. Errors are recorded
+  // via _swallow with the service's own message so Diag shows the cause.
+  async function _queryNumberGeojson(where, extra, timeoutMs) {
+    var url = PARCELS_URL + '?where=' + encodeURIComponent(where) +
+      '&outFields=SITEADDR&returnGeometry=true&outSR=4326' + extra + '&f=geojson';
+    var resp = await fetchWithTimeout(url, {}, timeoutMs);
+    if (!resp.ok) throw new Error('parcel number query HTTP ' + resp.status);
+    var gj = await resp.json();
+    if (!gj || gj.error || !Array.isArray(gj.features)) {
+      throw new Error('parcel number query error: ' + JSON.stringify((gj && gj.error) || gj).slice(0, 200));
+    }
+    return gj;
+  }
+  function _streetSortKey(addr) {
+    // "2801 S GRAND BLVD" -> "GRAND BLVD S" so directionals don't bunch
+    var w = addr.toUpperCase().split(' ').slice(1);
+    if (w.length > 1 && /^[NSEW]$/.test(w[0])) w.push(w.shift());
+    return w.join(' ');
+  }
   async function _fetchByHouseNumber(num) {
     var where = "SITEADDR LIKE '" + num + " %' OR SITEADDR LIKE '" + num + "-%'";
-    var url = PARCELS_URL + '?where=' + encodeURIComponent(where) +
-      '&outFields=SITEADDR&returnGeometry=true&outSR=4326' +
-      '&geometryPrecision=6&maxAllowableOffset=0.00002' +
-      '&orderByFields=SITEADDR&f=geojson';
-    var resp = await fetchWithTimeout(url, {}, 8000);
-    if (!resp.ok) throw new Error('parcel number query failed: ' + resp.status);
-    var gj = await resp.json();
-    if (gj && gj.error) throw new Error('parcel number query error');
+    var gj;
+    try {
+      gj = await _queryNumberGeojson(where, '&geometryPrecision=6&maxAllowableOffset=0.00002&orderByFields=SITEADDR', 12000);
+    } catch (e1) {
+      _swallow('ParcelLookup.searchByHouseNumber', e1);
+      gj = await _queryNumberGeojson(where, '', 15000);
+    }
     var seen = {};
     var out = [];
     ((gj && gj.features) || []).forEach(function(f) {
@@ -18392,6 +18449,7 @@ var ParcelLookup = (function() {
       seen[addr] = true;
       out.push({ address: addr, lat: center.lat, lng: center.lng });
     });
+    out.sort(function(a, b) { var x = _streetSortKey(a.address), y = _streetSortKey(b.address); return x < y ? -1 : x > y ? 1 : 0; });
     return out;
   }
   function searchByHouseNumber(num) {
@@ -19330,6 +19388,20 @@ function _applyDesktopLayout() {
       try { if (window._routeMap) window._routeMap.invalidateSize(); } catch (_e) { _swallow('_applyDesktopLayout', _e); }
     }, 120);
   } catch (_e) { _swallow('_applyDesktopLayout', _e); }
+}
+
+// Drop BY: keep --topbar-h equal to the pinned top bar's real height (it
+// changes with the desktop layout, logo load, and orientation), for the
+// html scroll-padding-top rule.
+function _initTopbarOffset() {
+  try {
+    var bar = document.getElementById('app-topbar');
+    if (!bar) return;
+    var set = function() { document.documentElement.style.setProperty('--topbar-h', bar.offsetHeight + 'px'); };
+    set();
+    if (typeof ResizeObserver === 'function') new ResizeObserver(set).observe(bar);
+    else window.addEventListener('resize', set);
+  } catch (_e) { _swallow('_initTopbarOffset', _e); }
 }
 
 function _isLikelyDesktop() {
@@ -26828,9 +26900,8 @@ function cndPdfAddrInputChanged() {
       _cndPdfAddrSuggestions = suggestions;
       _cndPdfRenderAddrSuggestions();
       var st = document.getElementById('cndpdf-geo-status');
-      if (st && suggestions.parcelTotal > AddressAutocomplete.MAX_PARCEL_SUGGESTIONS) {
-        st.textContent = 'Showing ' + AddressAutocomplete.MAX_PARCEL_SUGGESTIONS + ' of ' + suggestions.parcelTotal + ' addresses — type the street to narrow.';
-      }
+      var msg = AddressAutocomplete.statusText(suggestions);
+      if (st && msg) st.textContent = msg + '.';
     }).catch(function(e) {
       _cndPdfAddrFetchCtrl = null;
       if (e && e.name === 'AbortError') return;
