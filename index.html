@@ -1231,8 +1231,13 @@ body.tool-fullscreen-pdfdocs #cnd-pdf-modal .modal-sheet {
    panels (Reports) stay at a readable width and center in the wider
    frame instead. */
 @media (min-width: 900px) {
+  /* Drop BW (2026-09-22): was max-width:1400px — on wider monitors that
+     left empty gutters on both sides ("enlarges ~3x but doesn't fill").
+     Now fills the full window width; the header and tab nav live inside
+     #app so they follow. Sections that read badly stretched (Reports,
+     PDF Docs, toolbar buttons) keep their own caps below. */
   body.app-fullscreen #app {
-    max-width: 1400px;
+    max-width: none;
   }
 
   /* Map tab: the single most obvious win from more screen space — more
@@ -1286,7 +1291,7 @@ body.tool-fullscreen-pdfdocs #cnd-pdf-modal .modal-sheet {
   /* Icon-strip toolbars (bottom tab nav, Map tab's optimize/gps/refresh/
      layers/survey row, Route tab's optimize/survey row): flex:1 makes
      sense on a narrow phone (evenly fill the width edge-to-edge) but
-     looks wrong stretched across a 1400px fullscreen frame — buttons
+     looks wrong stretched across a full-window-width frame — buttons
      balloon into huge blocky rectangles with a small icon floating in
      mostly-empty space. Capped at a fixed, comfortable width instead so
      they stay natural-looking regardless of how wide the frame is.
