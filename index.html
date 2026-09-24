@@ -1123,7 +1123,8 @@ html{scroll-padding-top:var(--topbar-h,0px)}
 .leaflet-tooltip.boundary-label-ward,
 .leaflet-tooltip.boundary-label-nbhd,
 .leaflet-tooltip.boundary-label-police,
-.leaflet-tooltip.boundary-label-precinct {
+.leaflet-tooltip.boundary-label-precinct,
+.leaflet-tooltip.boundary-label-cid {
   background: transparent;
   border: none;
   box-shadow: none;
@@ -1141,7 +1142,8 @@ html{scroll-padding-top:var(--topbar-h,0px)}
 .leaflet-tooltip.boundary-label-ward::before,
 .leaflet-tooltip.boundary-label-nbhd::before,
 .leaflet-tooltip.boundary-label-police::before,
-.leaflet-tooltip.boundary-label-precinct::before {
+.leaflet-tooltip.boundary-label-precinct::before,
+.leaflet-tooltip.boundary-label-cid::before {
   display: none !important;
 }
 .leaflet-tooltip.boundary-label-ward {
@@ -1159,6 +1161,10 @@ html{scroll-padding-top:var(--topbar-h,0px)}
 .leaflet-tooltip.boundary-label-precinct {
   color: #831843;
   font-size: 0.58rem;
+}
+.leaflet-tooltip.boundary-label-cid {
+  color: #7c2d12;
+  font-size: 0.6rem;
 }
 
 /* ── Prepare Photo situational-awareness map: street name labels ──────
@@ -3266,6 +3272,7 @@ body.tool-fullscreen-pdfdocs #cnd-pdf-modal .modal-sheet {
         · <b>Wards</b> — current city ward boundaries (post-2024 redistricting)<br>
         · <b>Police Districts</b> — the 6 SLMPD patrol districts, burnt-orange dashed outline<br>
         · <b>Precincts</b> — all 209 City of St. Louis election precincts, magenta dashed outline (labels only appear once zoomed in, given how many there are)<br>
+        · <b>CIDs</b> — Community Improvement District footprints citywide, amber outline (fetched live from the city's ArcGIS service and cached — needs a network connection the first time, then works offline)<br>
         · <b>City limits</b> — outline of the City of St. Louis<br><br>
         <b>External map resources</b> in the same panel link out to the City's ArcGIS parcel viewer, the official address search, the LRA-owned property map, the Cultural Resources areas-of-review map, the citywide zoning map, the City open data portal, and the Missouri MSDIS portal. These open in your browser.<br><br>
         <b>Custom layers:</b> Settings → Map Layer Manager lets you add your own GeoJSON layers (assignments, district boundaries, target lists, etc.). Custom layers persist across sessions and toggle on/off independently.
@@ -23945,6 +23952,20 @@ const GeoCache = (function() {
   // as a defensive fallback if the inline parse ever somehow failed.
   var SOURCES_PRECINCTS = [
   ];
+  // Community Improvement District (CID) footprints. Confirmed live ArcGIS
+  // REST endpoint: SLDC/Local_Taxing_Districts, layer 0 — a shared layer
+  // that also carries Special Business Districts (SBD) and Transportation
+  // Development Districts (TDD), distinguished by the DistrictTy field, so
+  // the query filters to DistrictTy='CID' server-side rather than pulling
+  // everything and filtering client-side. No inline-baked copy yet (same
+  // starting point as police districts before Drop AF baked those in) —
+  // this drop wires the live network path only; IndexedDB caching makes it
+  // work offline after first load. A future drop can bake the fetched
+  // FeatureCollection inline once a fetched copy has been reviewed, the
+  // same way police districts were later baked in.
+  var SOURCES_CID = [
+    'https://maps8.stlouis-mo.gov/arcgis/rest/services/SLDC/Local_Taxing_Districts/FeatureServer/0/query?where=DistrictTy%3D%27CID%27&outFields=Name,Active,Ordinance,Wards,MainContac,OrdLink&f=geojson&returnGeometry=true&outSR=4326'
+  ];
 
   var _dbPromise = null;
   // 2026-07-18 fix: some environments (Safari private browsing is the
@@ -24207,6 +24228,27 @@ const GeoCache = (function() {
     return null;
   }
 
+  // Get Community Improvement District (CID) footprints. Network-only for
+  // now (see SOURCES_CID above) — no inline fallback, so this returns null
+  // offline until the first successful fetch has populated IndexedDB.
+  async function getCID() {
+    try {
+      var rec = await _txGet('cid');
+      if (rec && rec.geojson) return rec.geojson;
+    } catch(_) { /* fall through to network */ }
+    if (!SOURCES_CID.length) return null;
+    try {
+      var fresh = await _fetchOne(SOURCES_CID);
+      if (fresh) {
+        await _tryLogAsync('geocache-put-cid', function() {
+          return _txPut({ kind: 'cid', fetchedAt: new Date().toISOString(), geojson: fresh });
+        });
+        return fresh;
+      }
+    } catch (_) { _swallow('getCID', _); }
+    return null;
+  }
+
   async function clear() {
     try {
       var db = await _open();
@@ -24218,7 +24260,7 @@ const GeoCache = (function() {
     } catch(_) { return false; }
   }
 
-  return { getNeighborhoods: getNeighborhoods, getWards: getWards, getPoliceDistricts: getPoliceDistricts, getPrecincts: getPrecincts, clear: clear };
+  return { getNeighborhoods: getNeighborhoods, getWards: getWards, getPoliceDistricts: getPoliceDistricts, getPrecincts: getPrecincts, getCID: getCID, clear: clear };
 })();
 
 // ── MapLayers: registry + storage for togglable map overlays ─────────────────
@@ -24339,6 +24381,15 @@ const MapLayers = (function() {
     if (typeof raw !== 'string' || !raw.trim()) return null;
     var m = raw.trim().match(/^W\s*(\d+)\s*P\s*(\d+[A-Za-z]?)$/i);
     if (m) return 'Ward ' + m[1] + ', Precinct ' + m[2];
+    return raw.trim();
+  }
+
+  // ── Shared helper for CID label/popup text ──────────────────────────
+  // Live field name confirmed against the ArcGIS REST layer schema
+  // (SLDC/Local_Taxing_Districts, layer 0): Name is the display field.
+  function _cidLabelFromProps(props) {
+    var raw = props.Name || props.NAME || props.name;
+    if (typeof raw !== 'string' || !raw.trim()) return null;
     return raw.trim();
   }
 
@@ -24539,6 +24590,48 @@ const MapLayers = (function() {
               _escHtmlBuiltin(label) +
             '</div>' +
             '<div style="font-family:\'Space Mono\',monospace;font-size:0.55rem;color:#555;line-height:1.5">City of St. Louis election precinct</div>'
+        };
+      }
+    },
+    {
+      id: 'stl-cid',
+      kind: 'builtin',
+      label: 'CIDs',
+      group: 'Boundaries',
+      defaultOn: false,
+      refreshDays: 90,   // no inline fallback yet — refetch more often than the baked layers
+      source: 'geocache',
+      geocacheKind: 'cid',
+      geomType: 'polygon',
+      // Community Improvement Districts — citywide, dozens of small
+      // single-property footprints alongside larger neighborhood-scale
+      // ones. Amber keeps it visually distinct from wards (teal),
+      // neighborhoods (violet), police (orange), and precincts (magenta).
+      style: { color: '#b45309', fillColor: '#d97706', fillOpacity: 0.08, weight: 2, opacity: 0.85 },
+      labelOptions: {
+        getText: function(props) {
+          return _cidLabelFromProps(props) || '';
+        },
+        minZoom: 14,
+        className: 'boundary-label-cid'
+      },
+      popup: function(props) {
+        var label = _cidLabelFromProps(props) || '(CID)';
+        var active = String(props.Active || '').toUpperCase() === 'Y';
+        var ordLine = props.Ordinance
+          ? ('Ordinance ' + props.Ordinance + (props.OrdLink ? (' — <a href="' + props.OrdLink + '" target="_blank" rel="noopener">view</a>') : ''))
+          : 'No ordinance on file';
+        return {
+          address: '',
+          html:
+            '<div style="font-family:Syne,sans-serif;font-weight:800;font-size:0.78rem;color:#7c2d12;margin-bottom:3px">' +
+              _escHtmlBuiltin(label) +
+            '</div>' +
+            '<div style="font-family:\'Space Mono\',monospace;font-size:0.55rem;color:#555;line-height:1.5">' +
+              ordLine + '<br>' +
+              (props.Wards != null ? ('Ward ' + _escHtmlBuiltin(String(props.Wards)) + '<br>') : '') +
+              (!active ? 'Flagged inactive in source data<br>' : '') +
+            '</div>'
         };
       }
     }
@@ -24858,6 +24951,8 @@ const MapLayerRenderer = (function() {
         fc = await GeoCache.getPoliceDistricts();
       } else if (layer.geocacheKind === 'precincts' && typeof GeoCache !== 'undefined') {
         fc = await GeoCache.getPrecincts();
+      } else if (layer.geocacheKind === 'cid' && typeof GeoCache !== 'undefined') {
+        fc = await GeoCache.getCID();
       }
       if (!fc || !Array.isArray(fc.features) || !fc.features.length) {
         // No polygons available (offline + never cached, or no source URL configured)
