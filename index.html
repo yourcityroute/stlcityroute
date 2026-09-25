@@ -556,6 +556,22 @@ html{scroll-padding-top:var(--topbar-h,0px)}
 .info-img-tile:active{transform:scale(0.97)}
 .info-img-tile img{display:block;width:100%;height:auto;max-width:100%}
 
+/* INFO-TAB UTILITY CLUSTER — PDF Docs + Sync, moved here from the header
+   (Drop CE) to sit beside Settings. This is ONE .info-grid cell (a flex
+   row), not two separate tiles, so it occupies the single slot the odd
+   7-tile count left empty after Settings, in both the mobile 2-col grid
+   and the desktop auto-fill(222px) grid. As a grid item it stretches
+   (default align-items:stretch) to the row's height, which is set by
+   Settings' own image-driven height since these buttons have no
+   intrinsic height of their own to contribute to that calculation —
+   height:100% below then resolves against that real, non-circular value.
+   aspect-ratio:1/1 keeps both buttons square, same proportions they had
+   at their old fixed 42×42 header size, just scaled to match. */
+.info-utility-cluster{display:flex;align-items:stretch;justify-content:center;gap:10px;height:100%;min-height:54px}
+.info-utility-cluster .pdfdocs-header-btn,
+.info-utility-cluster .sync-header-btn{width:auto;height:100%;aspect-ratio:1/1}
+.info-utility-sync-wrap{position:relative;display:inline-flex;height:100%}
+
 /* CONTENT */
 .content{flex:1;padding:12px 14px;overflow-x:clip}
 .screen{display:none}.screen.active{display:block}
@@ -2426,49 +2442,23 @@ body.tool-fullscreen-pdfdocs #cnd-pdf-modal .modal-sheet {
     the stop-count-bar and the Info-tab tiles, just not a dedicated header
     icon.
 
-    Right cluster, fixed left → right order: [photostamp] [pdf-docs]
-    [sync], all always visible (2026-08-10: sync used to only appear
-    once Drive Sync was connected and unlocked — now it stays in the
-    header full-time so the feature is discoverable before setup too;
-    see syncDriveNow for what an unconnected/un-PIN'd tap does instead
-    of just failing). Drop BV (2026-09-22): the desktop-only
-    [fullscreen-btn] that used to sit at the end was removed — the wide
-    desktop layout is now applied automatically (_applyDesktopLayout()).
+    Right cluster: just [photostamp] now. Drop CE (2026-09-24): PDF Docs
+    and Sync moved down to the Info tab, next to Settings (see
+    #screen-creds .info-utility-cluster) — photostamp is the only header
+    action left, kept here since it's the one used mid-task, away from
+    the phone (opening Prepare Photo from wherever the inspector is
+    standing), unlike PDF Docs/Sync which are more "before/after the
+    work" actions. Drop BV (2026-09-22): the desktop-only [fullscreen-btn]
+    that used to sit at the end was removed — the wide desktop layout is
+    now applied automatically (_applyDesktopLayout()).
 
-    All three are 42×42 (unified 2026-07-29; sync got its own baked icon
-    2026-08-09, same size). The pdf-docs source image is an opaque
-    square canvas with a rounded-square badge design inside — a matching
-    rounded-rect alpha mask is baked in (geometric corner radius, not
-    color-based background removal, since the source art has
-    gradient/textured backgrounds a flood-fill couldn't cleanly separate)
-    so its canvas corners are transparent, same as photostamp's icon.
-
-    Worst-case width: 3*42 + 2*6(gap) = 138px, inside the logo's 175px
-    reservation on every device now that the fourth button is gone.
+    Photostamp is 42×42 (unified 2026-07-29 alongside the two buttons
+    that have since moved).
   -->
   <div class="header-title-row" style="flex-direction:row;align-items:center;gap:6px;padding:6px 14px 6px">
     <img src="" id="header-logo" alt="STLCityRoute" style="height:36px;width:auto;max-width:calc(100% - 175px);object-fit:contain;flex-shrink:1">
     <div style="margin-left:auto;flex-shrink:0;display:flex;align-items:center;gap:6px">
       <button onclick="openStampedCameraForStop(null)" title="Photostamp" class="photostamp-header-btn" aria-label="Photostamp"></button>
-      <button data-fn="openCndPdfModal" title="PDF Docs — C&amp;D photo documentation" class="pdfdocs-header-btn" aria-label="PDF Docs"></button>
-      <!-- 2026-08-10: always visible now, regardless of Drive Sync's
-           connected/unlocked state — previously hidden until both were
-           true (toggled in updateDriveSyncStatusUI). syncDriveNow()
-           itself now handles every state: not connected → routes to
-           Settings' Drive Sync panel instead of attempting a sync; no
-           PIN entered yet this session → prompts once via the shared
-           PIN modal, then proceeds; already unlocked → syncs directly.
-           Same syncDriveNow() handler the Settings panel's Sync Now
-           button already used.
-           2026-08-08: wrapped so a small badge can overlay it when a
-           merge has queued conflicts needing review — see
-           _updateSyncConflictsIndicator. The badge is a separate sibling
-           button (not nested inside header-sync-btn) so tapping it opens
-           the review modal instead of triggering another sync. -->
-      <div style="position:relative;display:inline-flex;flex-shrink:0">
-        <button id="header-sync-btn" data-fn="syncDriveNow" title="Sync with Google Drive" aria-label="Sync" class="sync-header-btn"></button>
-        <button id="header-sync-conflict-badge" data-fn="openSyncConflictsModal" title="Stops need review" aria-label="Sync conflicts need review" style="display:none;position:absolute;top:-3px;right:-3px;width:16px;height:16px;border-radius:50%;background:#c0392b;color:white;border:1.5px solid white;font-family:Syne,sans-serif;font-weight:800;font-size:0.55rem;line-height:1;padding:0;cursor:pointer;align-items:center;justify-content:center">!</button>
-      </div>
     </div>
   </div>
 </header>
@@ -2502,21 +2492,23 @@ body.tool-fullscreen-pdfdocs #cnd-pdf-modal .modal-sheet {
   <div class="tab-pin" id="stops-add-pin">
   <div class="add-form">
     <div class="form-title">➕ Add Stop</div>
-    <!-- Address autocomplete — type to get live suggestions -->
-    <div style="position:relative;margin-bottom:5px">
-      <input type="text" class="input-field" id="addr-input"
-        placeholder="e.g. 1415 north 13th street"
-        autocomplete="off" autocorrect="off" autocapitalize="words" spellcheck="false"
-        style="flex:1;font-size:0.78rem;width:100%"
-        oninput="addrInputChanged()"
-        onkeydown="addrKeyDown(event)"
-        onfocus="if(this.value.trim().length>2)showAddrSuggestions()"
-        onblur="setTimeout(hideAddrSuggestions,200)">
-      <!-- Live suggestions dropdown -->
-      <div id="addr-suggestions" style="display:none;position:absolute;left:0;right:0;top:calc(100% + 3px);background:white;border:1.5px solid var(--leaf);border-radius:10px;box-shadow:0 4px 18px rgba(0,0,0,0.15);z-index:500;overflow:hidden;max-height:280px;overflow-y:auto"></div>
+    <!-- Drop CE: swapped with the address row below — type/notes are
+         collected first now; address entry (manual typing or any of the
+         alternate input methods) happens last, right before submitting. -->
+    <div class="input-row">
+      <!-- Type field pinned to a comfortable fixed-ish width (shrinks on
+           very narrow phones, never grows) so Notes — flex:1 from
+           .input-field — claims the rest of the row. Previously both
+           competed for space via .select-field's own width:100%, which
+           left Notes squeezed down to near nothing. -->
+      <select class="select-field" id="type-select" onchange="onTypeSelectChange(event)" style="flex:0 1 112px">
+        <option value="inspection">🔍 Inspection</option>
+        <option value="service_request">📋 Service Request</option>
+        <option value="work_order">🔧 Work Order</option>
+        <option value="other">📌 Other</option>
+      </select>
+      <input type="text" class="input-field" id="notes-input" placeholder="Notes (optional)">
     </div>
-    <!-- Status line: verifying / verified / not found -->
-    <div id="addr-preview" style="display:none;font-size:0.58rem;font-family:'Syne',sans-serif;font-weight:700;padding:5px 8px;border-radius:7px;margin-bottom:5px"></div>
     <!-- Scan / paste / spreadsheet / voice / regular stops — image buttons
          with labels. 5-column grid, each cell gets exactly 1/5 of the
          available width regardless of label length, so the buttons are
@@ -2562,15 +2554,23 @@ body.tool-fullscreen-pdfdocs #cnd-pdf-modal .modal-sheet {
         <button class="btn-add" style="flex:2;margin:0;padding:8px;font-size:0.73rem" data-fn="addScannedStops">➕ ADD SELECTED</button>
       </div>
     </div>
-    <div class="input-row">
-      <select class="select-field" id="type-select" onchange="onTypeSelectChange(event)">
-        <option value="inspection">🔍 Inspection</option>
-        <option value="service_request">📋 Service Request</option>
-        <option value="work_order">🔧 Work Order</option>
-        <option value="other">📌 Other</option>
-      </select>
-      <input type="text" class="input-field" id="notes-input" placeholder="Notes (optional)">
+    <!-- Address autocomplete — moved here from the top of the form
+         (Drop CE) so manual typing sits alongside the other address-entry
+         methods above, right before submitting. -->
+    <div style="position:relative;margin-bottom:5px">
+      <input type="text" class="input-field" id="addr-input"
+        placeholder="e.g. 1415 north 13th street"
+        autocomplete="off" autocorrect="off" autocapitalize="words" spellcheck="false"
+        style="flex:1;font-size:0.78rem;width:100%"
+        oninput="addrInputChanged()"
+        onkeydown="addrKeyDown(event)"
+        onfocus="if(this.value.trim().length>2)showAddrSuggestions()"
+        onblur="setTimeout(hideAddrSuggestions,200)">
+      <!-- Live suggestions dropdown -->
+      <div id="addr-suggestions" style="display:none;position:absolute;left:0;right:0;top:calc(100% + 3px);background:white;border:1.5px solid var(--leaf);border-radius:10px;box-shadow:0 4px 18px rgba(0,0,0,0.15);z-index:500;overflow:hidden;max-height:280px;overflow-y:auto"></div>
     </div>
+    <!-- Status line: verifying / verified / not found -->
+    <div id="addr-preview" style="display:none;font-size:0.58rem;font-family:'Syne',sans-serif;font-weight:700;padding:5px 8px;border-radius:7px;margin-bottom:5px"></div>
     <button class="btn-add" data-fn="addStop">ADD STOP</button>
   </div>
   </div><!-- /#stops-add-pin -->
@@ -2879,6 +2879,25 @@ body.tool-fullscreen-pdfdocs #cnd-pdf-modal .modal-sheet {
     <button data-fn="openMiscLinks" class="info-img-tile" title="Community contact guide" aria-label="Resources — Community Contact Guide"><img src="" id="info-tile-img-resources" alt="Resources — Community Contact Guide"></button>
     <button data-fn="showFullscreen" data-arg="authority" class="info-img-tile" title="Toggle 3 views — Roles &amp; Authority" aria-label="Roles &amp; Authority — who, what, when, where, why, how"><img src="" id="info-tile-img-roles" alt="Roles &amp; Authority — who, what, when, where, why, how"></button>
     <button data-fn="openSettings" class="info-img-tile" title="Profile, API key, install &amp; more" aria-label="Settings — Profile, API key, install"><img src="" id="info-tile-img-settings" alt="Settings — Profile, API Key, install"></button>
+    <!-- Drop CE: PDF Docs + Sync, moved down from the header, fill the
+         grid cell beside Settings (7 img-tiles is an odd count, so this
+         slot was empty before). One grid item holding a small flex row —
+         not two separate img-tiles — so it behaves as a single cell under
+         both the mobile 2-col grid and the desktop auto-fill(222px) grid
+         (see body.app-fullscreen #screen-creds .info-grid). Buttons keep
+         their original classes/ids (pdfdocs-header-btn, header-sync-btn,
+         header-sync-conflict-badge) so all existing wiring — icon URIs,
+         syncDriveNow's state handling, the conflict badge — keeps working
+         unmodified; only their size is overridden (see
+         .info-utility-cluster below) to stretch to Settings' rendered
+         height while staying square, per request. -->
+    <div class="info-utility-cluster">
+      <button data-fn="openCndPdfModal" title="PDF Docs — C&amp;D photo documentation" class="pdfdocs-header-btn" aria-label="PDF Docs"></button>
+      <div class="info-utility-sync-wrap">
+        <button id="header-sync-btn" data-fn="syncDriveNow" title="Sync with Google Drive" aria-label="Sync" class="sync-header-btn"></button>
+        <button id="header-sync-conflict-badge" data-fn="openSyncConflictsModal" title="Stops need review" aria-label="Sync conflicts need review" style="display:none;position:absolute;top:-3px;right:-3px;width:16px;height:16px;border-radius:50%;background:#c0392b;color:white;border:1.5px solid white;font-family:Syne,sans-serif;font-weight:800;font-size:0.55rem;line-height:1;padding:0;cursor:pointer;align-items:center;justify-content:center">!</button>
+      </div>
+    </div>
     <button data-fn="openEndOfDayDebrief" id="info-tile-debrief" class="info-tile" title="AI summary of today's field work" style="background:linear-gradient(135deg,rgba(124,58,237,0.12),rgba(147,51,234,0.12));border-color:rgba(224,196,255,0.45);display:none">
       <span class="info-tile-icon">🌅</span>
       <span class="info-tile-label"><span class="info-tile-title">End-of-Day Debrief</span><span class="info-tile-sub">AI summary of today's work</span></span>
@@ -6561,11 +6580,12 @@ function updateDriveSyncStatusUI() {
   if (disconnectBtn) disconnectBtn.style.display = status.connected ? '' : 'none';
   var ready = status.connected && status.hasPassphrase;
   if (syncBtn) syncBtn.disabled = !ready;
-  // header-sync-btn itself is NOT toggled here (2026-08-10) — it stays in
-  // the header full-time regardless of connected/unlocked state now, so
-  // the feature is discoverable before setup too. See syncDriveNow for
-  // what a tap does in each state instead of the button just being
-  // absent.
+  // header-sync-btn itself is NOT toggled here (2026-08-10) — it stays
+  // visible full-time regardless of connected/unlocked state, so the
+  // feature is discoverable before setup too (Drop CE: lives in the Info
+  // tab beside Settings now, not the header, but the id/logic are
+  // unchanged). See syncDriveNow for what a tap does in each state
+  // instead of the button just being absent.
   if (passBtn) passBtn.textContent = status.hasPassphrase ? '🔓 Re-enter PIN' : '🔒 Enter PIN';
   try { _updateSyncConflictsIndicator(); } catch (_e) { _swallow('updateDriveSyncStatusUI', _e); }
 }
@@ -8709,9 +8729,14 @@ function markRouteChanged() {
 function init() {
   try {
     _initBody();
-    // Show setup wizard on first install
+    // First install (or a fresh empty profile after switch/RESET): skip the
+    // multi-step profile wizard (welcome/sector/name/apikey) and go straight
+    // to GPS setup — GPS is the one thing that's genuinely not optional for
+    // the map/route-optimize features to work at all. Profile, Gemini key,
+    // and Drive Sync are all still reachable from Settings any time; the
+    // GPS popup's closing toast points there. See _showFirstRunGpsSetup.
     if (!LS.get('setup-complete')) {
-      setTimeout(openSetupWizard, 400);
+      setTimeout(_showFirstRunGpsSetup, 400);
     }
   } catch(e) {
     console.error('[init] Fatal error:', e);
@@ -8996,11 +9021,12 @@ function _wireInlineButtonImages() {
       if (_rImg) _rImg.src = _reconBtns[_ri][1];
     }
   } catch (_e) { _swallow('_wireInlineButtonImages', _e); }
-  // Route-tab buttons (Optimize / Reset) + header PDF-docs/sync
-  // buttons — image-as-button-face pattern. The optimize button starts in
-  // the "idle" state; _setOptimizeButtonState swaps the URI during the
-  // optimize flow. ai-btn (Supercharge launcher) was removed from the
-  // header 2026-07-29; no longer wired here.
+  // Route-tab buttons (Optimize / Reset) + PDF-docs/sync buttons (Drop CE:
+  // now in the Info tab's utility cluster, not the header — same classes/
+  // ids, so this wiring is unchanged) — image-as-button-face pattern. The
+  // optimize button starts in the "idle" state; _setOptimizeButtonState
+  // swaps the URI during the optimize flow. ai-btn (Supercharge launcher)
+  // was removed from the header 2026-07-29; no longer wired here.
   try {
     var _optBtn = document.getElementById('btn-optimize');
     if (_optBtn) _optBtn.style.backgroundImage = 'url("' + OPTIMIZE_ICON_URI + '")';
@@ -10688,7 +10714,12 @@ function _finalizeStopClose(flagged) {
   const notesField = document.getElementById('close-notes-field');
   if (notesField && notesField.value.trim()) {
     const existing = s.notes ? s.notes.trim() : '';
-    const newNote  = notesField.value.trim();
+    // Prefixed so notes entered here read distinctly from notes entered via
+    // the Add Stop panel or the stop card's Notes utility button — all
+    // three still share the one s.notes field/history, but this label makes
+    // completion notes identifiable in place, on the card, and in every
+    // report/export that already renders s.notes verbatim (Drop CE).
+    const newNote  = 'Closing Notes: ' + notesField.value.trim();
     s.notes = existing ? existing + '\n' + newNote : newNote;
   }
   if (flagged) {
@@ -36153,6 +36184,21 @@ function closeSetupWizard() {
   openGpsSetupPopup();
 }
 
+// First-run entry point (Drop CE) — replaces the old
+// openSetupWizard→closeSetupWizard chain on first install. The profile
+// wizard steps (welcome/sector/name/apikey) are skipped entirely; we go
+// straight to the one setup step that actually blocks core functionality
+// (GPS), then point the user at Settings for everything else via a toast
+// once they dismiss it. openSetupWizard/closeSetupWizard are kept intact
+// but are no longer called from anywhere — left in place rather than
+// deleted in case the guided profile flow is wanted back.
+var _gpsPopupIsFirstRun = false;
+function _showFirstRunGpsSetup() {
+  LS.set('setup-complete', '1');
+  _gpsPopupIsFirstRun = true;
+  openGpsSetupPopup();
+}
+
 function openGpsSetupPopup() {
   var popup = document.getElementById('gps-setup-popup');
   var content = document.getElementById('gps-setup-popup-content');
@@ -36167,6 +36213,12 @@ function closeGpsSetupPopup() {
   if (!popup) return;
   popup.style.display = 'none';
   Accessibility.modalClosed(popup);
+  // First-run only: point the user at Settings for everything the old
+  // wizard used to collect inline (Profile, Gemini API key, Drive Sync).
+  if (_gpsPopupIsFirstRun) {
+    _gpsPopupIsFirstRun = false;
+    showToast('Visit Settings to set up your Profile, Gemini API Key, Google Drive Sync');
+  }
 }
 
 async function wizardNext() {
@@ -36827,16 +36879,16 @@ function wizSaveRole() {
   </div>
 </div>
 
-<!-- GPS SETUP POPUP — shown once, right after the setup wizard finishes
-     (Finish or Skip, either way — GPS matters for basic route planning too,
-     not just the profile fields the wizard collects). Reuses
-     _gpsSetupGuideHtml() so this content can never drift from the Settings
-     → App Install & GPS guide; there's exactly one place that text lives. -->
+<!-- GPS SETUP POPUP — shown once, on first launch (Drop CE: now the entire
+     first-run flow — see _showFirstRunGpsSetup — the old multi-step profile
+     wizard no longer runs automatically). Reuses _gpsSetupGuideHtml() so
+     this content can never drift from the Settings → App Install & GPS
+     guide; there's exactly one place that text lives. -->
 <div id="gps-setup-popup" role="dialog" aria-modal="true" aria-label="GPS setup instructions" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.85);z-index:9999;overflow-y:auto;-webkit-overflow-scrolling:touch;justify-content:center;align-items:flex-end">
   <div style="background:white;border-radius:24px 24px 0 0;padding:20px 20px 28px;width:100%;max-width:480px;max-height:90dvh;overflow-y:auto;box-shadow:0 -8px 60px rgba(0,0,0,0.5)">
     <div style="text-align:center;margin-bottom:14px">
       <div style="font-size:1.8rem;margin-bottom:4px">📡</div>
-      <div style="font-family:'Syne',sans-serif;font-weight:800;font-size:0.9rem;color:#1a3320">One last thing — set up GPS</div>
+      <div style="font-family:'Syne',sans-serif;font-weight:800;font-size:0.9rem;color:#1a3320">Set up GPS</div>
       <div style="font-size:0.6rem;color:#777;font-family:'Space Mono',monospace;margin-top:4px;line-height:1.6">Route optimization and the map need your location. Takes under 2 minutes.</div>
     </div>
     <div id="gps-setup-popup-content"></div>
