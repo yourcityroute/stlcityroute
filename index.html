@@ -68,7 +68,7 @@
      silent at the network layer — the user just sees the feature broken
      with no obvious cause. test-csp.js exists to catch CSP drift at edit
      time so this doesn't bite. -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' https://cdnjs.cloudflare.com https://accounts.google.com; style-src 'self' 'unsafe-inline' https://cdnjs.cloudflare.com https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data: blob: https://*.tile.openstreetmap.org https://*.basemaps.cartocdn.com https://api.qrserver.com; connect-src 'self' https://generativelanguage.googleapis.com https://nominatim.openstreetmap.org https://router.project-osrm.org https://maps8.stlouis-mo.gov https://maps6.stlouis-mo.gov https://raw.githubusercontent.com https://ipapi.co https://script.google.com https://script.googleusercontent.com https://www.googleapis.com https://accounts.google.com; frame-src https://accounts.google.com; manifest-src 'self' blob:; worker-src 'self' blob:; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' https://cdnjs.cloudflare.com https://accounts.google.com; style-src 'self' 'unsafe-inline' https://cdnjs.cloudflare.com https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data: blob: https://*.tile.openstreetmap.org https://*.basemaps.cartocdn.com https://api.qrserver.com; connect-src 'self' https://generativelanguage.googleapis.com https://nominatim.openstreetmap.org https://router.project-osrm.org https://maps8.stlouis-mo.gov https://maps6.stlouis-mo.gov https://raw.githubusercontent.com https://ipapi.co https://script.google.com https://script.googleusercontent.com https://www.googleapis.com https://accounts.google.com https://api.maptiler.com; frame-src https://accounts.google.com; manifest-src 'self' blob:; worker-src 'self' blob:; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'">
 <link rel="apple-touch-icon" sizes="180x180" href="data:image/png;base64,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">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -23041,7 +23041,12 @@ var PhotoTrackerIndex = (function() {
     countInWindow: countInWindow, merge: merge, deleteLocation: deleteLocation,
     getSettings: getSettings, saveSettings: saveSettings, windowMsFor: windowMsFor,
     severityFor: severityFor, DEFAULT_SETTINGS: DEFAULT_SETTINGS,
-    clusterLocationsByRadius: clusterLocationsByRadius, RADIUS_OPTIONS: RADIUS_OPTIONS
+    clusterLocationsByRadius: clusterLocationsByRadius, RADIUS_OPTIONS: RADIUS_OPTIONS,
+    // 2026-09-25: exposed so AreaPeriodReport can match a photo tracker
+    // location's address against a stop's address the same way this
+    // module already keys its own entries — one normalization rule
+    // instead of a second copy of it living in the report code.
+    normalizeAddress: normalizeAddress
   };
 })();
 window.PhotoTrackerIndex = PhotoTrackerIndex;
@@ -23256,7 +23261,10 @@ const PhotoTrackerReport = (function() {
         '(function(){' +
           'var pts = ' + mapPointsJson + ';' +
           'var map = L.map("photo-tracker-map", {zoomControl:true, attributionControl:true});' +
-          'L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {subdomains:"abc", maxZoom:19}).addTo(map);' +
+          // 2026-09-25: swapped off OSM's public tile servers (see engineering
+          // notes — CARTO needs a key too now, so there's no free/keyless
+          // option left) onto MapTiler, keyed to Silly's own account.
+          'L.tileLayer("https://api.maptiler.com/maps/streets-v2/256/{z}/{x}/{y}.png?key=aZMec4wR6VEaCfnAmvSa", {maxZoom:20, crossOrigin:true, attribution:\'\\u00a9 <a href="https://www.maptiler.com/copyright/" target="_blank">MapTiler</a> \\u00a9 <a href="https://www.openstreetmap.org/copyright" target="_blank">OpenStreetMap contributors</a>\'}).addTo(map);' +
           'if (pts.length) {' +
             'var group = L.featureGroup();' +
             'pts.forEach(function(p){' +
@@ -33004,7 +33012,12 @@ const PeriodReports = (function() {
         if (st.completedAt) when = new Date(st.completedAt).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' });
         else if (st.addedAt) when = new Date(st.addedAt).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' }) + ' (added)';
       } catch (_) { _swallow('bucketTable', _); }
-      return '<tr style="border-bottom:1px solid #eee">' +
+      // 2026-09-25 fix: the divider used to sit on the address <tr>, which
+      // put it directly under the notes line above (making the notes read
+      // as belonging to the *next* stop's address). The border now lands
+      // on whichever <tr> is actually last for this stop.
+      var hasNotes = !!(st.notes && String(st.notes).trim());
+      return '<tr' + (hasNotes ? '' : ' style="border-bottom:1px solid #eee"') + '>' +
         '<td style="padding:5px 8px;color:' + statusColor + ';width:24px;text-align:center;font-size:14px">' + statusLabel + '</td>' +
         '<td style="padding:5px 8px"><b>' + safe(st.address || '(no address)') + '</b>' +
           (st.type ? '<br><span style="font-size:11px;color:#888">' + safe(st.type.replace(/_/g, ' ')) + '</span>' : '') +
@@ -33015,7 +33028,7 @@ const PeriodReports = (function() {
           (st.neighborhoodName ? '<br>' + safe(st.neighborhoodName) : '') +
         '</td>' +
         '</tr>' +
-        (st.notes ? '<tr><td></td><td colspan="3" style="padding:0 8px 8px;font-size:11px;color:#555;font-style:italic">' + safe((st.notes || '').slice(0, 280)) + '</td></tr>' : '');
+        (hasNotes ? '<tr style="border-bottom:1px solid #eee"><td></td><td colspan="3" style="padding:0 8px 8px;font-size:11px;color:#555;font-style:italic">' + safe((st.notes || '').slice(0, 280)) + '</td></tr>' : '');
     }).join('');
 
     var head = '<!doctype html><html><head><meta charset="utf-8">' +
@@ -34046,6 +34059,46 @@ const AreaPeriodReport = (function() {
     var areaStops = _collectStops(startMs, endMs, matchFn);
     var completedStops = areaStops.filter(function(s) { return s.done; });
     var photoTrackerLocations = _collectPhotoTrackerLocations(startMs, endMs, matchFn);
+    // 2026-09-25: a photo tracker location that matches a stop's address
+    // gets attached to that stop's record instead of also appearing in
+    // the standalone "Photo Tracker locations" list — that list is now
+    // only the activity with no matching stop. Matching is by the same
+    // normalized-address key PhotoTrackerIndex already uses to dedupe its
+    // own entries (strips city/state, unit/suite, punctuation, case), not
+    // GPS proximity — two nearby-but-different addresses should stay
+    // separate. `areaStops` holds live references to the actual stop
+    // objects (shared with the rest of the app), so the match is attached
+    // via shallow copies in a new `stopsWithPhotoActivity` array rather
+    // than mutating the stops in place. `report.photoTracker.locations`
+    // (all locations, matched and unmatched) is left as-is for the map/
+    // heat layer and the PHOTO STAMPS export section, which are about
+    // geographic density, not this listing.
+    var normAddr = (typeof PhotoTrackerIndex !== 'undefined' && PhotoTrackerIndex.normalizeAddress)
+      ? PhotoTrackerIndex.normalizeAddress
+      : function(a) { return a ? String(a).trim().toLowerCase() : null; };
+    var stopsByNormAddr = {};
+    areaStops.forEach(function(s) {
+      var key = normAddr(s.address);
+      if (!key) return;
+      (stopsByNormAddr[key] = stopsByNormAddr[key] || []).push(s);
+    });
+    var unmatchedPhotoLocations = [];
+    var photoMatchesByStopId = {};
+    photoTrackerLocations.forEach(function(loc) {
+      var key = normAddr(loc.address);
+      var matchingStops = key ? stopsByNormAddr[key] : null;
+      if (matchingStops && matchingStops.length) {
+        matchingStops.forEach(function(s) {
+          (photoMatchesByStopId[s.id] = photoMatchesByStopId[s.id] || []).push(loc);
+        });
+      } else {
+        unmatchedPhotoLocations.push(loc);
+      }
+    });
+    var stopsWithPhotoActivity = areaStops.map(function(s) {
+      var matched = photoMatchesByStopId[s.id];
+      return matched ? Object.assign({}, s, { photoTrackerLocations: matched }) : s;
+    });
     var sessionCount = _collectSessionCount(startMs, endMs, sessionAreas);
     var breadcrumb = await _collectBreadcrumb(startMs, endMs, filters, useCustom ? customAreas : null);
 
@@ -34080,12 +34133,17 @@ const AreaPeriodReport = (function() {
         boundaryGroups: (breadcrumb.boundaryGroups && breadcrumb.boundaryGroups.length) ? breadcrumb.boundaryGroups : null
       },
       stops: {
-        list: areaStops,
+        list: stopsWithPhotoActivity,
         total: areaStops.length,
         completed: completedStops.length,
         completionRate: areaStops.length ? Math.round((completedStops.length / areaStops.length) * 100) : 0
       },
-      photoTracker: { locations: photoTrackerLocations },
+      // locations: every matched photo tracker location this period, used
+      // by the map/heat layer and the PHOTO STAMPS export section.
+      // unmatchedLocations: the subset with no matching stop address —
+      // what the standalone "Photo Tracker locations" listing shows now
+      // that matched ones are listed under their stop instead.
+      photoTracker: { locations: photoTrackerLocations, unmatchedLocations: unmatchedPhotoLocations },
       coverage: {
         sessionCount: sessionCount.sessionCount,
         activeInPeriod: sessionCount.activeInPeriod,
@@ -34126,19 +34184,25 @@ const AreaPeriodReport = (function() {
     rows.push([]);
 
     rows.push(['STOPS'].join(','));
-    rows.push(['Address', 'Type', 'Status', 'Neighborhood', 'Ward', 'Precinct', 'AddedAt', 'CompletedAt', 'Notes'].join(','));
+    rows.push(['Address', 'Type', 'Status', 'Neighborhood', 'Ward', 'Precinct', 'AddedAt', 'CompletedAt', 'Notes', 'PhotoTrackerActivity'].join(','));
     report.stops.list.forEach(function(s) {
       var status = s.done ? 'Completed' : (s.followup ? 'Followup' : 'Open');
+      // 2026-09-25: photo tracker locations matching this stop's address
+      // (see buildReport) — summarized inline rather than as a second
+      // table, since it's normally at most one location per stop.
+      var photoSummary = (s.photoTrackerLocations || []).map(function(loc) {
+        return loc.countInPeriod + ' photo' + (loc.countInPeriod === 1 ? '' : 's') + (loc.severityLabel ? ' (' + loc.severityLabel + ')' : '');
+      }).join('; ');
       rows.push([
         esc(s.address), esc(s.type), esc(status), esc(s.neighborhoodName), esc(s.ward), esc(s.precinct),
-        esc(s.addedAt), esc(s.completedAt), esc((s.notes || '').slice(0, 280))
+        esc(s.addedAt), esc(s.completedAt), esc((s.notes || '').slice(0, 280)), esc(photoSummary)
       ].join(','));
     });
     rows.push([]);
 
-    rows.push(['PHOTO TRACKER LOCATIONS'].join(','));
+    rows.push(['PHOTO TRACKER LOCATIONS (no matching stop)'].join(','));
     rows.push(['Location', 'Precinct', 'PhotosThisPeriod', 'TotalPhotosEver', 'Severity'].join(','));
-    report.photoTracker.locations.forEach(function(loc) {
+    report.photoTracker.unmatchedLocations.forEach(function(loc) {
       rows.push([esc(loc.displayLabel), esc(loc.precinct), esc(loc.countInPeriod), esc(loc.totalPhotosEver), esc(loc.severityLabel || '')].join(','));
     });
     rows.push([]);
@@ -34171,9 +34235,9 @@ const AreaPeriodReport = (function() {
     if (cov.sessionCount) lines.push(cov.sessionCount + ' survey session' + (cov.sessionCount === 1 ? '' : 's') + (cov.activeInPeriod ? ' (1 in progress)' : ''));
     lines.push('');
 
-    if (ch.locations.length) {
-      lines.push('PHOTO TRACKER LOCATIONS (' + ch.locations.length + ')');
-      ch.locations.slice(0, 10).forEach(function(loc) {
+    if (ch.unmatchedLocations.length) {
+      lines.push('PHOTO TRACKER LOCATIONS — no matching stop (' + ch.unmatchedLocations.length + ')');
+      ch.unmatchedLocations.slice(0, 10).forEach(function(loc) {
         lines.push('  ' + loc.displayLabel + ' — ' + loc.countInPeriod + ' photo' + (loc.countInPeriod === 1 ? '' : 's') + ' this period' + (loc.severityLabel ? ' · ' + loc.severityLabel : ''));
         // Stamp payloads under each location, ×N-collapsed. Indented two
         // extra spaces so a pasted summary still reads as a hierarchy in
@@ -34196,6 +34260,11 @@ const AreaPeriodReport = (function() {
       }).forEach(function(s) {
         var mark = s.done ? '✓' : (s.followup ? '⚑' : '○');
         lines.push('  ' + mark + ' ' + (s.address || '(no address)') + (s.neighborhoodName ? ' · ' + s.neighborhoodName : ''));
+        // Photo tracker activity at this stop's address, if any (see
+        // buildReport) — indented the same way stamp payloads are above.
+        (s.photoTrackerLocations || []).forEach(function(loc) {
+          lines.push('      \ud83d\udcf7 ' + loc.countInPeriod + ' photo' + (loc.countInPeriod === 1 ? '' : 's') + ' this period' + (loc.severityLabel ? ' · ' + loc.severityLabel : ''));
+        });
       });
     }
 
@@ -34224,7 +34293,12 @@ const AreaPeriodReport = (function() {
   // covers noticeably less ground than a degree of latitude, and
   // plotting both on the same raw scale measurably distorts ward/
   // neighborhood shapes people would otherwise recognize at a glance.
-  function _buildStaticSVG(report) {
+  // Shared bbox/projection geometry — factored out so the SVG overlay
+  // below and the online basemap-image fetch (_fetchStaticBasemap, PDF
+  // export only) project lat/lng to the SAME 640x640 pixel space and
+  // therefore line up. One source of truth for the math, per the file's
+  // existing "one drawing routine, multiple consumers" pattern.
+  function _computeMapGeometry(report) {
     var rings = report.area.boundaryRings || [];
     var photoPts = (report.photoTracker.locations || []).filter(function(l) { return l.gps && typeof l.gps.lat === 'number'; });
     var completedPts = (report.stops.list || []).filter(function(s) { return s.done && typeof s.lat === 'number' && typeof s.lng === 'number'; });
@@ -34260,6 +34334,35 @@ const AreaPeriodReport = (function() {
       var y = offsetY + (maxLat - lat) * scale;
       return [x, y];
     }
+
+    return {
+      rings: rings, photoPts: photoPts, completedPts: completedPts, breadcrumbPts: breadcrumbPts,
+      groups: report.area.boundaryGroups || [],
+      minLat: minLat, maxLat: maxLat, minLng: minLng, maxLng: maxLng,
+      W: W, H: H, PAD: PAD, lngScale: lngScale, scale: scale, offsetX: offsetX, offsetY: offsetY,
+      project: project
+    };
+  }
+
+  // Inverts the projection at the full canvas's four corners, giving the
+  // lat/lng bbox a fetched basemap image needs to cover so it lines up
+  // pixel-for-pixel with the SVG overlay drawn on the same geometry. Valid
+  // at city/neighborhood scale (a few km) where Mercator and this simple
+  // linear-latitude projection track closely enough that the difference
+  // is sub-pixel at 640px; it is NOT meant for whole-region bboxes.
+  function _canvasCornersToBbox(geom) {
+    var west = geom.minLng - geom.offsetX / (geom.lngScale * geom.scale);
+    var east = geom.minLng + (geom.W - geom.offsetX) / (geom.lngScale * geom.scale);
+    var north = geom.maxLat + geom.offsetY / geom.scale;
+    var south = geom.maxLat - (geom.H - geom.offsetY) / geom.scale;
+    return { west: west, south: south, east: east, north: north };
+  }
+
+  function _buildStaticSVG(report) {
+    var geom = _computeMapGeometry(report);
+    if (!geom) return null;
+    var rings = geom.rings, photoPts = geom.photoPts, completedPts = geom.completedPts, breadcrumbPts = geom.breadcrumbPts;
+    var W = geom.W, H = geom.H, project = geom.project;
     function ringPath(ring) {
       return ring.map(function(pt, i) {
         var p = project(pt[0], pt[1]);
@@ -34274,7 +34377,7 @@ const AreaPeriodReport = (function() {
     // polygon with holes render correctly); grouping by type instead of
     // by individual area keeps the ring count per path low enough that
     // evenodd still behaves for donut shapes within one type.
-    var groups = (report.area.boundaryGroups || []);
+    var groups = geom.groups;
     var boundaryPathsByType = {};
     groups.forEach(function(g) {
       if (!g.rings || !g.rings.length) return;
@@ -34431,7 +34534,10 @@ const AreaPeriodReport = (function() {
         '<div style="color:#888;font-size:10px;text-transform:uppercase;letter-spacing:0.5px;margin-bottom:3px">Photo stamps</div>' +
         items + '</td></tr>';
     }
-    var photoTrackerRows = ch.locations.map(function(loc) {
+    // 2026-09-25: only locations with no matching stop address — a match
+    // is now listed under that stop's own row instead (see stopRows
+    // below and buildReport's photoMatchesByStopId).
+    var photoTrackerRows = ch.unmatchedLocations.map(function(loc) {
       return '<tr><td style="padding:4px 8px">' + safe(loc.displayLabel) +
           (loc.precinct ? '<br><span style="font-size:10px;color:#999">' + safe(loc.precinct) + '</span>' : '') + '</td>' +
         '<td style="padding:4px 8px;text-align:right"><b>' + loc.countInPeriod + '</b></td>' +
@@ -34451,7 +34557,24 @@ const AreaPeriodReport = (function() {
         if (s.completedAt) when = new Date(s.completedAt).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' });
         else if (s.addedAt) when = new Date(s.addedAt).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' }) + ' (added)';
       } catch (_) { _swallow('safe', _); }
-      return '<tr style="border-bottom:1px solid #eee">' +
+      // 2026-09-25: photo tracker activity at this stop's address (see
+      // buildReport's photoMatchesByStopId) — rendered as its own sub-row,
+      // same pattern as the notes row below it.
+      var photoMatches = s.photoTrackerLocations || [];
+      var photoRowsHtml = photoMatches.map(function(loc, i) {
+        var isLast = i === photoMatches.length - 1;
+        return '<tr' + (isLast ? ' style="border-bottom:1px solid #eee"' : '') + '><td></td><td colspan="3" style="padding:0 8px 8px;font-size:11px;color:#a86a00">' +
+          '\ud83d\udcf7 ' + loc.countInPeriod + ' photo' + (loc.countInPeriod === 1 ? '' : 's') + ' this period' +
+          (loc.severityLabel ? ' &middot; <b>' + safe(loc.severityLabel) + '</b>' : '') + '</td></tr>';
+      }).join('');
+      // 2026-09-25 fix: divider moved off the address <tr> and onto
+      // whichever <tr> is actually last for this stop — the photo sub-row
+      // if there is one, else the notes sub-row, else the address row
+      // itself (see PeriodReports' twin of the address/notes half of this
+      // fix for the full rationale).
+      var hasNotes = !!(s.notes && String(s.notes).trim());
+      var hasPhoto = photoMatches.length > 0;
+      return '<tr' + (!hasNotes && !hasPhoto ? ' style="border-bottom:1px solid #eee"' : '') + '>' +
         '<td style="padding:5px 8px;color:' + statusColor + ';width:24px;text-align:center;font-size:14px">' + statusLabel + '</td>' +
         '<td style="padding:5px 8px"><b>' + safe(s.address || '(no address)') + '</b>' +
           (s.type ? '<br><span style="font-size:11px;color:#888">' + safe(s.type.replace(/_/g, ' ')) + '</span>' : '') +
@@ -34459,7 +34582,8 @@ const AreaPeriodReport = (function() {
         '<td style="padding:5px 8px;font-size:11px;color:#666;white-space:nowrap">' + safe(when) + '</td>' +
         '<td style="padding:5px 8px;font-size:11px;color:#666">' + safe(s.neighborhoodName || '') + '</td>' +
         '</tr>' +
-        (s.notes ? '<tr><td></td><td colspan="3" style="padding:0 8px 8px;font-size:11px;color:#555;font-style:italic">' + safe((s.notes || '').slice(0, 280)) + '</td></tr>' : '');
+        (hasNotes ? '<tr' + (hasPhoto ? '' : ' style="border-bottom:1px solid #eee"') + '><td></td><td colspan="3" style="padding:0 8px 8px;font-size:11px;color:#555;font-style:italic">' + safe((s.notes || '').slice(0, 280)) + '</td></tr>' : '') +
+        photoRowsHtml;
     }).join('');
 
     var title = report.area.label;
@@ -34535,8 +34659,8 @@ const AreaPeriodReport = (function() {
         (staticSVG ? '<div class="static-map-print">' + staticSVG + '</div>' : '');
     }
 
-    if (ch.locations.length) {
-      html += '<h2>Photo Tracker locations (' + ch.locations.length + ')</h2><table>' + photoTrackerRows + '</table>';
+    if (ch.unmatchedLocations.length) {
+      html += '<h2>Photo Tracker locations — no matching stop (' + ch.unmatchedLocations.length + ')</h2><table>' + photoTrackerRows + '</table>';
     }
     if (st.list.length) {
       html += '<h2>Stops (' + st.list.length + ')</h2><table>' + stopRows + '</table>';
@@ -34595,7 +34719,11 @@ const AreaPeriodReport = (function() {
           'var completed = ' + completedJson + ';' +
           'try {' +
             'var map = L.map("area-map", {zoomControl:true, attributionControl:true});' +
-            'var tiles = L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {subdomains:"abc", maxZoom:19}).addTo(map);' +
+            // 2026-09-25: MapTiler (keyed) replaces OSM's public tile
+            // servers here — see the PhotoTracker report's twin of this
+            // change for the full rationale. tileerror still falls back to
+            // the static SVG (now also covers a bad/expired key).
+            'var tiles = L.tileLayer("https://api.maptiler.com/maps/streets-v2/256/{z}/{x}/{y}.png?key=aZMec4wR6VEaCfnAmvSa", {maxZoom:20, crossOrigin:true, attribution:\'\\u00a9 <a href="https://www.maptiler.com/copyright/" target="_blank">MapTiler</a> \\u00a9 <a href="https://www.openstreetmap.org/copyright" target="_blank">OpenStreetMap contributors</a>\'}).addTo(map);' +
             'var tilesOk = false;' +
             'tiles.on("tileload", function(){ tilesOk = true; });' +
             'tiles.on("tileerror", function(){ if (!tilesOk) useFallback(); });' +
@@ -34665,7 +34793,12 @@ const AreaPeriodReport = (function() {
     });
   }
 
-  function _svgToPngDataUrl(svgString, w, h) {
+  // transparent=true skips the opaque background fill — used when this
+  // PNG will be stacked as a second jsPDF addImage on top of a real
+  // basemap image (_fetchStaticBasemap) rather than standing alone as the
+  // whole map (the silhouette fallback, which needs the opaque fill so a
+  // transparent edge doesn't render black).
+  function _svgToPngDataUrl(svgString, w, h, transparent) {
     return new Promise(function(resolve, reject) {
       try {
         var img = new Image();
@@ -34674,11 +34807,13 @@ const AreaPeriodReport = (function() {
             var canvas = document.createElement('canvas');
             canvas.width = w; canvas.height = h;
             var ctx = canvas.getContext('2d');
-            // Match the SVG's own background so any transparent edge
-            // doesn't come out black on renderers that composite
-            // transparency oddly.
-            ctx.fillStyle = '#fafaf6';
-            ctx.fillRect(0, 0, w, h);
+            if (!transparent) {
+              // Match the SVG's own background so any transparent edge
+              // doesn't come out black on renderers that composite
+              // transparency oddly.
+              ctx.fillStyle = '#fafaf6';
+              ctx.fillRect(0, 0, w, h);
+            }
             ctx.drawImage(img, 0, 0, w, h);
             resolve(canvas.toDataURL('image/png'));
           } catch(e) { reject(e); }
@@ -34687,6 +34822,37 @@ const AreaPeriodReport = (function() {
         img.src = 'data:image/svg+xml;base64,' + btoa(unescape(encodeURIComponent(svgString)));
       } catch(e) { reject(e); }
     });
+  }
+
+  // Fetches one pre-rendered basemap image (MapTiler Static Maps API,
+  // keyed to Silly's account) for the exact bbox _canvasCornersToBbox
+  // derives from the report's own projection geometry, so it lines up
+  // with the SVG overlay drawn on that same geometry. No canvas
+  // compositing here — the caller stacks this PNG and the overlay PNG as
+  // two separate jsPDF addImage calls, so there's no tainted-canvas risk
+  // at all (fetch()'s CORS requirement is far more forgiving than
+  // canvas's, and MapTiler's endpoint sends the right headers anyway).
+  // Returns null (never throws) on any failure — offline, network error,
+  // bad/expired key, quota exhausted — so the caller can fall back to the
+  // plain SVG silhouette exactly as it did before this feature existed.
+  async function _fetchStaticBasemap(bbox, w, h) {
+    try {
+      if (navigator.onLine === false) return null;
+      var url = 'https://api.maptiler.com/maps/dataviz-v4/static/' +
+        bbox.west.toFixed(6) + ',' + bbox.south.toFixed(6) + ',' + bbox.east.toFixed(6) + ',' + bbox.north.toFixed(6) +
+        '/' + w + 'x' + h + '.png?key=aZMec4wR6VEaCfnAmvSa';
+      var resp = await fetch(url);
+      if (!resp.ok) return null;
+      var blob = await resp.blob();
+      return await new Promise(function(resolve) {
+        var reader = new FileReader();
+        reader.onload = function() { resolve(reader.result); };
+        reader.onerror = function() { resolve(null); };
+        reader.readAsDataURL(blob);
+      });
+    } catch (_e) {
+      return null;
+    }
   }
 
   // Returns a Blob (application/pdf) — caller decides what to do with it
@@ -34736,10 +34902,25 @@ const AreaPeriodReport = (function() {
       var svg = _buildStaticSVG(report);
       if (svg) {
         try {
-          var pngDataUrl = await _svgToPngDataUrl(svg, 640, 640);
+          // Try a real basemap first (needs network + a working key);
+          // fall back to the plain overlay-only silhouette on anything
+          // that goes wrong, same as before this feature existed.
+          var basemapPng = null;
+          var geom = _computeMapGeometry(report);
+          if (geom) {
+            try { basemapPng = await _fetchStaticBasemap(_canvasCornersToBbox(geom), 640, 640); }
+            catch (_e2) { basemapPng = null; }
+          }
           var imgSizeMm = Math.min(pageW - margin * 2, 150);
           ensureRoom(imgSizeMm + 8);
-          doc.addImage(pngDataUrl, 'PNG', margin, y, imgSizeMm, imgSizeMm);
+          if (basemapPng) {
+            var overlayPng = await _svgToPngDataUrl(svg, 640, 640, true);
+            doc.addImage(basemapPng, 'PNG', margin, y, imgSizeMm, imgSizeMm);
+            doc.addImage(overlayPng, 'PNG', margin, y, imgSizeMm, imgSizeMm);
+          } else {
+            var pngDataUrl = await _svgToPngDataUrl(svg, 640, 640);
+            doc.addImage(pngDataUrl, 'PNG', margin, y, imgSizeMm, imgSizeMm);
+          }
           y += imgSizeMm + 3;
           // 2026-08-13: name the boundary colors actually used, so the
           // printed map's outlines are readable without the interactive
@@ -34751,6 +34932,10 @@ const AreaPeriodReport = (function() {
           }, []);
           line('Orange heat = photo activity density · Green = completed stops · Yellow = survey path' +
             (bLegend.length ? ' · Outlines: ' + bLegend.join(', ') : ''), { size: 7.5, color: [150, 150, 150] });
+          // MapTiler's terms require attribution on any image using their
+          // basemap tiles — only applies when the real basemap actually
+          // loaded, not the SVG-only silhouette fallback.
+          if (basemapPng) line('Map data \u00a9 MapTiler \u00a9 OpenStreetMap contributors', { size: 6.5, color: [170, 170, 170] });
           y += 2;
         } catch(_e) {
           line('(Map image could not be generated for this PDF.)', { size: 8, color: [180, 60, 60] });
@@ -34758,11 +34943,11 @@ const AreaPeriodReport = (function() {
       }
     }
 
-    if (ch.locations.length) {
+    if (ch.unmatchedLocations.length) {
       y += 2;
-      line('PHOTO TRACKER LOCATIONS (' + ch.locations.length + ')', { size: 12, bold: true, color: [26, 51, 32] });
+      line('PHOTO TRACKER LOCATIONS \u2014 no matching stop (' + ch.unmatchedLocations.length + ')', { size: 12, bold: true, color: [26, 51, 32] });
       y += 1;
-      ch.locations.forEach(function(loc) {
+      ch.unmatchedLocations.forEach(function(loc) {
         line('• ' + loc.displayLabel + ' — ' + loc.countInPeriod + ' photo' + (loc.countInPeriod === 1 ? '' : 's') +
           (loc.severityLabel ? ' · ' + loc.severityLabel : '') +
           (loc.precinct ? ' · ' + loc.precinct : ''), { size: 9 });
@@ -34790,6 +34975,13 @@ const AreaPeriodReport = (function() {
         var mark = s.done ? '✓' : (s.followup ? '⚑' : '○');
         line(mark + ' ' + (s.address || '(no address)') + (s.neighborhoodName ? ' · ' + s.neighborhoodName : '') +
           (s.precinct ? ' · ' + s.precinct : ''), { size: 9 });
+        // 2026-09-25: photo tracker activity at this stop's address, if
+        // any (see buildReport) — indented under the stop the same way
+        // the standalone locations' stamp payloads are indented above.
+        (s.photoTrackerLocations || []).forEach(function(loc) {
+          line('     \ud83d\udcf7 ' + loc.countInPeriod + ' photo' + (loc.countInPeriod === 1 ? '' : 's') + ' this period' +
+            (loc.severityLabel ? ' · ' + loc.severityLabel : ''), { size: 8, color: [130, 90, 0] });
+        });
       });
     }
 
