@@ -68,7 +68,7 @@
      silent at the network layer — the user just sees the feature broken
      with no obvious cause. test-csp.js exists to catch CSP drift at edit
      time so this doesn't bite. -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' https://cdnjs.cloudflare.com https://accounts.google.com; style-src 'self' 'unsafe-inline' https://cdnjs.cloudflare.com https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data: blob: https://*.tile.openstreetmap.org https://*.basemaps.cartocdn.com https://api.qrserver.com; connect-src 'self' https://generativelanguage.googleapis.com https://nominatim.openstreetmap.org https://router.project-osrm.org https://maps8.stlouis-mo.gov https://maps6.stlouis-mo.gov https://raw.githubusercontent.com https://ipapi.co https://script.google.com https://script.googleusercontent.com https://www.googleapis.com https://accounts.google.com https://api.maptiler.com; frame-src https://accounts.google.com; manifest-src 'self' blob:; worker-src 'self' blob:; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' https://cdnjs.cloudflare.com https://accounts.google.com; style-src 'self' 'unsafe-inline' https://cdnjs.cloudflare.com https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data: blob: https://*.tile.openstreetmap.org https://*.basemaps.cartocdn.com https://api.qrserver.com; connect-src 'self' https://generativelanguage.googleapis.com https://nominatim.openstreetmap.org https://router.project-osrm.org https://maps8.stlouis-mo.gov https://maps6.stlouis-mo.gov https://raw.githubusercontent.com https://ipapi.co https://script.google.com https://script.googleusercontent.com https://www.googleapis.com https://accounts.google.com https://api.maptiler.com https://tiles.stadiamaps.com; frame-src https://accounts.google.com; manifest-src 'self' blob:; worker-src 'self' blob:; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'">
 <link rel="apple-touch-icon" sizes="180x180" href="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAALQAAAC0CAMAAAAKE/YAAAAA/1BMVEXgW1soKCjqqKiXrcthaGZUVFQmVZ3n6d/fIB/101tti7b14p/SrR63xto6OjpHbKb0yTOYj0UVFRWsmjgvVnzlfoBmZmZCQkJ9mcGgnZ0/f399gFblgH8AAAD9/f0XSZfhICH1vQLgHiDcFRX4wQQHO43hGRrs6OncJCRVVVX////W19eqqqo/Pz8EBAR/f38qVZbxx8dUeKxnZ2eHh4fFx8jniIh2d3bO2OW4uLjbDQ7cNzempqb02NdHR0eXl5cAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAABSZ2YFAAAAQHRSTlP/Xv7+56z//////////43///85////BXj//wT//wD+///////////+/wMB/gMELQP//v7R9///7P/////+/5P+n3wHugAAD8lJREFUeNrtnQl32joWx4XZTMieLu/NDAZsYxtIWAKEHb7/txrJu6SrxYa+ds6gc9qmQMzP1/+7SJZk1PkfbOgGfYO+Qd+gb9A36Bv0DfoGfYO+Qd+g/0+hh8OPqA2Hfz708GP6Drz8Pv0Y/pHQ048MdzJ5rUTtdTLJ0D+mfxR0AvxaOdUXteXy78N2u23jP4e/z8vaon6qVGLw4R8C/TEKrVupL5YHY+xbfPPHq8NyUa+EVh99/HboYWjjSr12NjYJomEg3Pb7PfnHmCen4a/OtXpo8dHwd0IPI+LldpwYdf6FAsfZOY7jOXELMHjy9ni7jLiHvwv6PSZOFTH/vse8Xg+3ADf8N/7JJuDo65hqJeZ+/x3QIfLikGnYQJjYxqB2r2cSVNu2yV+Y3HN2AZpnGj8sHrG+R/80NEaenJYrK4+MiTGnZxJL458SaLtnekFAzJ1hW6vlqTx2OWgcACb15ThjOCIHw2JijNiLoUnzPDv60TEDLHKUiy3jZX1SUtuopPud8sjWl+MQSYStl2+BacYvY+7A2wWGdQVsVEoZlXUe+Yh2dt68+Acvih0edkpi/fASmPh/3i5vbGu8fizjkaiEmSuLbT51GAE2c87ANgYOwhiN9jj6RQIh0DZxStrY1mpRKW5sVNzM9TOV9bCaw9AWN6Lc/xhJgDsayCT2jsUeeCb2yC8qWx6wRt5/JfSQVQZmNvMa9px8aIujN043GNuO9OMF9g5R74/XRY2NCgaN04GuKpCXZ3aCL6j2OKJEQUTeZo8WtmUd6uGxfwn0tDNZrGjmPWaOsW1sZgQhJyGxFzkpjt099oOrxWsRiRSAHmFp+DxzZua9YYmbEaQSAaj9ZaVApili6cezJWHeCc2cGjuhxnmIuyiH0/UtjR2lvmUwsJ4zL3SQpWpo17MDM1S2yX9+Vdd2R6TNXFuxDE74/THzl6Vu3x3Ti6Ah6nFtoumOSDNsTGpj3m45PRuWTvtyqBhSlhrp2XlSYwVrOHnmL0uvfe16dpLv+TP1NalRSeY5qZDiekNHz5SmImhc9rF5yF9PdHSNyjFTgaMAc0IdCcTZ+4Cth9eRB6dn8tVp4PD2fgFocrpxreoBp+vXriKPEcCcFzR/keVtTjo4nmfCssbeqM4ySJ276yvOHEFOHDvDKtaMXS8O8DjzB9xVGtc70wuhf3Qet7wuc8wesoo25KRdMsgfto/4Wy+BHnYqZ0smjl5wLAx9DNKOjgdF+ENFEfhUlp6s+S+lIodhFW/ZWZugGy9f5SEEKfopNR9Ka5eIg9aX3dt95yPMQu6MSO6Ejyvg4poXGjo0dawQD/coeYGt5M6Iigo6c6Pyhs6Z2nbA3IRlPSwHPYLEMadqjnlJ6HliatJPh46ylgkEycRxWv0iQ4emttMAAhwGR+v3EtDDzuvZ+kWGxp4Rd2PCcRzIM84SgaBikSMnRvsSQ6emtkVVIo4gxaE/OpWt1ND2JYZOVR1VTpCptxWhQJBY0WtpgO1dZuj0UKYtKsjFvoiE4gBCNI7RvYtjNJsWw/Fg6KKtHkWmRsJwpzR0oTLaElcDGDooZmpUIBeGJWkyPBo4l6mDKQegumt8EpgaFTG04fSyQfOL3DCOeoquscjUSBQ6Vr/WDXmxWaCqp/rQOIFbisSy+7oY2qDipwGaWt/S2NAHS57BTed4MbSfjUkKMtUW7g4g2NB1H+5HX1MdoRViH7FNE3JFQWENy2OyVF7NrytAp44dlk3QEc+vuvL4AONdXh2BeXHsiHKVl8oDvnY46k31oEedhUCB11VHpI/06oF2APWBwGGws1wd6pGwZruFW7vdVI9H2kkXF4xHB6iPi6BsqAzS8rqj2X7uJ63VlkG3HVwwJdCOtj6QvjrsfNaV1B0tt59vz23FwF4SREX60IweS5U6JJJuPvfZ1tITtSB+THhTI83qn1aHOB22+0B7lo3rZSEJ1McKyC8IqKShzGLttSTd7PcLUWeVAUmKYH4BeriQPBaqusMLRFHB7bsgdUuSydNbA/AA7FpL02A6/NKSdCtmdF2Wva2o9Gxhr+s8UUPrSFoEnRf0c6v1jMkTeFcUqbOeIobe6xVNCBiiGcvSIZkEJpJ0i41zbVdlasNJzCzq3wORGun5YT7gBaIbFs1+pAo3k3AWAAW+eDQpaEPLE5GeH35R6hCklnY/1IObd7tmauumvHsrrg5qOo64VOZwJFKHS1zQpfjaCn0gysNNwBzLiRoaqpaoCk8I/Rwiu0x8i0ztiqIeDQ0J78DlRMSPSR8UOVyYD90Yug14pxCaOTQ8PjaUQ8P9cCpKi4IHkS8I7epDQxeRT+SIi3g/x4praIuChxunlULQx3z1CI4k8DEPaYXpvU7wiNQr0LQ4kzPHPkIxTwkNhOkjPY1tb4kcEch+7SQptjSGbMBIrYYGcwutO2XlQfE9K6uPXKFnQ07OZxekc3PoywnyM3+QspZuMYqWFB/Wd4eyNNLo3PLQC9+CJ0qk0N8tSyLqiDrKL7izmBSrLfXgmC0YaNKBVuRDybSDFlXltVvPWZUnVEcCHU8Ihry8FDSdDyU9caDfkuTDZ0vReYmgTSgnakDzmp7ne5/SgelWX9TakmEmM+sHmAFgklLQdPCQTZYQdBFlhs5dx2jiGxc+/JoKGorTdBK3pWMeAui2xr0XwRxDEvKU0Cdf7ofC3MIEkLizKEvh0OFB6BJpnIGWDuO1WWhSjLhNfWjeJuraA6ry9gWgGYFAtaoCmnOZ8U8N6K20DlNBs77oSr2QKyGB4KQuTYed14NsnEY9NN1mfNB1m8WgDeVoL1KP1RjFoLkI0rYugz5r9BG5255FobMOeJgPn4vcuYWOv1T3xvk8zhxUcYuomRcI6YA1w9c0oaGxMf4OBjDCVB/LL58Mutqo5gXiRuKIXtW4BwpB6wzW8DGPDkkS6M1dd1ClK/84rVQHs7uNDnQ4u5ALHsphsWFncigFXf3sDhobRtaEmWTYZnfQ/XwQ302UZBdgthtS373Ya0A3q7MBZibifSDk7TjckZPpkjPZzAaDQaPqa0Aztc1SZ3ya7bv4LLQB6KIx6HYHT+T3Npg9jdZY0M3GYEbOpTkjH5ndNdXQR9WdRNRRjfX6dELkLf2AddHFQJ8h/wz/dBc7I3HCBn5rRs7Gb4Sf6nLiNnbMwsCj6p4cgubjHZgsbqZrUMkYoQEhx8z+LPy5GjojEfRd+OZT+NGn6IPdTzo8hesZhXl8q3WjiE0vR8cx0/k0noMoO1SfBiFJZN2Eq9vFPtdshWGjm52R9Rn/j/FJHzn5ZZi0/pZ69xGZoY+5EyQdcW9HLzasJowJ82fy/1kk3Ycu/P5gQGPPk0V0NgvN9wBgaKbQm4eDHsQQDr3S9OGpyzDdDdJXGmFMmWWfqNJnha29oTWyizu3NDR0G1Ew32PJxn7TZFcbYi2zzNVB7qWnh001Y+apWexQIzw0P6IugKb1YYR6s6ml6tbmcyBlJgoYDKgXuitK9VEkoe4Z7Hdez6Ony/rg5F6knGYahlGPCnTNuy7PvKEIG2+4vdAvbRhbE+y/fKp0wsqmBhHgSUyCeXlrqg/AOGA1j5wwN2cUYS3saH2jXpv5HDVON1XKIXf0eoy1/myx93x+mTu0mUnC5pmtpy4DTfJ4rUF9NAp8NDVOoA+UsZ1cnIZnA4ksneu+HCkzb+hvTJnv6Je7LyH0SwP88BPz4by05/vdPD/valhgMmHmise8X9zR35Yar8pgdO9D6Df247EWGsyZd/MaydKXL1jHhQpMrWeVQQJbonKmzaLBg3v29UEkBb/Bvt6A6lbR0iKkv/CCVQYJCD4QOELoWtS4NxqREvwZ986drzmVUAgN3E6kY0Y+HFiNLg/XIC9Cb8QW4KjpOCIztGTSN23qzdNAZDWLvwKSljjjBnjrqallaCE0s5qoCn3/RuCEJHjcR+0FQIsN+gAckTK2eFUREq8YyXrlkJnD8lP05Y3IDwFPzP0idLLdT18VOqTrXEavS5mZE4M1oTe/pb3xGWRPX0ydKfssXt8nW5wTT5O9G0iYISfsdtfpLKAa8H4S3AVHvkuS4XuJtVuJL84k7gR/b5QP+0BOZH4bduG46hiVWXCWhL0nia2qcOB4S6Hf4BCSpBLIWRpyL1Qs7YtHyABzxEkFiltZEg+h7wWfiIMbkGS6xCDSRXLylZ+RQHhrzpoyQef9EPbELP8Dpx16i3Q5ohw6Ctb8cVdSQRM/zFqtIc0xQMRsytf1KRcGf4SrxmeCwFEVZcLa20vS3mqizCg6yixc3/KvC5Zgv5M9BZjO31+WXNC6rQleL3wy45pi1x3VuvFQ1jMocEBRpUjLDkR5OjZ0bXLhtgJDstw9Z+pBw1IIGi7uZALJhxD84rKi2i1DuYHDB3HGnC2alrjkSCTdv8+1mviDG05o2PzninI3FfVWGeGaqKR/lGYFfyZmeXH7afDoi8JHLAXaGfF1xFnlxxU2JZmSEBJRp1dUWkO/5W+Qu28NZW2dUGPm7aPG1lc6O6mE1ETCme9UZXX/vZub9S3MidSFC42Az8F47GhsM6u1/cs7oca92tQJmzJXm/Vdaqr6TPbZtHxukKJ0e9LaYkxvHyZMjWunajpg+CQzdC2ZvimpTvm4t6laetrQhibUud6XVBzdf7vUogApdM5LcGWnyay9t9h7p7JMLuVqIIV+Y6BfpNCD9PKdK7rbz2nv4vYj23huU33qSrjv6dk1Ek/EB3mqJkXqutLR3epZf+s5ssXfOLtv+DkTgM+YpS4u7In4lxt31XTMgOwrpr09dYH98j6Y3ecweGPAg9fcZKVL7I1ujQcezD6r+fsA20IbKhbbTjEn7OiaPtyxSmnU3GQaUArdoC2MgR/owywfC21dWWy3zRG3C2QEnpfKCwf9khmYB7aivU0L7dpbcF/TIdnwlr/B7T9kGk/8MA0goScOIg0DUxH886nYXpvFN2PlN5DNhvuqxOTf+nlDR9zfQAPHai6xhWzxvXqn/IasObM1q+GSrXQiIf6n1VoJ53qU26y3xAbDw3Dr6bFswlg7Wmz23GpJlwaX3Ra51P7TBLt+HivmX6mWMvvnshtQl9zp+53dNbtwG5/JzurlNlYvvaf6iN2fvFBbhcIou/V++Y3gp9FO8Ofi5h4fFuH29aW33b/oOQEE+/W0PowLEa9PF+64f+kTGcKkUDnVziudXXfIMxlC4oLJ5MrQyXMkJpX6+rySWXy8Oq/jp19c/NSOazxlJOLG4Kf6ennYjqmHdvhj8rSO9eIUAXemV3jOyJWe5zL9iCueSaXys15f1Bdr0vC/9frPyms8zjW60rNorvjknOHHVFyrja758JyrP6MIo0/fRwn9aPQ+vfKzfjq3p0HdoG/QN+gb9A36Bn2D/mfbfwFBddQBrfHInwAAAABJRU5ErkJggg==">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
 <meta name="apple-mobile-web-app-capable" content="yes">
@@ -23138,24 +23138,48 @@ function _formatPhotoStatsLine(stats) {
 // never throws — and every caller falls back to the plain outline map,
 // the way reports behaved before any basemap existed.
 const ReportBasemap = (function() {
-  var KEY = 'aZMec4wR6VEaCfnAmvSa';
-  // Tried in order against one probe tile; first that answers wins and is
-  // remembered for the session. Muted styles come first because a heat
-  // overlay reads better on them. The list exists because style IDs are
-  // versioned (docs now show "-v4" names) and I could not confirm from
-  // here which of these this key's plan serves — a 404 just moves on to
-  // the next candidate; a 401/403 stops immediately (no style fixes a
-  // rejected key).
-  var STYLE_CANDIDATES = ['dataviz-light', 'dataviz', 'streets-v2', 'streets-v4'];
-  var MUTED_STYLES = { 'dataviz-light': true, 'dataviz': true };
+  // Providers are tried in order; the first one that answers a probe tile
+  // supplies the whole map (never mixed within one image). A provider with an
+  // empty key is skipped, so adding a backup is: paste its key into `key`.
+  //
+  // Per provider, `styles` are tried in order against one probe tile; a 404
+  // moves to the next style, a 401/403 means that provider's key is rejected
+  // (no style fixes it), a 429 means its quota is spent. Muted styles come
+  // first because a heat overlay reads better on them. The style lists exist
+  // because style IDs are versioned and I could not confirm from here which
+  // ones each plan serves.
+  var PROVIDERS = [
+    {
+      id: 'maptiler', name: 'MapTiler',
+      key: 'aZMec4wR6VEaCfnAmvSa',
+      styles: ['dataviz-light', 'dataviz', 'streets-v2', 'streets-v4'],
+      muted: { 'dataviz-light': true, 'dataviz': true },
+      url: function(style, z, x, y, key) {
+        return 'https://api.maptiler.com/maps/' + style + '/256/' + z + '/' + x + '/' + y + '.png?key=' + key;
+      },
+      attribution: '\u00a9 MapTiler \u00a9 OpenStreetMap contributors'
+    },
+    {
+      // Backup. Free Stadia Maps account -> property -> API key; add the
+      // site's domains to the property's authentication (domain auth is
+      // what makes it safe in app source). Leave key '' to disable.
+      id: 'stadia', name: 'Stadia Maps',
+      key: '',
+      styles: ['alidade_smooth', 'osm_bright'],
+      muted: { 'alidade_smooth': true },
+      url: function(style, z, x, y, key) {
+        return 'https://tiles.stadiamaps.com/tiles/' + style + '/' + z + '/' + x + '/' + y + '.png?api_key=' + key;
+      },
+      attribution: '\u00a9 Stadia Maps \u00a9 OpenMapTiles \u00a9 OpenStreetMap contributors'
+    }
+  ];
   // MAX_SIDE_TILES caps tile requests per report at 25 (each tile counts
-  // against the MapTiler plan's monthly request quota, and the report
+  // against the provider plan's monthly request quota, and the report
   // preview prefetches one set per Apply) — roughly a 1280px square image,
   // plenty for a backdrop that's embedded in a report.
   var TILE = 256, MAX_SIDE_TILES = 5, MIN_Z = 8, MAX_Z = 17, CONCURRENCY = 6;
   var DESAT_FILTER = 'grayscale(0.55) brightness(1.15) contrast(0.85) saturate(0.6)';
-  var ATTRIBUTION = '© MapTiler © OpenStreetMap contributors';
-  var _workingStyle = null;
+  var _workingStyle = {};   // provider id -> style that answered this session
 
   function lngToX(lng, z) { return (lng + 180) / 360 * Math.pow(2, z); }
   function latToY(lat, z) {
@@ -23195,12 +23219,9 @@ const ReportBasemap = (function() {
   }
 
   function _err(msg, status) { var e = new Error(msg); e.status = status || 0; return e; }
-  function _tileUrl(style, z, x, y) {
-    return 'https://api.maptiler.com/maps/' + style + '/256/' + z + '/' + x + '/' + y + '.png?key=' + KEY;
-  }
-  async function _fetchTileBlob(style, z, x, y) {
+  async function _fetchTileBlob(prov, style, z, x, y) {
     var resp;
-    try { resp = await fetch(_tileUrl(style, z, x, y)); }
+    try { resp = await fetch(prov.url(style, z, x, y, prov.key)); }
     catch (_e) { throw _err('network', 0); }
     if (!resp.ok) throw _err('http ' + resp.status, resp.status);
     return resp.blob();
@@ -23215,15 +23236,15 @@ const ReportBasemap = (function() {
     });
   }
 
-  // Probes one tile per candidate style. Returns {style, blob} on success
-  // or {reason} when it should stop trying.
-  async function _pickStyle(z, x, y) {
-    var order = _workingStyle ? [_workingStyle] : STYLE_CANDIDATES;
+  // Probes one tile per candidate style for one provider. Returns
+  // {style, blob, prov} on success or {reason} when this provider is out.
+  async function _pickStyle(prov, z, x, y) {
+    var order = _workingStyle[prov.id] ? [_workingStyle[prov.id]] : prov.styles;
     var lastStatus = 0;
     for (var i = 0; i < order.length; i++) {
       try {
-        var blob = await _fetchTileBlob(order[i], z, x, y);
-        return { style: order[i], blob: blob };
+        var blob = await _fetchTileBlob(prov, order[i], z, x, y);
+        return { style: order[i], blob: blob, prov: prov };
       } catch (e) {
         lastStatus = e.status || 0;
         if (e.status === 401 || e.status === 403) return { reason: 'key' };
@@ -23248,9 +23269,18 @@ const ReportBasemap = (function() {
       if (cols < 1 || rows < 1) return { ok: false, reason: 'bbox' };
 
       var cx = x0 + Math.floor(cols / 2), cy = y0 + Math.floor(rows / 2);
-      var probe = await _pickStyle(z, cx, cy);
-      if (!probe.style) return { ok: false, reason: probe.reason };
-      _workingStyle = probe.style;
+      // First provider with a key that answers wins. If all fail, the first
+      // provider's reason is reported (it is the one the user configured
+      // first, so its error is the actionable one).
+      var probe = null, firstReason = null;
+      for (var pi = 0; pi < PROVIDERS.length; pi++) {
+        if (!PROVIDERS[pi].key) continue;
+        var attempt = await _pickStyle(PROVIDERS[pi], z, cx, cy);
+        if (attempt.style) { probe = attempt; break; }
+        if (!firstReason) firstReason = attempt.reason;
+      }
+      if (!probe) return { ok: false, reason: firstReason || 'style' };
+      _workingStyle[probe.prov.id] = probe.style;
 
       var canvas = document.createElement('canvas');
       canvas.width = cols * TILE; canvas.height = rows * TILE;
@@ -23268,8 +23298,8 @@ const ReportBasemap = (function() {
             var blob;
             if (t[0] === cx && t[1] === cy) blob = probe.blob;
             else {
-              try { blob = await _fetchTileBlob(probe.style, z, t[0], t[1]); }
-              catch (e1) { blob = await _fetchTileBlob(probe.style, z, t[0], t[1]); } // one retry
+              try { blob = await _fetchTileBlob(probe.prov, probe.style, z, t[0], t[1]); }
+              catch (e1) { blob = await _fetchTileBlob(probe.prov, probe.style, z, t[0], t[1]); } // one retry
             }
             var img = await _blobToImage(blob);
             ctx.drawImage(img, (t[0] - x0) * TILE, (t[1] - y0) * TILE, TILE, TILE);
@@ -23289,7 +23319,7 @@ const ReportBasemap = (function() {
       return {
         ok: true, canvas: canvas, dataUrl: dataUrl, z: z, x0: x0, y0: y0,
         bounds: { west: xToLng(x0, z), east: xToLng(x1 + 1, z), north: yToLat(y0, z), south: yToLat(y1 + 1, z) },
-        style: probe.style, muted: !!MUTED_STYLES[probe.style], attribution: ATTRIBUTION
+        style: probe.style, provider: probe.prov.id, muted: !!probe.prov.muted[probe.style], attribution: probe.prov.attribution
       };
     } catch (_e) {
       return { ok: false, reason: 'network' };
@@ -23322,9 +23352,9 @@ const ReportBasemap = (function() {
   function reasonText(reason) {
     switch (reason) {
       case 'offline': return 'you appear to be offline';
-      case 'key': return 'MapTiler rejected the API key';
-      case 'quota': return 'MapTiler rate limit or quota reached';
-      case 'style': return 'no usable map style was found for this key';
+      case 'key': return 'the map provider rejected the API key';
+      case 'quota': return 'map provider rate limit or quota reached';
+      case 'style': return 'no usable map style was found for the configured key(s)';
       case 'canvas': return 'the browser blocked reading the map image';
       case 'no-geometry': return 'nothing to map in this report';
       default: return 'network error fetching map tiles';
@@ -35251,10 +35281,10 @@ const AreaPeriodReport = (function() {
           }, []);
           line('Orange heat = photo activity density · Green = completed stops · Yellow = survey path' +
             (bLegend.length ? ' · Outlines: ' + bLegend.join(', ') : ''), { size: 7.5, color: [150, 150, 150] });
-          // MapTiler's terms require attribution on any image using their
+          // Tile providers' terms require attribution on any image using their
           // basemap tiles — only applies when the real basemap actually
           // loaded, not the SVG-only silhouette fallback.
-          if (basemapPng) line('Map data \u00a9 MapTiler \u00a9 OpenStreetMap contributors', { size: 6.5, color: [170, 170, 170] });
+          if (basemapPng) line('Map data ' + ((bm && bm.attribution) || '\u00a9 OpenStreetMap contributors'), { size: 6.5, color: [170, 170, 170] });
           // Say why there are no streets rather than leaving it a mystery
           // (a rejected key and being offline need different fixes).
           else if (basemapFailReason && basemapFailReason !== 'no-geometry') line('Street basemap unavailable (' + ReportBasemap.reasonText(basemapFailReason) + ') \u2014 outline map only.', { size: 6.5, color: [180, 100, 60] });
