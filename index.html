@@ -2873,9 +2873,9 @@ body.tool-fullscreen-pdfdocs #cnd-pdf-modal .modal-sheet {
        toolbar above (transparent feel, gold tap-state). -->
   <div class="info-grid">
     <button data-fn="showFullscreen" data-arg="questions" class="info-img-tile" title="Follow-up contacts &amp; QR codes" aria-label="Contacts — follow-up contacts &amp; QR codes"><img src="" id="info-tile-img-contacts" alt="Contacts — Follow-up contacts &amp; QR"></button>
-    <button data-fn="switchTab" data-arg="data" class="info-img-tile" title="Exports, reports, analytics" aria-label="Reports — exports, reports, analytics"><img src="" id="info-tile-img-data" alt="Reports — Exports, Photo Log, Analytics"></button>
     <button data-fn="switchTab" data-arg="help" class="info-img-tile" title="How-to, setup, contact" aria-label="Help Guide — how-to, setup, contact"><img src="" id="info-tile-img-help" alt="Help Guide — How-to, setup, contact"></button>
     <button data-fn="showFullscreen" data-arg="docs" class="info-img-tile" title="Saved images &amp; docs" aria-label="Reference Docs — saved images &amp; docs"><img src="" id="info-tile-img-reference" alt="Reference Docs — Saved Images &amp; Docs"></button>
+    <button data-fn="switchTab" data-arg="data" class="info-img-tile" title="Exports, reports, analytics" aria-label="Reports — exports, reports, analytics"><img src="" id="info-tile-img-data" alt="Reports — Exports, Photo Log, Analytics"></button>
     <button data-fn="openMiscLinks" class="info-img-tile" title="Community contact guide" aria-label="Resources — Community Contact Guide"><img src="" id="info-tile-img-resources" alt="Resources — Community Contact Guide"></button>
     <button data-fn="showFullscreen" data-arg="authority" class="info-img-tile" title="Toggle 3 views — Roles &amp; Authority" aria-label="Roles &amp; Authority — who, what, when, where, why, how"><img src="" id="info-tile-img-roles" alt="Roles &amp; Authority — who, what, when, where, why, how"></button>
     <button data-fn="openSettings" class="info-img-tile" title="Profile, API key, install &amp; more" aria-label="Settings — Profile, API key, install"><img src="" id="info-tile-img-settings" alt="Settings — Profile, API Key, install"></button>
@@ -8184,8 +8184,30 @@ function stagePill(stage) {
   return `<span class="stage-pill sp-${stage}" style="background:${s.color};color:#fff;font-size:0.46rem;font-family:Syne,sans-serif;font-weight:800;padding:1px 5px;border-radius:3px">${s.label}</span>`;
 }
 
+// Info-tab overlay panels sit below the tab bar (see _infoPanelTop) so the
+// Stops/Route/Map tab buttons stay reachable while one is open.
+function _infoPanelTop() {
+  var nav = document.getElementById('tab-nav-row1');
+  if (!nav) return 0;
+  var r = nav.getBoundingClientRect();
+  return Math.max(0, Math.round(r.bottom));
+}
+function _closeInfoPanels() {
+  var ov = document.getElementById('fullscreen-overlay');
+  if (ov && ov.style.display !== 'none') closeFullscreen();
+  var ml = document.getElementById('misc-links-modal');
+  if (ml && ml.style.display !== 'none') closeMiscLinks();
+}
+
 // Tab switching
 function switchTab(name) {
+  // 2026-10-07: Info-tab panels (Contacts, Reference Docs, Roles & Authority,
+  // Resources) are overlays. Heading to Stops/Route/Map closes them first.
+  // Reports and Help are tab screens, so switching tabs already replaces them;
+  // Settings is left alone.
+  if (name === 'stops' || name === 'route' || name === 'map') {
+    try { _closeInfoPanels(); } catch (_e) { _swallow('switchTab', _e); }
+  }
   // When leaving the creds/info tab, revert roles to saved default
   const _curActive = document.querySelector('.tab-btn.active');
   if (_curActive && _curActive.id === 'tab-creds' && name !== 'creds') {
@@ -8421,20 +8443,6 @@ var DRIVE_SYNC_FILENAME = 'stlcityroute-sync.json.enc';
 
 function _gpsSetupGuideHtml() {
   return ''
-    + '<div style="background:#e8f5e9;border-left:3px solid #27ae60;border-radius:0 8px 8px 0;padding:11px 13px;margin-bottom:8px">'
-    + '<div style="font-family:\'Syne\',sans-serif;font-weight:800;font-size:0.65rem;color:#1a5c34;margin-bottom:6px">✅ Open the real app URL over HTTPS</div>'
-    + '<div style="font-size:0.58rem;font-family:\'Space Mono\',monospace;color:#2d5a3d;line-height:1.9">'
-    + '1. Open <strong>' + HOSTED_URL + '</strong> in Chrome (Android) or Safari (iOS) — type the address including <strong>https://</strong><br>'
-    + '2. Confirm you see the padlock 🔒 in the address bar before continuing<br>'
-    + '3. Chrome: tap ⋮ menu → "Add to Home Screen"<br>'
-    + '&nbsp;&nbsp;&nbsp;Safari: tap Share ⬆ → "Add to Home Screen"<br>'
-    + '4. Open the app from its home screen icon → GPS works ✓'
-    + '</div></div>'
-    + '<div style="background:#fdecea;border-left:3px solid #c0392b;border-radius:0 8px 8px 0;padding:11px 13px;margin-bottom:8px">'
-    + '<div style="font-family:\'Syne\',sans-serif;font-weight:800;font-size:0.65rem;color:#7a1a10;margin-bottom:6px">⚠ Seeing "Only secure origins are allowed"?</div>'
-    + '<div style="font-size:0.58rem;font-family:\'Space Mono\',monospace;color:#7a1a10;line-height:1.9">'
-    + 'This means the page loaded over <strong>http://</strong> instead of <strong>https://</strong> — the browser itself is blocking GPS, the app isn\'t broken. Remove the home screen icon, reopen <strong>' + HOSTED_URL + '</strong> directly (with the https://), confirm the padlock, then re-add to home screen. An outdated browser can also cause this — keep Chrome/Safari updated.'
-    + '</div></div>'
     + '<div style="background:#f0f4ff;border-left:3px solid #2980b9;border-radius:0 8px 8px 0;padding:11px 13px;margin-bottom:8px" id="guide-android">'
     + '<div style="font-family:\'Syne\',sans-serif;font-weight:800;font-size:0.65rem;color:#1a3c6e;margin-bottom:6px">🤖 ANDROID — Add to home screen from Chrome</div>'
     + '<div style="font-size:0.58rem;font-family:\'Space Mono\',monospace;color:#2c5282;line-height:1.9">'
@@ -8454,6 +8462,20 @@ function _gpsSetupGuideHtml() {
     + '• Tap "Add" in the top-right corner<br>'
     + '• GPS works every time you open it from that icon<br>'
     + '<span style="color:#e8a020;font-weight:700">Note: Chrome on iPhone cannot install home screen apps — use Safari</span>'
+    + '</div></div>'
+    + '<div style="background:#e8f5e9;border-left:3px solid #27ae60;border-radius:0 8px 8px 0;padding:11px 13px;margin-bottom:8px">'
+    + '<div style="font-family:\'Syne\',sans-serif;font-weight:800;font-size:0.65rem;color:#1a5c34;margin-bottom:6px">✅ Open the real app URL over HTTPS</div>'
+    + '<div style="font-size:0.58rem;font-family:\'Space Mono\',monospace;color:#2d5a3d;line-height:1.9">'
+    + '1. Open <strong>' + HOSTED_URL + '</strong> in Chrome (Android) or Safari (iOS) — type the address including <strong>https://</strong><br>'
+    + '2. Confirm you see the padlock 🔒 in the address bar before continuing<br>'
+    + '3. Chrome: tap ⋮ menu → "Add to Home Screen"<br>'
+    + '&nbsp;&nbsp;&nbsp;Safari: tap Share ⬆ → "Add to Home Screen"<br>'
+    + '4. Open the app from its home screen icon → GPS works ✓'
+    + '</div></div>'
+    + '<div style="background:#fdecea;border-left:3px solid #c0392b;border-radius:0 8px 8px 0;padding:11px 13px;margin-bottom:8px">'
+    + '<div style="font-family:\'Syne\',sans-serif;font-weight:800;font-size:0.65rem;color:#7a1a10;margin-bottom:6px">⚠ Seeing "Only secure origins are allowed"?</div>'
+    + '<div style="font-size:0.58rem;font-family:\'Space Mono\',monospace;color:#7a1a10;line-height:1.9">'
+    + 'This means the page loaded over <strong>http://</strong> instead of <strong>https://</strong> — the browser itself is blocking GPS, the app isn\'t broken. Remove the home screen icon, reopen <strong>' + HOSTED_URL + '</strong> directly (with the https://), confirm the padlock, then re-add to home screen. An outdated browser can also cause this — keep Chrome/Safari updated.'
     + '</div></div>';
 }
 
@@ -16111,12 +16133,14 @@ function openMiscLinks() {
 
   var modal = document.getElementById('misc-links-modal');
   modal.style.display = 'block';
+  modal.style.top = _infoPanelTop() + 'px';
   Accessibility.modalOpened(modal, { onEscape: closeMiscLinks });
 }
 
 function closeMiscLinks() {
   var modal = document.getElementById('misc-links-modal');
   modal.style.display = 'none';
+  modal.style.top = '';
   Accessibility.modalClosed(modal);
 }
 
@@ -32197,6 +32221,10 @@ function showFullscreen(type) {
   // All other views open the shared overlay
   overlay.style.display = 'block';
   document.body.style.overflow = 'hidden';
+  var _top = _infoPanelTop();
+  overlay.style.top = _top + 'px';
+  var _fsClose = overlay.querySelector('[data-fn="closeFullscreen"]');
+  if (_fsClose) _fsClose.style.top = (_top + 14) + 'px';
 
   if (type === 'questions') { _fsShowQuestions(content); return; }
   if (type === 'authority') {
@@ -32457,7 +32485,11 @@ function buildSummaryPanel(key, bg, borderColor, headingColor) {
 }
 
 function closeFullscreen() {
-  document.getElementById('fullscreen-overlay').style.display = 'none';
+  var _ov = document.getElementById('fullscreen-overlay');
+  _ov.style.display = 'none';
+  _ov.style.top = '';
+  var _c = _ov.querySelector('[data-fn="closeFullscreen"]');
+  if (_c) _c.style.top = '';
   document.body.style.overflow = '';
 }
 
