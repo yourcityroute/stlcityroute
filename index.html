@@ -23116,6 +23116,229 @@ function _formatPhotoStatsLine(stats) {
 }
 
 // ============================================================
+// SECTION: report-basemap
+// ============================================================
+// 2026-10-06 (Drop CG): street-map backdrop for exported reports, fetched
+// ONCE at export time and baked into the report as an image. Replaces the
+// old pattern of every report calling a tile server live from whoever's
+// browser opened it — which got reports blocked (OSM's public servers) and
+// would have meant shipping an API key inside every report file we email
+// around. With the map embedded, report files contain no key and make no
+// map requests at all; the key only ever runs here, inside the app, on
+// the app's own origin (so a MapTiler "allowed origins" restriction on the
+// key works and protects it).
+//
+// Why stitched raster tiles rather than MapTiler's Static Maps API: the
+// stitched image's geographic bounds are exact Web Mercator tile math, so
+// overlays line up by construction. The static endpoint's docs don't say
+// whether a bbox request returns exactly that bbox or a larger area that
+// contains it, so alignment would have been a guess.
+//
+// Everything here fails soft: build() resolves to {ok:false, reason} —
+// never throws — and every caller falls back to the plain outline map,
+// the way reports behaved before any basemap existed.
+const ReportBasemap = (function() {
+  var KEY = 'aZMec4wR6VEaCfnAmvSa';
+  // Tried in order against one probe tile; first that answers wins and is
+  // remembered for the session. Muted styles come first because a heat
+  // overlay reads better on them. The list exists because style IDs are
+  // versioned (docs now show "-v4" names) and I could not confirm from
+  // here which of these this key's plan serves — a 404 just moves on to
+  // the next candidate; a 401/403 stops immediately (no style fixes a
+  // rejected key).
+  var STYLE_CANDIDATES = ['dataviz-light', 'dataviz', 'streets-v2', 'streets-v4'];
+  var MUTED_STYLES = { 'dataviz-light': true, 'dataviz': true };
+  // MAX_SIDE_TILES caps tile requests per report at 25 (each tile counts
+  // against the MapTiler plan's monthly request quota, and the report
+  // preview prefetches one set per Apply) — roughly a 1280px square image,
+  // plenty for a backdrop that's embedded in a report.
+  var TILE = 256, MAX_SIDE_TILES = 5, MIN_Z = 8, MAX_Z = 17, CONCURRENCY = 6;
+  var DESAT_FILTER = 'grayscale(0.55) brightness(1.15) contrast(0.85) saturate(0.6)';
+  var ATTRIBUTION = '© MapTiler © OpenStreetMap contributors';
+  var _workingStyle = null;
+
+  function lngToX(lng, z) { return (lng + 180) / 360 * Math.pow(2, z); }
+  function latToY(lat, z) {
+    var r = Math.max(-85.0511, Math.min(85.0511, lat)) * Math.PI / 180;
+    return (1 - Math.log(Math.tan(r) + 1 / Math.cos(r)) / Math.PI) / 2 * Math.pow(2, z);
+  }
+  function xToLng(x, z) { return x / Math.pow(2, z) * 360 - 180; }
+  function yToLat(y, z) {
+    var n = Math.PI - 2 * Math.PI * y / Math.pow(2, z);
+    return 180 / Math.PI * Math.atan(0.5 * (Math.exp(n) - Math.exp(-n)));
+  }
+
+  // Largest zoom at which the bbox still fits in MAX_SIDE_TILES per side.
+  function pickZoom(bbox) {
+    for (var z = MAX_Z; z >= MIN_Z; z--) {
+      var cols = Math.floor(lngToX(bbox.east, z)) - Math.floor(lngToX(bbox.west, z)) + 1;
+      var rows = Math.floor(latToY(bbox.south, z)) - Math.floor(latToY(bbox.north, z)) + 1;
+      if (cols <= MAX_SIDE_TILES && rows <= MAX_SIDE_TILES) return z;
+    }
+    return MIN_Z;
+  }
+
+  // Square (in the same cos-latitude-compressed space the report SVG uses)
+  // region centered on the data, `factor` times its larger span, floored at
+  // ~1km so a lone point doesn't produce a single-tile sliver. The extra
+  // room matters: a Leaflet map fitted to the data can show more than the
+  // data's own bbox (a wide container around tall data, say), and any of
+  // that outside the image would show blank.
+  function squareBbox(minLat, maxLat, minLng, maxLng, factor) {
+    var midLat = (minLat + maxLat) / 2, midLng = (minLng + maxLng) / 2;
+    var lngScale = Math.cos(midLat * Math.PI / 180) || 1;
+    var side = Math.max(maxLat - minLat, (maxLng - minLng) * lngScale, 0.01) * factor;
+    return {
+      west: midLng - side / 2 / lngScale, east: midLng + side / 2 / lngScale,
+      south: Math.max(-85, midLat - side / 2), north: Math.min(85, midLat + side / 2)
+    };
+  }
+
+  function _err(msg, status) { var e = new Error(msg); e.status = status || 0; return e; }
+  function _tileUrl(style, z, x, y) {
+    return 'https://api.maptiler.com/maps/' + style + '/256/' + z + '/' + x + '/' + y + '.png?key=' + KEY;
+  }
+  async function _fetchTileBlob(style, z, x, y) {
+    var resp;
+    try { resp = await fetch(_tileUrl(style, z, x, y)); }
+    catch (_e) { throw _err('network', 0); }
+    if (!resp.ok) throw _err('http ' + resp.status, resp.status);
+    return resp.blob();
+  }
+  function _blobToImage(blob) {
+    return new Promise(function(resolve, reject) {
+      var url = URL.createObjectURL(blob);
+      var img = new Image();
+      img.onload = function() { URL.revokeObjectURL(url); resolve(img); };
+      img.onerror = function() { URL.revokeObjectURL(url); reject(_err('decode', 0)); };
+      img.src = url;
+    });
+  }
+
+  // Probes one tile per candidate style. Returns {style, blob} on success
+  // or {reason} when it should stop trying.
+  async function _pickStyle(z, x, y) {
+    var order = _workingStyle ? [_workingStyle] : STYLE_CANDIDATES;
+    var lastStatus = 0;
+    for (var i = 0; i < order.length; i++) {
+      try {
+        var blob = await _fetchTileBlob(order[i], z, x, y);
+        return { style: order[i], blob: blob };
+      } catch (e) {
+        lastStatus = e.status || 0;
+        if (e.status === 401 || e.status === 403) return { reason: 'key' };
+        if (e.status === 429) return { reason: 'quota' };
+        if (!e.status) return { reason: 'network' };
+        // 404 or similar: this style id isn't served — try the next one.
+      }
+    }
+    return { reason: lastStatus === 404 ? 'style' : 'network' };
+  }
+
+  // Fetches and stitches the tile grid covering `bbox`. On success the
+  // result carries the stitched canvas (kept for cropToDataUrl), a JPEG
+  // data URI of it (for embedding), and its EXACT geographic bounds.
+  async function build(bbox) {
+    try {
+      if (typeof navigator !== 'undefined' && navigator.onLine === false) return { ok: false, reason: 'offline' };
+      var z = pickZoom(bbox), n = Math.pow(2, z);
+      var x0 = Math.max(0, Math.floor(lngToX(bbox.west, z))), x1 = Math.min(n - 1, Math.floor(lngToX(bbox.east, z)));
+      var y0 = Math.max(0, Math.floor(latToY(bbox.north, z))), y1 = Math.min(n - 1, Math.floor(latToY(bbox.south, z)));
+      var cols = x1 - x0 + 1, rows = y1 - y0 + 1;
+      if (cols < 1 || rows < 1) return { ok: false, reason: 'bbox' };
+
+      var cx = x0 + Math.floor(cols / 2), cy = y0 + Math.floor(rows / 2);
+      var probe = await _pickStyle(z, cx, cy);
+      if (!probe.style) return { ok: false, reason: probe.reason };
+      _workingStyle = probe.style;
+
+      var canvas = document.createElement('canvas');
+      canvas.width = cols * TILE; canvas.height = rows * TILE;
+      var ctx = canvas.getContext('2d');
+      ctx.fillStyle = '#e8e8e4';
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+      var queue = [];
+      for (var ty = y0; ty <= y1; ty++) for (var tx = x0; tx <= x1; tx++) queue.push([tx, ty]);
+      var failure = null;
+      async function worker() {
+        while (queue.length && !failure) {
+          var t = queue.shift();
+          try {
+            var blob;
+            if (t[0] === cx && t[1] === cy) blob = probe.blob;
+            else {
+              try { blob = await _fetchTileBlob(probe.style, z, t[0], t[1]); }
+              catch (e1) { blob = await _fetchTileBlob(probe.style, z, t[0], t[1]); } // one retry
+            }
+            var img = await _blobToImage(blob);
+            ctx.drawImage(img, (t[0] - x0) * TILE, (t[1] - y0) * TILE, TILE, TILE);
+          } catch (e) { failure = e; }
+        }
+      }
+      var workers = [];
+      for (var w = 0; w < CONCURRENCY; w++) workers.push(worker());
+      await Promise.all(workers);
+      // All-or-nothing: a map with a missing tile looks broken, and the
+      // outline-only fallback is honest about what it is.
+      if (failure) return { ok: false, reason: failure.status === 429 ? 'quota' : 'network' };
+
+      var dataUrl;
+      try { dataUrl = canvas.toDataURL('image/jpeg', 0.85); }
+      catch (_e) { return { ok: false, reason: 'canvas' }; }
+      return {
+        ok: true, canvas: canvas, dataUrl: dataUrl, z: z, x0: x0, y0: y0,
+        bounds: { west: xToLng(x0, z), east: xToLng(x1 + 1, z), north: yToLat(y0, z), south: yToLat(y1 + 1, z) },
+        style: probe.style, muted: !!MUTED_STYLES[probe.style], attribution: ATTRIBUTION
+      };
+    } catch (_e) {
+      return { ok: false, reason: 'network' };
+    }
+  }
+
+  // Crops the stitched map to an arbitrary lat/lng bbox inside it and
+  // returns a w x h JPEG data URI — the PDF's 640x640 map and the HTML
+  // report's static print/offline map both need exactly the report SVG's
+  // own bbox, not the (larger) fetched region.
+  function cropToDataUrl(base, bbox, w, h) {
+    var z = base.z;
+    var sx = (lngToX(bbox.west, z) - base.x0) * TILE;
+    var sy = (latToY(bbox.north, z) - base.y0) * TILE;
+    var sw = (lngToX(bbox.east, z) - lngToX(bbox.west, z)) * TILE;
+    var sh = (latToY(bbox.south, z) - latToY(bbox.north, z)) * TILE;
+    var c = document.createElement('canvas');
+    c.width = w; c.height = h;
+    var ctx = c.getContext('2d');
+    ctx.fillStyle = '#e8e8e4';
+    ctx.fillRect(0, 0, w, h);
+    ctx.imageSmoothingQuality = 'high';
+    // Colorful styles get the same desaturation the live reports apply in
+    // CSS; browsers without canvas filter support just get the plain map.
+    if (!base.muted && 'filter' in ctx) ctx.filter = DESAT_FILTER;
+    ctx.drawImage(base.canvas, sx, sy, sw, sh, 0, 0, w, h);
+    return c.toDataURL('image/jpeg', 0.9);
+  }
+
+  function reasonText(reason) {
+    switch (reason) {
+      case 'offline': return 'you appear to be offline';
+      case 'key': return 'MapTiler rejected the API key';
+      case 'quota': return 'MapTiler rate limit or quota reached';
+      case 'style': return 'no usable map style was found for this key';
+      case 'canvas': return 'the browser blocked reading the map image';
+      case 'no-geometry': return 'nothing to map in this report';
+      default: return 'network error fetching map tiles';
+    }
+  }
+
+  return {
+    build: build, squareBbox: squareBbox, cropToDataUrl: cropToDataUrl,
+    reasonText: reasonText, DESAT_FILTER: DESAT_FILTER
+  };
+})();
+window.ReportBasemap = ReportBasemap;
+
+// ============================================================
 // SECTION: photo-tracker-report
 // ============================================================
 // ── PHOTO TRACKER ACTIVITY REPORT — standalone HTML (with an embedded live
@@ -23127,8 +23350,10 @@ function _formatPhotoStatsLine(stats) {
 // without a map on it would defeat the point. All the DATA is inline as
 // JSON in the downloaded file, so it doesn't depend on the app or its
 // storage still being around; opening it still needs internet for the
-// Leaflet library + basemap tiles, same tradeoff the live app already
-// makes for its own maps.
+// Leaflet library itself (cdnjs). As of Drop CG the street-map backdrop is
+// NOT fetched live: it's baked into the file at export time as an image
+// (see ReportBasemap), so the report carries no API key and makes no map
+// requests when opened.
 const PhotoTrackerReport = (function() {
   function buildReport() {
     var settings = PhotoTrackerIndex.getSettings();
@@ -23192,13 +23417,33 @@ const PhotoTrackerReport = (function() {
     return rows.join('\n');
   }
 
-  function formatAsHTML(report) {
+  // Async because it fetches map tiles — callers await this, then pass the
+  // result to formatAsHTML (which stays synchronous). Always resolves
+  // ({ok:false, reason} on any failure).
+  async function fetchBasemap(report) {
+    var pts = report.locations.filter(function(l) { return l.lat != null && l.lng != null && l.severityLabel; });
+    if (!pts.length) return { ok: false, reason: 'no-geometry' };
+    var minLat = Infinity, maxLat = -Infinity, minLng = Infinity, maxLng = -Infinity;
+    pts.forEach(function(p) {
+      if (p.lat < minLat) minLat = p.lat; if (p.lat > maxLat) maxLat = p.lat;
+      if (p.lng < minLng) minLng = p.lng; if (p.lng > maxLng) maxLng = p.lng;
+    });
+    return ReportBasemap.build(ReportBasemap.squareBbox(minLat, maxLat, minLng, maxLng, 2.0));
+  }
+
+  function formatAsHTML(report, basemap) {
     var safe = function(x) {
       if (x == null) return '';
       return String(x).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
     };
     var s = report.settings;
     var sevKeys = Object.keys(report.bySeverity);
+    var bm = (basemap && basemap.ok) ? basemap : null;
+    var bmJson = bm ? JSON.stringify({
+      u: bm.dataUrl,
+      b: [[bm.bounds.south, bm.bounds.west], [bm.bounds.north, bm.bounds.east]],
+      z: bm.z, m: bm.muted, a: bm.attribution
+    }) : 'null';
 
     var kpiHtml =
       '<div class="kpi-row">' +
@@ -23253,6 +23498,7 @@ const PhotoTrackerReport = (function() {
       kpiHtml +
       '<h2>Map</h2>' +
       '<div id="photo-tracker-map"></div>' +
+      (bm ? '' : '<div class="meta" style="margin-top:6px">Street map unavailable when this report was generated — locations are shown on a plain background.</div>') +
       (sevKeys.length ? '<h2>By severity</h2><table>' + sevRows + '</table>' : '') +
       '<h2>Locations (' + report.locations.length + ')</h2>' +
       '<table>' + locRows + '</table>' +
@@ -23260,11 +23506,20 @@ const PhotoTrackerReport = (function() {
       '<script>' +
         '(function(){' +
           'var pts = ' + mapPointsJson + ';' +
-          'var map = L.map("photo-tracker-map", {zoomControl:true, attributionControl:true});' +
-          // 2026-09-25: swapped off OSM's public tile servers (see engineering
-          // notes — CARTO needs a key too now, so there's no free/keyless
-          // option left) onto MapTiler, keyed to Silly's own account.
-          'L.tileLayer("https://api.maptiler.com/maps/streets-v2/256/{z}/{x}/{y}.png?key=aZMec4wR6VEaCfnAmvSa", {maxZoom:20, crossOrigin:true, attribution:\'\\u00a9 <a href="https://www.maptiler.com/copyright/" target="_blank">MapTiler</a> \\u00a9 <a href="https://www.openstreetmap.org/copyright" target="_blank">OpenStreetMap contributors</a>\'}).addTo(map);' +
+          // 2026-10-06 (Drop CG): the backdrop is an image embedded at
+          // export time (ReportBasemap) — no tile server, no API key in
+          // this file. Pan/zoom still work over it; zoom is capped two
+          // levels past the image's native detail and panning is bounded
+          // to the image so nobody scrolls off into blank space.
+          'var BM = ' + bmJson + ';' +
+          'var map = L.map("photo-tracker-map", {zoomControl:true, attributionControl:true, maxZoom: BM ? BM.z + 2 : 19});' +
+          'var imgB = null;' +
+          'if (BM) {' +
+            'imgB = L.latLngBounds(BM.b);' +
+            'var baseImg = L.imageOverlay(BM.u, imgB, {interactive:false}).addTo(map);' +
+            'if (!BM.m) { var bel = baseImg.getElement(); if (bel) bel.style.filter = "' + ReportBasemap.DESAT_FILTER + '"; }' +
+            'map.attributionControl.addAttribution(BM.a);' +
+          '}' +
           'if (pts.length) {' +
             'var group = L.featureGroup();' +
             'pts.forEach(function(p){' +
@@ -23277,13 +23532,14 @@ const PhotoTrackerReport = (function() {
           '} else {' +
             'map.setView([38.6270,-90.1994], 12);' +
           '}' +
+          'if (imgB) { map.setMinZoom(map.getBoundsZoom(imgB)); map.setMaxBounds(imgB.pad(0.05)); }' +
         '})();' +
       '<\/script>' +
       '</body></html>';
     return html;
   }
 
-  return { buildReport: buildReport, formatAsCSV: formatAsCSV, formatAsHTML: formatAsHTML };
+  return { buildReport: buildReport, formatAsCSV: formatAsCSV, formatAsHTML: formatAsHTML, fetchBasemap: fetchBasemap };
 })();
 window.PhotoTrackerReport = PhotoTrackerReport;
 
@@ -23601,10 +23857,17 @@ window._renderPhotoTrackerModal = _renderPhotoTrackerModal;
 // ── Photo Tracker Activity Report — standalone HTML (with an embedded live
 // map) and CSV export of the heat-map data. Same download-fallback-chain
 // convention as the other report handlers in this file.
-function downloadPhotoTrackerReportHTML() {
+async function downloadPhotoTrackerReportHTML() {
   if (typeof PhotoTrackerReport === 'undefined') return;
   var report = PhotoTrackerReport.buildReport();
-  _photoTrackerReportDownload(PhotoTrackerReport.formatAsHTML(report), 'html', 'text/html');
+  // 2026-10-06 (Drop CG): the street map is fetched here, once, and
+  // embedded in the file (see ReportBasemap) — takes a moment, so say so.
+  showToast('Fetching street map…');
+  var basemap = await PhotoTrackerReport.fetchBasemap(report);
+  if (!basemap.ok && basemap.reason !== 'no-geometry') {
+    showToast('Street map unavailable (' + ReportBasemap.reasonText(basemap.reason) + ') — report built without it');
+  }
+  _photoTrackerReportDownload(PhotoTrackerReport.formatAsHTML(report, basemap), 'html', 'text/html');
 }
 function downloadPhotoTrackerReportCSV() {
   if (typeof PhotoTrackerReport === 'undefined') return;
@@ -34294,10 +34557,11 @@ const AreaPeriodReport = (function() {
   // plotting both on the same raw scale measurably distorts ward/
   // neighborhood shapes people would otherwise recognize at a glance.
   // Shared bbox/projection geometry — factored out so the SVG overlay
-  // below and the online basemap-image fetch (_fetchStaticBasemap, PDF
-  // export only) project lat/lng to the SAME 640x640 pixel space and
-  // therefore line up. One source of truth for the math, per the file's
-  // existing "one drawing routine, multiple consumers" pattern.
+  // below and the basemap crop (ensureBasemap / ReportBasemap.cropToDataUrl,
+  // used by the PDF and the HTML report's print map) project lat/lng to the
+  // SAME 640x640 pixel space and therefore line up. One source of truth for
+  // the math, per the file's existing "one drawing routine, multiple
+  // consumers" pattern.
   function _computeMapGeometry(report) {
     var rings = report.area.boundaryRings || [];
     var photoPts = (report.photoTracker.locations || []).filter(function(l) { return l.gps && typeof l.gps.lat === 'number'; });
@@ -34358,7 +34622,11 @@ const AreaPeriodReport = (function() {
     return { west: west, south: south, east: east, north: north };
   }
 
-  function _buildStaticSVG(report) {
+  // opts.basemapHref (optional): a data URI drawn UNDER the overlay,
+  // already cropped to this SVG's own 640x640 bbox. Only the HTML report's
+  // print/offline map passes it — the PDF rasterizes the overlay alone and
+  // stacks it over the basemap itself.
+  function _buildStaticSVG(report, opts) {
     var geom = _computeMapGeometry(report);
     if (!geom) return null;
     var rings = geom.rings, photoPts = geom.photoPts, completedPts = geom.completedPts, breadcrumbPts = geom.breadcrumbPts;
@@ -34458,6 +34726,7 @@ const AreaPeriodReport = (function() {
         '<stop offset="75%" stop-color="#ffcf40" stop-opacity="0.22"/>' +
         '<stop offset="100%" stop-color="#ffcf40" stop-opacity="0"/>' +
       '</radialGradient></defs>' +
+      (opts && opts.basemapHref ? '<image x="0" y="0" width="' + W + '" height="' + H + '" preserveAspectRatio="none" href="' + opts.basemapHref + '"/>' : '') +
       boundarySvg +
       (breadcrumbPath ? '<path d="' + breadcrumbPath + '" fill="none" stroke="#f5c518" stroke-width="4" stroke-linecap="round" stroke-linejoin="round" opacity="0.85"/>' : '') +
       heatBlobs + heatDots + completedMarkers +
@@ -34599,7 +34868,26 @@ const AreaPeriodReport = (function() {
     var mapMarkers = ch.locations.filter(function(l) { return l.gps && typeof l.gps.lat === 'number'; });
     var completedStopMarkers = st.list.filter(function(s) { return s.done && typeof s.lat === 'number' && typeof s.lng === 'number'; });
     var hasMapContent = hasBoundary || cov.breadcrumbPointCount > 0 || mapMarkers.length > 0 || completedStopMarkers.length > 0;
-    var staticSVG = hasMapContent ? _buildStaticSVG(report) : null;
+    // 2026-10-06 (Drop CG): the street map arrives pre-fetched on the
+    // report (see ensureBasemap — callers await it before calling this
+    // synchronous formatter). When present it's embedded twice: as the
+    // live Leaflet map's backdrop (script below) and under the static
+    // print/offline map, so even a report opened with no connection at all
+    // — Leaflet itself can't load — still shows streets.
+    var basemap = _basemapResults.get(report) || null;
+    var staticBasemapHref = null;
+    if (basemap && hasMapContent) {
+      try {
+        var _g = _computeMapGeometry(report);
+        if (_g) staticBasemapHref = ReportBasemap.cropToDataUrl(basemap, _canvasCornersToBbox(_g), 640, 640);
+      } catch (_e) { staticBasemapHref = null; }
+    }
+    var staticSVG = hasMapContent ? _buildStaticSVG(report, staticBasemapHref ? { basemapHref: staticBasemapHref } : null) : null;
+    var bmJson = basemap ? JSON.stringify({
+      u: basemap.dataUrl,
+      b: [[basemap.bounds.south, basemap.bounds.west], [basemap.bounds.north, basemap.bounds.east]],
+      z: basemap.z, m: basemap.muted, a: basemap.attribution
+    }) : 'null';
 
     var head = '<!doctype html><html><head><meta charset="utf-8">' +
       '<title>CityRoute — ' + safe(title) + ' — ' + safe(report.period.label) + '</title>' +
@@ -34656,6 +34944,7 @@ const AreaPeriodReport = (function() {
           (completedStopMarkers.length ? '<span><i style="background:#2d7d3f"></i>Completed stops</span>' : '') +
           (cov.breadcrumbPointCount ? '<span><i style="background:#f5c518"></i>Survey path</span>' : '') +
         '</div>' +
+        (basemap ? '' : '<div style="font-size:11px;color:#999;margin-top:4px">Street map unavailable when this report was generated — outlines and markers only.</div>') +
         (staticSVG ? '<div class="static-map-print">' + staticSVG + '</div>' : '');
     }
 
@@ -34696,10 +34985,11 @@ const AreaPeriodReport = (function() {
       }));
       // 2026-07-24 fix (still applies): this report is generated in the
       // field and often opened/shared later with no connectivity —
-      // #area-map depends on network fetches (leaflet.js, leaflet-heat.js,
-      // and the CARTO basemap tiles), none of which are guaranteed. A
-      // failed leaflet.js load or offline tile fetch falls back to the
-      // .static-map-print SVG, same as before. leaflet-heat.js failing is
+      // #area-map depends on network fetches (leaflet.js and
+      // leaflet-heat.js), neither guaranteed. (The basemap itself no
+      // longer is one — it's embedded, Drop CG.) A failed leaflet.js load
+      // falls back to the .static-map-print SVG, which now carries the
+      // street map too. leaflet-heat.js failing is
       // treated as non-fatal — L.heatLayer is checked before use, so a
       // missing heat plugin just means no heat overlay, not a broken map.
       html += '<script>' +
@@ -34710,7 +35000,11 @@ const AreaPeriodReport = (function() {
             'if (live) live.style.display = "none";' +
             'if (still) still.style.display = "block";' +
           '}' +
-          'if (typeof L === "undefined" || navigator.onLine === false) { useFallback(); return; }' +
+          // Only Leaflet itself needs the network now — the street map is
+          // embedded in this file (BM below), so being offline no longer
+          // forces the static fallback by itself.
+          'if (typeof L === "undefined") { useFallback(); return; }' +
+          'var BM = ' + bmJson + ';' +
           'var boundaryRings = ' + boundaryLatLngsJson + ';' +
           'var boundaryGroups = ' + boundaryGroupsJson + ';' +
           'var breadcrumb = ' + breadcrumbLatLngsJson + ';' +
@@ -34718,15 +35012,30 @@ const AreaPeriodReport = (function() {
           'var markers = ' + markersJson + ';' +
           'var completed = ' + completedJson + ';' +
           'try {' +
-            'var map = L.map("area-map", {zoomControl:true, attributionControl:true});' +
-            // 2026-09-25: MapTiler (keyed) replaces OSM's public tile
-            // servers here — see the PhotoTracker report's twin of this
-            // change for the full rationale. tileerror still falls back to
-            // the static SVG (now also covers a bad/expired key).
-            'var tiles = L.tileLayer("https://api.maptiler.com/maps/streets-v2/256/{z}/{x}/{y}.png?key=aZMec4wR6VEaCfnAmvSa", {maxZoom:20, crossOrigin:true, attribution:\'\\u00a9 <a href="https://www.maptiler.com/copyright/" target="_blank">MapTiler</a> \\u00a9 <a href="https://www.openstreetmap.org/copyright" target="_blank">OpenStreetMap contributors</a>\'}).addTo(map);' +
-            'var tilesOk = false;' +
-            'tiles.on("tileload", function(){ tilesOk = true; });' +
-            'tiles.on("tileerror", function(){ if (!tilesOk) useFallback(); });' +
+            // 2026-10-06 (Drop CG): backdrop is an image embedded at export
+            // time (ReportBasemap) — no tile server and no API key in this
+            // file. Zoom is capped two levels past the image's native
+            // detail and panning is bounded to it. With no basemap (the
+            // fetch failed when the report was made) the interactive layers
+            // still work on a plain background.
+            'var map = L.map("area-map", {zoomControl:true, attributionControl:true, maxZoom: BM ? BM.z + 2 : 19});' +
+            // Give the map a view BEFORE adding layers. Without one,
+            // Leaflet queues every addTo(map) until the first setView; a
+            // boundary layerGroup queued ahead of the first circleMarker
+            // (which is what creates the vector renderer) then initializes
+            // its polygons before that renderer exists, and fitBounds
+            // throws inside Leaflet's "load" event — the view falls back to
+            // the default center and the vector layers never initialize.
+            // Reproduced against stock Leaflet 1.9.4. The real fit to the
+            // data still happens at the end.
+            'map.setView([38.6270,-90.1994], 12);' +
+            'var imgB = null;' +
+            'if (BM) {' +
+              'imgB = L.latLngBounds(BM.b);' +
+              'var baseImg = L.imageOverlay(BM.u, imgB, {interactive:false}).addTo(map);' +
+              'if (!BM.m) { var bel = baseImg.getElement(); if (bel) bel.style.filter = "' + ReportBasemap.DESAT_FILTER + '"; }' +
+              'map.attributionControl.addAttribution(BM.a);' +
+            '}' +
             'var fitGroup = L.featureGroup();' +
             'var overlays = {};' +
             'if (boundaryGroups.length) {' +
@@ -34753,6 +35062,7 @@ const AreaPeriodReport = (function() {
               'm.addTo(map).addTo(fitGroup);' +
             '});' +
             'try { var b = fitGroup.getBounds(); if (b.isValid()) map.fitBounds(b.pad(0.08)); else map.setView([38.6270,-90.1994], 12); } catch(_e) { map.setView([38.6270,-90.1994], 12); }' +
+            'if (imgB) { map.setMinZoom(map.getBoundsZoom(imgB)); map.setMaxBounds(imgB.pad(0.05)); }' +
           '} catch(_e) { useFallback(); }' +
         '})();' +
       '<\/script>';
@@ -34795,7 +35105,7 @@ const AreaPeriodReport = (function() {
 
   // transparent=true skips the opaque background fill — used when this
   // PNG will be stacked as a second jsPDF addImage on top of a real
-  // basemap image (_fetchStaticBasemap) rather than standing alone as the
+  // basemap image (ensureBasemap) rather than standing alone as the
   // whole map (the silhouette fallback, which needs the opaque fill so a
   // transparent edge doesn't render black).
   function _svgToPngDataUrl(svgString, w, h, transparent) {
@@ -34824,35 +35134,36 @@ const AreaPeriodReport = (function() {
     });
   }
 
-  // Fetches one pre-rendered basemap image (MapTiler Static Maps API,
-  // keyed to Silly's account) for the exact bbox _canvasCornersToBbox
-  // derives from the report's own projection geometry, so it lines up
-  // with the SVG overlay drawn on that same geometry. No canvas
-  // compositing here — the caller stacks this PNG and the overlay PNG as
-  // two separate jsPDF addImage calls, so there's no tainted-canvas risk
-  // at all (fetch()'s CORS requirement is far more forgiving than
-  // canvas's, and MapTiler's endpoint sends the right headers anyway).
-  // Returns null (never throws) on any failure — offline, network error,
-  // bad/expired key, quota exhausted — so the caller can fall back to the
-  // plain SVG silhouette exactly as it did before this feature existed.
-  async function _fetchStaticBasemap(bbox, w, h) {
-    try {
-      if (navigator.onLine === false) return null;
-      var url = 'https://api.maptiler.com/maps/dataviz-v4/static/' +
-        bbox.west.toFixed(6) + ',' + bbox.south.toFixed(6) + ',' + bbox.east.toFixed(6) + ',' + bbox.north.toFixed(6) +
-        '/' + w + 'x' + h + '.png?key=aZMec4wR6VEaCfnAmvSa';
-      var resp = await fetch(url);
-      if (!resp.ok) return null;
-      var blob = await resp.blob();
-      return await new Promise(function(resolve) {
-        var reader = new FileReader();
-        reader.onload = function() { resolve(reader.result); };
-        reader.onerror = function() { resolve(null); };
-        reader.readAsDataURL(blob);
-      });
-    } catch (_e) {
-      return null;
-    }
+  // Street-map backdrop for this report (see ReportBasemap for the why).
+  // Fetched at most once per report object and shared by all three
+  // consumers — the HTML report (embedded as an image), the PDF, and the
+  // HTML report's static print/offline map — via two WeakMaps keyed on the
+  // report: one holding the in-flight/finished promise (so a prefetch
+  // started when the preview renders is awaited, not repeated, by the
+  // download buttons), one holding the resolved success so the synchronous
+  // formatAsHTML can read it. Failures are NOT cached, so tapping a
+  // download again retries. The fetched region is deliberately larger than
+  // the report SVG's own bbox (1.9x) — the live map can show more than
+  // the data's extent, and the PDF/print crops are cut from inside it.
+  var _basemapPromises = new WeakMap();
+  var _basemapResults = new WeakMap();
+  function ensureBasemap(report) {
+    if (!report) return Promise.resolve({ ok: false, reason: 'no-geometry' });
+    var existing = _basemapPromises.get(report);
+    if (existing) return existing;
+    var geom = _computeMapGeometry(report);
+    if (!geom) return Promise.resolve({ ok: false, reason: 'no-geometry' });
+    var c = _canvasCornersToBbox(geom);
+    var p = ReportBasemap.build(ReportBasemap.squareBbox(c.south, c.north, c.west, c.east, 1.9)).then(function(res) {
+      if (res.ok) _basemapResults.set(report, res);
+      else _basemapPromises.delete(report);
+      return res;
+    }, function() {
+      _basemapPromises.delete(report);
+      return { ok: false, reason: 'network' };
+    });
+    _basemapPromises.set(report, p);
+    return p;
   }
 
   // Returns a Blob (application/pdf) — caller decides what to do with it
@@ -34904,18 +35215,26 @@ const AreaPeriodReport = (function() {
         try {
           // Try a real basemap first (needs network + a working key);
           // fall back to the plain overlay-only silhouette on anything
-          // that goes wrong, same as before this feature existed.
+          // that goes wrong, same as before this feature existed. The
+          // basemap is the report's shared one (ensureBasemap) cropped to
+          // exactly the overlay SVG's own bbox, so the two line up.
           var basemapPng = null;
+          var basemapFailReason = null;
           var geom = _computeMapGeometry(report);
           if (geom) {
-            try { basemapPng = await _fetchStaticBasemap(_canvasCornersToBbox(geom), 640, 640); }
-            catch (_e2) { basemapPng = null; }
+            var bm = await ensureBasemap(report);
+            if (bm.ok) {
+              try { basemapPng = ReportBasemap.cropToDataUrl(bm, _canvasCornersToBbox(geom), 640, 640); }
+              catch (_e2) { basemapPng = null; basemapFailReason = 'canvas'; }
+            } else {
+              basemapFailReason = bm.reason;
+            }
           }
           var imgSizeMm = Math.min(pageW - margin * 2, 150);
           ensureRoom(imgSizeMm + 8);
           if (basemapPng) {
             var overlayPng = await _svgToPngDataUrl(svg, 640, 640, true);
-            doc.addImage(basemapPng, 'PNG', margin, y, imgSizeMm, imgSizeMm);
+            doc.addImage(basemapPng, 'JPEG', margin, y, imgSizeMm, imgSizeMm);
             doc.addImage(overlayPng, 'PNG', margin, y, imgSizeMm, imgSizeMm);
           } else {
             var pngDataUrl = await _svgToPngDataUrl(svg, 640, 640);
@@ -34936,6 +35255,9 @@ const AreaPeriodReport = (function() {
           // basemap tiles — only applies when the real basemap actually
           // loaded, not the SVG-only silhouette fallback.
           if (basemapPng) line('Map data \u00a9 MapTiler \u00a9 OpenStreetMap contributors', { size: 6.5, color: [170, 170, 170] });
+          // Say why there are no streets rather than leaving it a mystery
+          // (a rejected key and being offline need different fixes).
+          else if (basemapFailReason && basemapFailReason !== 'no-geometry') line('Street basemap unavailable (' + ReportBasemap.reasonText(basemapFailReason) + ') \u2014 outline map only.', { size: 6.5, color: [180, 100, 60] });
           y += 2;
         } catch(_e) {
           line('(Map image could not be generated for this PDF.)', { size: 8, color: [180, 60, 60] });
@@ -35072,6 +35394,7 @@ const AreaPeriodReport = (function() {
     buildExport: buildExport,
     formatAsExportJSON: formatAsExportJSON,
     staticMapSVG: _buildStaticSVG,
+    ensureBasemap: ensureBasemap,
     // Exposed for the smoke-test harness — not part of the "public API"
     // in a load-bearing sense, but no reason to hide pure functions
     // behind a closure that later steps will need to call anyway.
@@ -36147,6 +36470,11 @@ async function renderAreaPeriodReport() {
   if (myToken !== _areaReportRenderToken) return;
 
   _lastAreaPeriodReport = report;
+  // Start the street-map fetch now, in the background, so the HTML/PDF/share
+  // buttons below usually find it already done (and sharing, which needs a
+  // fresh tap, isn't left waiting on the network). Fire-and-forget: it
+  // memoizes per report and never throws.
+  try { AreaPeriodReport.ensureBasemap(report); } catch (_e) { _swallow('prefetchBasemap', _e); }
   var st = report.stops, ch = report.photoTracker, cov = report.coverage;
   var _stampTotal = _areaReportStampTotal(report);
   preview.innerHTML =
@@ -36192,9 +36520,25 @@ function downloadAreaPeriodReportCSV() {
   if (!_lastAreaPeriodReport || typeof AreaPeriodReport === 'undefined') return;
   _periodDownload(AreaPeriodReport.formatAsCSV(_lastAreaPeriodReport), 'csv', 'text/csv', _areaReportSlug());
 }
-function downloadAreaPeriodReportHTML() {
+// 2026-10-06 (Drop CG): the street map is fetched once and embedded in the
+// report file (AreaPeriodReport.ensureBasemap). The render step below starts
+// that fetch in the background, so by the time anyone taps a download
+// button it's normally already done and this await resolves instantly;
+// otherwise it waits for the in-flight fetch rather than starting a second.
+// A failed fetch never blocks the report — it just ships without streets,
+// and the toast says why.
+async function _areaReportBasemapOrToast(report) {
+  var bm = await AreaPeriodReport.ensureBasemap(report);
+  if (!bm.ok && bm.reason !== 'no-geometry') {
+    showToast('Street map unavailable (' + ReportBasemap.reasonText(bm.reason) + ') — report built without it');
+  }
+  return bm;
+}
+async function downloadAreaPeriodReportHTML() {
   if (!_lastAreaPeriodReport || typeof AreaPeriodReport === 'undefined') return;
-  _periodDownload(AreaPeriodReport.formatAsHTML(_lastAreaPeriodReport), 'html', 'text/html', _areaReportSlug());
+  var report = _lastAreaPeriodReport;
+  await _areaReportBasemapOrToast(report);
+  _periodDownload(AreaPeriodReport.formatAsHTML(report), 'html', 'text/html', _areaReportSlug());
 }
 window.downloadAreaPeriodReportCSV  = downloadAreaPeriodReportCSV;
 window.downloadAreaPeriodReportHTML = downloadAreaPeriodReportHTML;
@@ -36246,6 +36590,9 @@ async function shareAreaPeriodReport() {
     return;
   }
   try {
+    // Basemap first (usually already prefetched — see downloadAreaPeriodReportHTML),
+    // so it's embedded in the shared file too.
+    await _areaReportBasemapOrToast(_lastAreaPeriodReport);
     var htmlText = AreaPeriodReport.formatAsHTML(_lastAreaPeriodReport);
     var file = new File([htmlText], _areaReportSlug() + '.html', { type: 'text/html' });
     if (!navigator.canShare({ files: [file] })) {
