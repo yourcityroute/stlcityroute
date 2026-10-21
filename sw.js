@@ -11,14 +11,26 @@ const CACHE = 'stlcityroute-%%VERSION%%';
 // that hole: the map now works offline on a cold start, which is the entire
 // point of the offline story.
 //
-// If either Leaflet file 404s (e.g. it wasn't copied into the repo root
-// alongside index.html), the install still succeeds — index.html carries a
-// cdnjs fallback for exactly that case. Each add() is caught individually so
-// one missing asset can't abort the whole precache.
-const INSTALL_ASSETS = ['./', './leaflet.min.js', './leaflet.min.css'];
+// Drop CL (2026-10-21): the self-hosted fonts (./fonts/*.woff2) are
+// precached too — they replaced the render-blocking Google Fonts stylesheet.
+//
+// If any asset 404s (e.g. it wasn't copied into the repo alongside
+// index.html), the install still succeeds — each add() is caught
+// individually so one missing asset can't abort the whole precache.
+const INSTALL_ASSETS = [
+  './', './leaflet.min.js', './leaflet.min.css',
+  './fonts/syne-latin-400-normal.woff2', './fonts/syne-latin-600-normal.woff2',
+  './fonts/syne-latin-700-normal.woff2', './fonts/syne-latin-800-normal.woff2',
+  './fonts/space-mono-latin-400-normal.woff2', './fonts/space-mono-latin-700-normal.woff2'
+];
 
+// Drop CL: NO self.skipWaiting() here any more. Skipping waiting at install
+// meant every update activated immediately, and the page reloads on
+// controllerchange — so a deploy could reload the app in the middle of a
+// photo session or while notes were being typed. A new version now waits
+// until the page decides it's a safe moment and posts SKIP_WAITING (see
+// _applySwUpdateWhenSafe in index.html).
 self.addEventListener('install', e => {
-  self.skipWaiting();
   e.waitUntil(
     caches.open(CACHE).then(c =>
       // Drop BY: cache:'reload' bypasses the browser HTTP cache. GitHub
@@ -45,24 +57,35 @@ self.addEventListener('activate', e => {
 // same-origin, and the remaining cdnjs use (jsPDF, loaded lazily only when a
 // PDF is generated) is better served by the cache-first handler below: PDF
 // export then keeps working offline instead of failing at the CDN fetch.
+//
+// Drop CL additions: project-osrm.org (routing — every optimize used to add
+// a permanent cache entry, since the URL carries the live GPS origin),
+// api.maptiler.com / tiles.stadiamaps.com (report tiles — unbounded growth),
+// accounts.google.com (Google sign-in script must stay current).
 const PASSTHROUGH = [
   'script.google.com',
   'googleapis.com',
   'maps.googleapis.com',
+  'accounts.google.com',
   'openstreetmap.org',
+  'project-osrm.org',
   'nominatim',
   'ipapi.co',
   'qrserver.com',
   'stlouis-mo.gov',
   'maps.arcgis.com',
   'maps6.stlouis-mo.gov',
+  'api.maptiler.com',
+  'tiles.stadiamaps.com',
   'esm.sh',
   'cdn.jsdelivr.net'
 ];
 
 self.addEventListener('fetch', e => {
   const u = e.request.url;
-  if (PASSTHROUGH.some(h => u.includes(h))) {
+  // Drop CL: only GETs are cacheable. POSTs (Gemini, Drive uploads) used to
+  // fall into the cache-first branch, where cache.put() rejects for non-GET.
+  if (e.request.method !== 'GET' || PASSTHROUGH.some(h => u.includes(h))) {
     e.respondWith(
       fetch(e.request).catch(() =>
         new Response('{"error":"offline"}', {
@@ -101,10 +124,12 @@ self.addEventListener('fetch', e => {
       const network = fetch(e.request).then(r => {
         if (r && r.status === 200) {
           const clone = r.clone();
-          caches.open(CACHE).then(c => c.put(e.request, clone));
+          caches.open(CACHE).then(c => c.put(e.request, clone)).catch(() => {});
         }
         return r;
-      }).catch(() => cached);
+      // Drop CL: offline with nothing cached used to resolve to undefined,
+      // which makes respondWith() throw. Return a proper network error.
+      }).catch(() => cached || Response.error());
       return cached || network;
     })
   );
