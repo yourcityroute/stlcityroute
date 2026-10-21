@@ -1415,6 +1415,29 @@ body.tool-fullscreen-pdfdocs #cnd-pdf-modal .modal-sheet {
   .btn-sm:hover { filter: brightness(1.08); }
   .cndpdf-tab:hover:not(.active) { background: #e0ddd2 !important; }
 }
+/* Drop CI (2026-10-19): PDF Docs Merge + Edit PDF tabs */
+.cndmg-doc{border:1px solid #d9d6cd;background:#fdfcfa;margin-bottom:10px}
+.cndmg-head{display:flex;align-items:center;gap:6px;padding:8px;flex-wrap:wrap}
+.cndmg-name{flex:1 1 140px;min-width:0;font-size:0.62rem;color:#1b2430;word-break:break-all}
+.cndmg-meta{font-size:0.52rem;color:#8a8577;font-family:'Space Mono',monospace;margin-top:2px}
+.cndmg-btn{background:none;border:1px solid #c7c3b8;color:#3c4a5c;cursor:pointer;font-size:0.6rem;padding:6px 9px;font-family:inherit}
+.cndmg-btn.danger{border-color:#d8b3a8;color:#a3402f}
+.cndmg-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(78px,1fr));gap:6px;padding:8px;border-top:1px solid #eae7de}
+.cndmg-tile{position:relative;border:2px solid #3f6b4c;background:#fff;cursor:pointer;aspect-ratio:3/4;overflow:hidden;user-select:none;-webkit-user-select:none}
+.cndmg-tile .th{position:absolute;inset:0;display:flex;align-items:center;justify-content:center}
+.cndmg-tile img{width:100%;height:100%;object-fit:contain;display:block;pointer-events:none}
+.cndmg-tile.off{border-color:#d9d6cd}
+.cndmg-tile.off .th{opacity:.35}
+.cndmg-tile .n{position:absolute;left:0;bottom:0;background:rgba(40,50,63,.88);color:#fff;font-size:.5rem;padding:1px 5px;font-family:'Space Mono',monospace}
+.cndmg-tile .src{position:absolute;right:0;bottom:0;background:rgba(255,255,255,.85);color:#3c4a5c;font-size:.45rem;padding:1px 4px;font-family:'Space Mono',monospace}
+.cndmg-tile .ck{position:absolute;right:3px;top:3px;width:16px;height:16px;border-radius:50%;background:#3f6b4c;color:#fff;font-size:.6rem;line-height:16px;text-align:center}
+.cndmg-tile.off .ck{background:#fff;color:transparent;border:1.5px solid #b9b5a8;box-sizing:border-box}
+.cndmg-tile.mini .ck{display:none}
+.cnded-row{display:flex;flex-wrap:wrap;gap:5px;margin-bottom:8px}
+.cnded-tool{background:#fdfcfa;border:1px solid #c7c3b8;color:#3c4a5c;cursor:pointer;font-size:0.6rem;font-weight:600;padding:7px 9px;font-family:inherit}
+.cnded-tool.active{background:#28323f;border-color:#28323f;color:#fff}
+.cnded-swatch{width:26px;height:26px;border:2px solid #c7c3b8;border-radius:50%;cursor:pointer;padding:0}
+.cnded-swatch.active{border-color:#28323f;box-shadow:0 0 0 2px #fff,0 0 0 4px #28323f}
 /* 2026-08-26: OSM standard tiles (swapped in after CartoDB started
    requiring an API key) are much busier/higher-contrast than the old
    Positron basemap — dense black street labels and saturated road
@@ -1662,23 +1685,6 @@ body.tool-fullscreen-pdfdocs #cnd-pdf-modal .modal-sheet {
     </details>
 
     <details class="settings-panel">
-      <summary>📧 How email attachments work</summary>
-      <div class="settings-panel-body" style="font-family:'Space Mono',monospace;font-size:0.6rem;color:#444;line-height:1.65">
-        <p style="margin:0 0 8px 0"><b>Short version:</b> the app keeps a temporary 48-hour cache of stamped photos so the <b>📧 Email + Photos</b> button can attach them to email automatically. After 48 hours the cached copies are deleted to keep the app small. Your phone gallery always keeps the permanent copies (those are saved by Download / Share, never the cache).</p>
-        <p style="margin:0 0 8px 0"><b>Why a cache and not unlimited storage?</b> Web apps (which is what this is, technically — a PWA) live in a sandbox the browser enforces. The sandbox lets the app <i>hand</i> photos to your phone (via the Share sheet or Download) but never lets it <i>read back</i> photos from your gallery. So once a photo leaves the cache, the app can\u2019t pull it back to attach. Storing them indefinitely in-app would slowly fill your phone\u2019s storage and on iOS would risk being silently wiped by the system. 48 hours is the sweet spot — long enough to cover Friday\u2192Monday workflows, short enough to stay tiny.</p>
-        <p style="margin:0 0 8px 0"><b>What to do in each case:</b></p>
-        <ul style="margin:0 0 8px 18px;padding:0">
-          <li style="margin-bottom:4px">📷 <b>Just took photos:</b> tap <b>📧 Email Summary + Photos</b> in the photo preview, OR mark the stop done and tap <b>📧📷 Email Summary + photos attached</b> in the close-stop screen. Either way your share sheet opens with the stop summary text and all the stamped photos pre-attached.</li>
-          <li style="margin-bottom:4px">📅 <b>Within 48 hours:</b> open the stop, tap <b>✅ MARK COMPLETE</b> (or just tap the existing complete stop), the close-stop modal will show the <b>📧📷 Email Summary + photos attached</b> button if cached photos still exist for this stop. The cache count appears under the button.</li>
-          <li style="margin-bottom:4px">📝 <b>Older than 48 hours:</b> the <b>📧 Email Stop Summary</b> button still sends the full text summary, and the email body lists the exact filenames of every photo taken at that stop — so you (or the recipient) know which files to attach manually from the gallery.</li>
-          <li>📱 <b>Filenames:</b> photos are named like <code style="font-size:0.95em">2801_dalton_avenue_042326_101832847.jpg</code> (address, with each address word/number separated by underscores, then date + time + ms). Search a street name — like "dalton" — in your gallery or file manager to find every photo on that street.</li>
-        </ul>
-        <p style="margin:0 0 8px 0"><b>Cache size limits:</b> normally 200MB. On phones with less than ~150MB free, the cap drops to 50MB to be polite. Either way, when full, the oldest photos go first. The newest photo for any stop is always preserved as long as it fits.</p>
-        <p style="margin:0;color:#888;font-size:0.92em"><i>The cache is a working convenience, not a permanent record. The photos you see in your phone\u2019s Photos app or Downloads folder are the real archive — the app never modifies or removes those.</i></p>
-      </div>
-    </details>
-
-    <details class="settings-panel">
       <summary>📇 ID Card Text</summary>
       <div class="settings-panel-body">
         <div style="margin-bottom:7px">
@@ -1768,13 +1774,14 @@ body.tool-fullscreen-pdfdocs #cnd-pdf-modal .modal-sheet {
       </div>
     </details>
 
-    <details class="settings-panel" id="settings-photo-cache-panel">
-      <summary>📷 Photo Cache (48h)</summary>
+    <details class="settings-panel">
+      <summary>📷 Photo Stamp</summary>
       <div class="settings-panel-body">
-        <div style="font-size:0.56rem;color:#888;font-family:'Space Mono',monospace;margin-bottom:8px;line-height:1.55">A temporary in-app copy of every photo the app captures — stamped photos, photoscan camera images, and custom-layer scan photos all share this pool. The total respects the same size cap and auto-deletes after 48 hours. Your phone gallery keeps permanent copies regardless.</div>
-        <div id="settings-photo-cache-body" style="font-size:0.62rem;font-family:'Space Mono',monospace;color:#555;background:#f5f5f5;border-radius:8px;padding:8px 10px;margin-bottom:8px;line-height:1.6">Loading…</div>
-
-        <div style="margin-bottom:8px">
+        <div style="font-size:0.56rem;color:#888;font-family:'Space Mono',monospace;margin-bottom:8px">What gets burned into the corner of every stamped photo.</div>
+        <div id="settings-photo-stamp-list" style="display:flex;flex-direction:column;gap:6px">
+          <!-- Filled by renderSettingsPhotoStamp() -->
+        </div>
+        <div style="margin-top:10px">
           <label style="display:flex;align-items:center;justify-content:space-between;padding:8px 11px;border:1px solid #ddd;border-radius:8px;background:#fafafa;cursor:pointer;font-family:'Syne',sans-serif;font-weight:700;font-size:0.62rem;color:#333;margin-bottom:5px">
             <span>📷 Save photoscan camera images</span>
             <input type="checkbox" id="settings-toggle-save-photoscan" onchange="toggleSavePhotoscan(this.checked)" style="width:16px;height:16px;cursor:pointer;accent-color:var(--moss)">
@@ -1784,18 +1791,6 @@ body.tool-fullscreen-pdfdocs #cnd-pdf-modal .modal-sheet {
             <input type="checkbox" id="settings-toggle-save-custom-layer-scan" onchange="toggleSaveCustomLayerScan(this.checked)" style="width:16px;height:16px;cursor:pointer;accent-color:var(--moss)">
           </label>
           <div style="font-size:0.5rem;color:#999;font-family:'Space Mono',monospace;line-height:1.7;margin-top:5px">When ON, the camera image you took before AI extracted addresses is offered through your phone's share sheet (save to gallery, send to Drive, etc). Off by default for privacy and storage.</div>
-        </div>
-
-        <button class="btn-sm btn-del" style="width:100%;padding:8px;font-size:0.62rem" data-fn="clearPhotoCache">🗑 CLEAR CACHE NOW</button>
-      </div>
-    </details>
-
-    <details class="settings-panel">
-      <summary>📷 Photo Stamp</summary>
-      <div class="settings-panel-body">
-        <div style="font-size:0.56rem;color:#888;font-family:'Space Mono',monospace;margin-bottom:8px">What gets burned into the corner of every stamped photo.</div>
-        <div id="settings-photo-stamp-list" style="display:flex;flex-direction:column;gap:6px">
-          <!-- Filled by renderSettingsPhotoStamp() -->
         </div>
       </div>
     </details>
@@ -2203,10 +2198,6 @@ body.tool-fullscreen-pdfdocs #cnd-pdf-modal .modal-sheet {
       <button onclick="shareStopSummary(_closeStopId, true)" style="padding:13px 16px;border:none;border-radius:11px;background:#5d4ea8;color:white;font-family:'Syne',sans-serif;font-weight:800;font-size:0.74rem;cursor:pointer;text-align:left">
         ↗ SHARE STOP SUMMARY
         <div style="font-size:0.54rem;font-weight:400;opacity:0.8;margin-top:2px">Opens your phone's share sheet — Messages, Slack, Teams, AirDrop, etc.</div>
-      </button>
-      <button id="close-stop-email-photos-btn" onclick="emailStopWithPhotos(_closeStopId)" style="display:none;padding:13px 16px;border:none;border-radius:11px;background:linear-gradient(135deg,#1a5276,#2980b9);color:white;font-family:'Syne',sans-serif;font-weight:800;font-size:0.74rem;cursor:pointer;text-align:left">
-        📧📷 EMAIL SUMMARY <i>+ photos attached</i>
-        <div id="close-stop-email-photos-meta" style="font-size:0.54rem;font-weight:400;opacity:0.8;margin-top:2px">Photos cached in-app for 48 h after capture. Auto-deleted after that — gallery copies remain.</div>
       </button>
       <button data-fn="closeStopDelete" style="padding:14px 16px;border:none;border-radius:11px;background:#fde8e8;color:var(--danger);font-family:'Syne',sans-serif;font-weight:800;font-size:0.78rem;cursor:pointer;text-align:left">
         🗑 REMOVE STOP
@@ -3215,13 +3206,10 @@ body.tool-fullscreen-pdfdocs #cnd-pdf-modal .modal-sheet {
       <div class="help-panel-body">
         <b>What's in a stop summary email?</b> Address, type, times (added / arrived / completed / dwell), GPS coordinates, your inspector name, completion notes, transactions with totals, and the filenames of any photos taken at that stop.<br><br>
 
-        <b>Three ways to send one:</b><br>
+        <b>How to send one:</b><br>
         · <b>📧 EMAIL STOP SUMMARY</b> in the close-stop modal (text only) — opens your share sheet or mail app with the summary pre-filled. Photo filenames are listed in the body so the recipient knows what to look for in the gallery.<br>
-        · <b>📧📷 EMAIL SUMMARY + photos attached</b> in the close-stop modal (text + photos) — appears only if photos for this stop are still in the 48-hour cache. Opens the share sheet with the stamped JPEGs pre-attached.<br>
-        · <b>📧 EMAIL SUMMARY + PHOTOS</b> in the photo preview modal — uses the photos from the active session you just captured. Always works as long as you haven't tapped Done yet.<br><br>
-        <b>Why two versions of the email?</b> Web apps can't read photos from your gallery (browser security rule). The 48-hour cache works around this by keeping in-app copies just long enough to cover the typical email-after-stop window. Past 48 hours the email body still lists every filename — useful so you (or the recipient) can manually attach from the gallery.<br><br>
+        <b>Attaching photos:</b> the app can't read photos back from your gallery (browser security rule), so the email body lists every photo filename — attach them from your gallery or Files app.<br><br>
         <b>Cross-platform compatibility:</b> The summary uses CRLF line endings so it formats correctly in Gmail composer on Android. The mailto: fallback uses an anchor click instead of a navigation, so PWA users on iOS don't lose their session opening Mail.<br><br>
-        See Settings → 📧 How email attachments work for the full explainer.
       </div>
     </details>
 
@@ -3259,8 +3247,6 @@ body.tool-fullscreen-pdfdocs #cnd-pdf-modal .modal-sheet {
         &nbsp;&nbsp;· 🗂️ Map Layer Manager (custom GeoJSON layers)<br>
         &nbsp;&nbsp;· Gemini API Key (encrypted with PIN)<br>
         &nbsp;&nbsp;· 📊 AI Usage (per-feature token counts, this session)<br>
-        &nbsp;&nbsp;· 📷 Photo Cache (48h temporary photo storage management)<br>
-        &nbsp;&nbsp;· 📧 How email attachments work (explainer)<br>
         &nbsp;&nbsp;· 💾 Profile Backup &amp; Restore (export/import your full setup as JSON)<br>
         &nbsp;&nbsp;· App Install (PWA add-to-home-screen helper)<br>
         &nbsp;&nbsp;· Share link (send the app URL to a coworker)
@@ -3327,13 +3313,13 @@ body.tool-fullscreen-pdfdocs #cnd-pdf-modal .modal-sheet {
         · <b>Text</b> — tap to drop a text label anywhere on the photo<br>
         · <b>Redact</b> — drag to drop a black rectangle covering license plates, faces, or other PII before the photo gets attached to a public-facing report<br><br>
         <b>Undo/Redo</b> — every annotation step is undoable. The original stamped photo is preserved; annotations are flattened only when you tap Save.<br><br>
-        <b>The annotated copy</b> replaces the stamped JPEG in both the phone gallery and the 48-hour cache. Email summaries include the annotated version.<br><br>
+        <b>The annotated copy</b> replaces the stamped JPEG saved to your phone gallery.<br><br>
         Useful when documenting a violation: arrow to the broken board, text caption "wood rot, west wall", redact the visible street number on the neighbor's house.
       </div>
     </details>
 
     <details class="help-panel">
-      <summary>📷 Photo Stamping &amp; Cache</summary>
+      <summary>📷 Photo Stamping</summary>
       <div class="help-panel-body">
         <b>What is photostamping?</b> The 📷 button in the top header (and the 📷 button in any stop's Utility menu) opens <b>Prepare Photo</b> — a full-screen setup step, not the camera directly. It shows a live map of parcels and street names near your GPS position — tap a parcel on the map and use its <b>✓ Select This Address</b> popup button to fill the address (or 🔍 Property Search from the same popup), use 📍 GPS to reverse-lookup instead, or type it manually. Add optional notes and a tracking number, then tap <b>📷 Open Camera</b> or <b>🖼 Pick Existing</b> (choose one or more photos from your gallery — all get stamped with the same address). ⚙ Stamp jumps to Stamp Settings; ✕ Exit backs out without taking a photo.<br><br>
         <b>Per-stop photo sessions:</b> Opening Prepare Photo from a specific stop's Utility menu links the photo to that stop. Each stamped shot increments a 📷 counter on the stop card so you can see at a glance how many photos you've taken at that address.<br><br>
@@ -3341,9 +3327,6 @@ body.tool-fullscreen-pdfdocs #cnd-pdf-modal .modal-sheet {
         <b>What gets burned in</b> — Settings → 📷 Stamp Settings has individual toggles for: address, date, time, inspector name, title/department, GPS coordinates, compass bearing, case number, photo sequence number, neighborhood name, neighborhood number, ward number, and notes. Turn any subset on. Compact form: "Tower Grove South #15 · Ward 8".<br><br>
         <b>Stamp size and position</b> — Choose Small / Medium / Large size and Top / Bottom position in Stamp Settings. Defaults are Medium and Bottom.<br><br>
         <b>Photostamp drift detection</b> — If your phone's clock differs from the network time by more than 30 seconds, the app warns you before stamping. This protects against an inspector accidentally stamping yesterday's date or being off by an hour after a daylight-savings change.<br><br>
-        <b>The 48-hour cache:</b> A copy of every stamped photo is also kept inside the app for 48 hours. This is what makes the <b>📧 Email Summary + photos attached</b> button work for stops you photographed earlier in the day or yesterday. After 48 hours the cached copy is auto-deleted to keep the app small — your phone gallery copies are not affected and remain forever.<br><br>
-        <b>Cache size:</b> Capped at 200MB normally, or 50MB on phones with limited free space. When the cache fills up, oldest photos go first; the newest photo for each stop is always preserved.<br><br>
-        <b>Manage the cache:</b> Settings → 📷 Photo Cache (48h) shows current size and a "🗑 Clear Cache Now" button. Clearing the cache only affects in-app copies — gallery photos are untouched.<br><br>
         <b>Automatic backup:</b> Stamp Settings has a "✅ Recommended: Auto-backup via Google Photos" card — point Google Photos at your Download folder once (Android) and every future stamped photo backs up automatically, no sign-in inside the app.<br><br>
         <b>Quick mode:</b> Tap the ⚡ toggle in the photo preview to auto-dismiss the preview and reopen the camera after each shot. Good for batch capture (multiple shots at one stop).
       </div>
@@ -3406,7 +3389,6 @@ body.tool-fullscreen-pdfdocs #cnd-pdf-modal .modal-sheet {
         · <b>Add notes at close</b> — the CLOSE dialog has a notes field. Use it for condition observations, owner contact attempts, or case numbers.<br>
         · <b>Pin your first stop</b> on the ROUTE tab if you know you need to start at a specific address (e.g., a scheduled appointment). Pin your last stop if you want to end near home or near a specific neighborhood for the next day's prep.<br>
         · <b>Check the trail on the MAP tab</b> mid-shift — the green line shows where you've been, the dashed blue shows what's left. Helpful for visualizing whether the optimizer's order still makes sense as the day progresses.<br>
-        · <b>Email summaries with photos work for 48 hours.</b> If you took photos at a stop today and want to email them tomorrow morning, the cached copies are still in the app — just open the stop and use the 📧📷 button. After 48 hours, the email body still lists every photo filename so you can attach manually from your gallery.<br>
         · <b>Run quick mode for batch photos</b> at multi-photo stops — toggle ⚡ in the photo preview and the camera reopens automatically after each shot.<br>
         · <b>Annotate before sending.</b> The ✏️ EDIT tool in the photo preview lets you arrow-and-label violations, redact PII, and write captions — much clearer for whoever's reading the report.<br>
         · <b>Backup before risky changes.</b> Settings → 💾 Profile Backup → EXPORT BACKUP. Takes 5 seconds. Saves everything.<br>
@@ -3414,7 +3396,7 @@ body.tool-fullscreen-pdfdocs #cnd-pdf-modal .modal-sheet {
         · <b>The map auto-updates</b> when you switch to it after making changes — no need to refresh.<br>
         · <b>Completed stops save permanently</b> until you clear them. Your history is available under "All Time" in the Reports tab.<br>
         · <b>Watch your AI spend</b> in Settings → 📊 AI Usage if you're using photo scan heavily — image inputs are the most expensive type of request. Gemini's free tier covers typical use; check your Google AI Studio account if you've opted into the paid tier.<br>
-        · <b>Photo gallery is the permanent record.</b> The app's 48-hour cache is convenience only. Photos in your phone's Photos / Downloads folder never expire.
+        · <b>Photo gallery is the permanent record.</b> Stamped photos are saved to your phone's Photos / Downloads folder — the app keeps no copy of its own.
       </div>
     </details>
 
@@ -3425,7 +3407,7 @@ body.tool-fullscreen-pdfdocs #cnd-pdf-modal .modal-sheet {
         · <b>⚖️ CASE</b> — Opens Missouri Case.net (22nd Judicial Circuit) for municipal court case lookups<br>
         · <b>📞 CSB</b> — Opens the Citizens Service Bureau. Copies the current stop's address to clipboard first if one is active<br>
         · <b>🔍 Search</b> — City of St. Louis property lookup by address<br>
-        · <b>📷 Photostamp</b> — Opens your camera with stop-aware overlay. Stamped photos save to your gallery and to the 48-hour cache (see Photo Stamping &amp; Cache section)<br>
+        · <b>📷 Photostamp</b> — Opens your camera with stop-aware overlay. Stamped photos save to your gallery (see Photo Stamping section)<br>
         · <b>⚙️</b> (top right) — Opens your Settings / profile editor<br><br>
         <b>✨ Supercharge with AI</b> — Appears as a small link in the stop-count bar only when no API key is set. Opens the Supercharge modal that walks you through getting a free Gemini key. Once a key is saved, the link disappears.<br><br>
         Other resources (city departments, wildlife rescue, pest control, property lookup tools) are available in the Info tab under the <b>📋 RESOURCES</b> button.
@@ -3734,12 +3716,6 @@ body.tool-fullscreen-pdfdocs #cnd-pdf-modal .modal-sheet {
       <b>Auto-saved.</b> Each stamped shot saves automatically as it's taken. <b>📄 PDF</b> converts this shot to a PDF and saves it alongside.
     </div>
 
-    <!-- Email Summary + Photos — only useful when linked to a stop and session has shots -->
-    <button id="photo-email-btn" data-fn="emailStopWithPhotos" style="display:none;width:100%;padding:12px;background:linear-gradient(135deg,#1a5276,#2980b9);border:none;border-radius:10px;color:white;font-family:Syne,sans-serif;font-weight:800;font-size:0.72rem;cursor:pointer;margin-bottom:6px">📧 Email Summary + Photos</button>
-    <div id="photo-email-hint" style="display:none;font-family:'Space Mono',monospace;font-size:0.52rem;color:rgba(0,0,0,0.5);line-height:1.45;margin-bottom:10px;padding:0 2px">
-      Opens your share sheet with the stop summary and the photos from this session attached. Works only while this preview is open — once you tap Done, the photos stay in your gallery but can\u2019t be re-attached from inside the app.
-    </div>
-
     <!-- 2026-08-26: CSB Request — same copy-address-then-open-CSB flow as
          the stop card recon button (openCsbForAddress), just reachable
          directly from the Stamped Photo screen so the inspector doesn't
@@ -4012,7 +3988,6 @@ body.tool-fullscreen-pdfdocs #cnd-pdf-modal .modal-sheet {
 // §  L10644  PHOTO STAMPING — native camera handoff + configurable canvas stamp
 // ·  L10823  Photostamp drift detection
 // ·  L11383  Photo Annotation + Redaction (Phase 1 — items 1, 2)
-// ·  L12091  PhotoCache: temporary in-app copies of stamped photos
 // ·  L12643  Universal image-capture helpers
 // ·  L12785  GeoCache: cached neighborhood + ward polygons for offline lookup
 // ·  L12865  Drop V: inline neighborhoods + wards GeoJSON (CITY-AUTHORITATIVE)
@@ -4627,7 +4602,7 @@ window._clearSwallowedLog = _clearSwallowedLog;
 // the legacy pattern for ancient WebViews.
 //
 // NOTE: Stop IDs (the numeric `Date.now() * 1000 + Math.floor(Math.random() * 999)`
-// pattern in addStop and emailStopWithPhotos) are intentionally NOT migrated.
+// pattern in addStop) are intentionally NOT migrated.
 // Those IDs are persisted in user data and sometimes treated as numbers;
 // changing them would create a mixed-type-ID array in existing users'
 // stop lists. Leave numeric stop IDs alone.
@@ -5294,7 +5269,6 @@ _migrateToProfiles();
 //   - Session-only flags ('_migrated_v1', 'pwa-installed', 'pwa-prompt-dismissed',
 //     'app-device-id', 'swipe-hint-shown', 'analytics-beacon-url' — these are
 //     either already-migrated markers or per-device truths.)
-//   - The 48hr photo cache (IndexedDB), which is ephemeral by design.
 //
 // Custom map layers (in IndexedDB) are pulled separately via MapLayers.list()
 // and merged into the export blob.
@@ -7413,7 +7387,7 @@ window.confirmProfileImportMerge = confirmProfileImportMerge;
 //   - IndexedDB databases owned by this app:
 //       stlcr-geo-cache  — shared between GeoCache (neighborhoods/wards
 //                          polygons) and MapLayers (custom layers).
-//       stlcr-photo-cache — 48hr ephemeral photo cache.
+//       stlcr-photo-cache — legacy (removed Drop CK); still deleted if present.
 //   - service worker registration (if present).
 //
 // After all of that, hard reload. init() will see no 'setup-complete'
@@ -7467,7 +7441,7 @@ async function resetAppData() {
             '  • All stops, route history, and completed metrics\n' +
             '  • Custom map layers and stop types\n' +
             '  • Settings, ID photo, encrypted API key\n' +
-            '  • Photo cache and offline map polygons\n\n' +
+            '  • Offline map polygons\n\n' +
             'There is no undo. The setup wizard will run on next launch.\n\n' +
             'Continue?';
   if (!confirm(msg)) return;
@@ -10628,26 +10602,6 @@ function openCloseModal(id) {
   closeStopModal.style.display = 'flex';
   Accessibility.modalOpened(closeStopModal, { onEscape: closeCloseModal });
 
-  // Show "Email Summary + photos attached" only if (a) device supports file
-  // sharing AND (b) PhotoCache has at least one entry for this stop. The
-  // lookup is async; default the button to hidden and reveal once the count
-  // comes back. Eviction may have aged photos out — that's by design.
-  var emailPhotosBtn  = document.getElementById('close-stop-email-photos-btn');
-  var emailPhotosMeta = document.getElementById('close-stop-email-photos-meta');
-  if (emailPhotosBtn) {
-    emailPhotosBtn.style.display = 'none';
-    if (typeof _canShareFiles === 'function' && _canShareFiles() && typeof PhotoCache !== 'undefined') {
-      PhotoCache.getForStop(id).then(function(entries) {
-        if (id !== _closeStopId) return; // user navigated away
-        if (!entries || !entries.length) return;
-        emailPhotosBtn.style.display = '';
-        if (emailPhotosMeta) {
-          var n = entries.length;
-          emailPhotosMeta.textContent = n + ' cached photo' + (n===1?'':'s') + ' will be attached. Photos auto-delete after 48h — gallery copies remain.';
-        }
-      }).catch(function(){});
-    }
-  }
 }
 
 var _closeModalTimer = null;
@@ -10809,9 +10763,8 @@ function closeStopDelete() {
   _scrubPinnedIdsAfterDelete(id); // Drop X.1
   _recordStopTombstone(id);
   saveStops();
-  // Drop any cached photo blobs and the photo log entry for this stop —
-  // both are now orphaned. Fire-and-forget; failures don't block the delete.
-  try { if (typeof PhotoCache !== 'undefined') PhotoCache.clearStop(id); } catch (_) { _swallow('closeStopDelete', _); }
+  // Drop the photo log entry for this stop — it is now orphaned.
+  // Fire-and-forget; failures don't block the delete.
   try { LS.remove('photo-log:' + id); } catch (_) { _swallow('closeStopDelete', _); }
   renderAll();
   markRouteChanged();
@@ -16850,10 +16803,8 @@ async function handleScanImage(event) {
 
   const apiKey = await getApiKey();
 
-  // Stash the camera image into the unified photo pool. Counts against the
-  // same 200MB / 50MB-tight cap as photostamp; eviction policy drops these
-  // before photostamp on overflow. If the user enabled "Save photoscan
-  // images" in Settings, _stashCapturedImage also surfaces a share sheet.
+  // If the user enabled "Save photoscan images" in Settings → Photo Stamp,
+  // _stashCapturedImage surfaces a share sheet. (Nothing is cached.)
   try {
     _stashCapturedImage(file, {
       source: 'photoscan',
@@ -19338,23 +19289,6 @@ async function _stampSingleFile(file, opts) {
   if (_photoContext.stopId !== null && typeof stops !== 'undefined') {
     // Photo log: record filename + timestamp (no bytes, just metadata)
     try { _appendPhotoLog(_photoContext.stopId, _photoContext.filename, _photoContext.capturedAt || new Date().toISOString()); } catch (_e) { _swallow('_stampSingleFile', _e); }
-    // Cache a temporary copy of the stamped JPEG so "Email Summary + Photos"
-    // works for ~48 hours (see PhotoCache module). Photostamp counts toward
-    // the shared photo-pool budget alongside photoscan and custom-layer-scan.
-    // skipDownloadOffer: true — photostamp has its own iOS-batch / Android
-    // auto-download pipeline below; we don't want a second share sheet.
-    try {
-      if (_photoContext.stampedBlob) {
-        _stashCapturedImage(_photoContext.stampedBlob, {
-          source: 'photostamp',
-          ownerKind: 'stop',
-          ownerId: _photoContext.stopId,
-          filename: _photoContext.filename,
-          capturedAt: _photoContext.capturedAt || new Date().toISOString(),
-          skipDownloadOffer: true
-        });
-      }
-    } catch (_e) { _swallow('_stampSingleFile', _e); }
   }
   await rebuildStampedPreview();
   // Push the stamped result onto the session
@@ -19382,8 +19316,7 @@ async function _stampSingleFile(file, opts) {
     // worked on iOS (see its own comment: "triggers Save dialog on iOS"),
     // it just wasn't called automatically. With no manual save action left
     // on the preview screen, iOS needs the same auto-save Android always
-    // had, or photos would only live in the 48-hour in-app cache and never
-    // reach the device's own Photos/Files. NOT YET FIELD-TESTED on an
+    // had, or photos would never reach the device's own Photos/Files. NOT YET FIELD-TESTED on an
     // actual iPad/iPhone — flagging per the usual device-test caution.
     try { downloadStampedPhoto(); } catch (_e) { _swallow('_stampSingleFile', _e); }
     _renderSessionStrip();
@@ -19422,24 +19355,12 @@ function _configurePreviewForSession() {
   var explainer   = document.getElementById('photo-save-explainer');
   var takeAnother = document.getElementById('photo-take-another-btn');
   var doneBtn     = document.getElementById('photo-done-btn');
-  var emailBtn    = document.getElementById('photo-email-btn');
-  var emailHint   = document.getElementById('photo-email-hint');
 
   _renderSessionStrip();
   _renderQuickModeToggle();
 
   // Always show Take Another while a session is active
   if (takeAnother) takeAnother.style.display = _photoSession.active ? 'flex' : 'none';
-
-  // Show "Email Summary + Photos" only when the session is linked to a stop
-  // AND at least one photo has been taken AND the device supports file-sharing
-  // via navigator.share (covers most iOS + modern Android; desktop usually can't).
-  var canEmailWithPhotos = _photoSession.active
-    && _photoSession.stopId != null
-    && _photoSession.shots.length > 0
-    && _canShareFiles();
-  if (emailBtn)  emailBtn.style.display  = canEmailWithPhotos ? '' : 'none';
-  if (emailHint) emailHint.style.display = canEmailWithPhotos ? '' : 'none';
 
   if (explainer) {
     explainer.innerHTML = '<b>Auto-saved.</b> Each stamped shot saves automatically as it\'s taken. <b>📄 PDF</b> converts this shot to a PDF and saves it alongside.';
@@ -19673,7 +19594,7 @@ async function rebuildStampedPreview() {
 //   - Redact — black-filled rectangle (item 2 — black-bar redaction)
 // On Save Annotations, the strokes are composited onto the stamped JPEG
 // and replace _photoContext.stampedBlob / stampedDataUrl. This way every
-// downstream path (download, share, email-with-photos) automatically uses
+// downstream path (download, share) automatically uses
 // the annotated version. The pre-annotation bytes can be recovered by
 // tapping "Re-stamp this shot only" which rebuilds from originalBlob.
 //
@@ -20158,7 +20079,7 @@ function _annotCancel() {
 
 // Save — composite the canvas to a JPEG, replace stampedBlob/stampedDataUrl,
 // update the filename, and exit annotation mode. The downstream pipelines
-// (download, share, email-with-photos, photo-cache) automatically use the
+// (download, share) automatically use the
 // annotated version because they pull from _photoContext.
 async function _annotSave() {
   if (!_annot.canvas || !_photoContext.stampedBlob) {
@@ -20199,7 +20120,7 @@ async function _annotSave() {
     }
 
     // If this shot is in the active session, update the session record so
-    // batch share / email-with-photos uses the annotated bytes.
+    // batch share uses the annotated bytes.
     if (_photoSession.active && Array.isArray(_photoSession.shots)) {
       var last = _photoSession.shots[_photoSession.shots.length - 1];
       if (last) {
@@ -20379,572 +20300,32 @@ function _formatCompassHeading(deg) {
   return dirs[ix] + ' (' + Math.round(d) + '°)';
 }
 
-// ── PhotoCache: temporary in-app copies of stamped photos ───────────────────
-// IndexedDB-backed cache that holds JPEG blobs of recently-stamped photos so
-// "Email Summary + Photos" works for stops that were photographed in the last
-// ~48 hours, not just the active session. The user's phone gallery is still
-// the permanent record (Download / Share writes there as before); the cache
-// is a working convenience that auto-purges to keep the app's footprint tiny.
+// ── (Drop CK, 2026-10-21) PhotoCache REMOVED ────────────────────────────────
+// There used to be a 48-hour IndexedDB cache of every stamped / scanned photo
+// (up to 200 MB) that powered "Email Summary + Photos". It was removed: holding
+// full photo Blobs in IndexedDB while photostamp was also decoding/stamping
+// images was running the app out of memory. Stamped photos still go to the
+// phone's gallery exactly as before (downloadStampedPhoto); the plain-text
+// Email Stop Summary still lists photo filenames.
 //
-// Retention policy:
-//   - Time cap: anything older than 48 hours is dropped on app open and on
-//     every cache write.
-//   - Size cap: 200MB normally, dropped to 50MB if the device's available
-//     storage is constrained (detected via navigator.storage.estimate()).
-//     When the cap is exceeded, oldest entries are deleted first.
-//   - The most recent photo for a stop is always preserved unless we can't
-//     even fit one entry — in which case the write quietly fails and the
-//     user still has the photo in their gallery.
-//
-// What is NOT in this cache:
-//   - The phone's own gallery copy (that's outside our sandbox by design)
-//   - Any metadata that wouldn't fit in the photo log (stopId, filename,
-//     timestamp, blob — that's it)
-//
-// Why IndexedDB and not LocalStorage / LS facade:
-//   LocalStorage caps at ~5MB total per origin and stores strings only. Blobs
-//   would need base64 encoding (33% size penalty) and would blow the cap with
-//   a single photo. IndexedDB is what every PWA uses for binary data.
-/**
- * PhotoCache — IndexedDB-backed cache for stop photos (stamped images).
- *
- * Photos are stored as Blobs keyed by stopId + timestamp. The cache has a
- * rolling expiry (default 48h) that clears photos older than the cutoff on
- * every put — keeps the IndexedDB store from growing unbounded across
- * months of use. Photos are always considered ephemeral; the source of
- * truth for "did this stop have a photo" is the Photo Tracker log (see
- * _computeAllStopPhotoStats), not the cache.
- *
- * Public API (Promise-returning unless noted):
- *   put(stopId, blob, label?)  → { id, ... } — stores; auto-prunes expired
- *   list(stopId)               → array — ordered by ts (oldest first)
- *   listAll()                  → array — every cached photo, all stops
- *   get(id)                    → record or null
- *   delete(id)                 → boolean
- *   deleteForStop(stopId)      → number — count removed
- *   pruneExpired()             → number — count removed
- *   clear()                    → void   — wipes the entire cache
- *   getStats()                 → { count, totalBytes, oldestTs }
- *
- * Storage layout: IndexedDB database `stlcr-photo-cache`, store `photos`,
- * primary key `id` (string, format `<stopId>-<ts>-<rand>`).
- *
- * Profile-scoping: NOT profile-scoped. Photos are referenced by stop ID, and
- * stop IDs are profile-scoped, so cross-profile collision is structurally
- * impossible in practice. Worst case on a profile delete is a few orphaned
- * blobs that age out via the rolling expiry.
- *
- * @namespace PhotoCache
- * @see toggleSavePhotoscan — opt-out switch in Settings
- */
-// MODULE: PhotoCache — IndexedDB photo storage layer
-const PhotoCache = (function() {
-  var DB_NAME       = 'stlcr-photo-cache';
-  var DB_VERSION    = 2;  // v1→v2: added source / ownerKind / ownerId / meta fields + indices
-  var STORE         = 'photos';
-  var TTL_MS        = 48 * 60 * 60 * 1000;        // 48 hours
-  var SIZE_CAP_NORMAL = 200 * 1024 * 1024;        // 200 MB
-  var SIZE_CAP_TIGHT  =  50 * 1024 * 1024;        //  50 MB on constrained devices
-  var TIGHT_FREE_THRESHOLD = 150 * 1024 * 1024;   // <150MB free → tight mode
-  var _dbPromise = null;
-  var _persistRequested = false;
-
-  function _open() {
-    if (_dbPromise) return _dbPromise;
-    _dbPromise = new Promise(function(resolve, reject) {
-      try {
-        var req = indexedDB.open(DB_NAME, DB_VERSION);
-        req.onupgradeneeded = function(ev) {
-          var db = req.result;
-          var tx = ev.target.transaction;
-          var os;
-          if (!db.objectStoreNames.contains(STORE)) {
-            // Fresh install: create with all v2 indices
-            os = db.createObjectStore(STORE, { keyPath: 'id', autoIncrement: true });
-            os.createIndex('stopId',     'stopId',     { unique: false });
-            os.createIndex('capturedAt', 'capturedAt', { unique: false });
-            os.createIndex('source',     'source',     { unique: false });
-            os.createIndex('ownerKey',   'ownerKey',   { unique: false });
-            return;
-          }
-          // Existing store — apply v1→v2 migration via upgrade transaction
-          os = tx.objectStore(STORE);
-          if (!os.indexNames.contains('source')) {
-            os.createIndex('source', 'source', { unique: false });
-          }
-          if (!os.indexNames.contains('ownerKey')) {
-            os.createIndex('ownerKey', 'ownerKey', { unique: false });
-          }
-          // Backfill: walk every existing record and add the new fields.
-          // For pre-v2 entries, source='photostamp', ownerKind='stop',
-          // ownerId=stopId, ownerKey='stop:'+stopId. This preserves the
-          // existing meaning of these records.
-          var cur = os.openCursor();
-          cur.onsuccess = function(e) {
-            var c = e.target.result;
-            if (!c) return;
-            var rec = c.value;
-            var changed = false;
-            if (rec.source == null) { rec.source = 'photostamp'; changed = true; }
-            if (rec.ownerKind == null) {
-              rec.ownerKind = (rec.stopId != null) ? 'stop' : 'ad-hoc';
-              changed = true;
-            }
-            if (rec.ownerId == null) { rec.ownerId = rec.stopId != null ? rec.stopId : null; changed = true; }
-            if (rec.ownerKey == null) {
-              rec.ownerKey = (rec.ownerKind === 'stop' && rec.ownerId != null)
-                ? ('stop:' + rec.ownerId) : (rec.ownerKind + ':' + (rec.ownerId == null ? 'null' : rec.ownerId));
-              changed = true;
-            }
-            if (changed) c.update(rec);
-            c.continue();
-          };
-        };
-        req.onsuccess = function() { resolve(req.result); };
-        req.onerror   = function() { reject(req.error); };
-      } catch(e) { reject(e); }
-    });
-    return _dbPromise;
+// One-time cleanup: devices that already hold the old database get it deleted
+// on boot so that storage is reclaimed. Harmless no-op if it doesn't exist.
+try {
+  if (window.indexedDB && indexedDB.deleteDatabase) {
+    var _legacyPcReq = indexedDB.deleteDatabase('stlcr-photo-cache');
+    _legacyPcReq.onerror = _legacyPcReq.onblocked = function() { /* best-effort */ };
   }
+} catch (_) { _swallow('legacyPhotoCachePurge', _); }
 
-  function _tx(mode) {
-    return _open().then(function(db) {
-      return db.transaction(STORE, mode).objectStore(STORE);
-    });
-  }
-
-  // Returns the active size cap for this device. Uses storage.estimate() if
-  // available; falls back to the normal cap when the API isn't there.
-  async function _activeCap() {
-    try {
-      if (navigator.storage && navigator.storage.estimate) {
-        var est = await navigator.storage.estimate();
-        var free = (est.quota || 0) - (est.usage || 0);
-        if (free > 0 && free < TIGHT_FREE_THRESHOLD) return SIZE_CAP_TIGHT;
-      }
-    } catch (_) { _swallow('_activeCap', _); }
-    return SIZE_CAP_NORMAL;
-  }
-
-  // Request that the browser try not to evict our origin storage. On Chrome
-  // this prompts the heuristic ("recently engaged with"); on Safari it's
-  // usually ignored but doesn't hurt to ask. Idempotent — only fires once.
-  async function _requestPersist() {
-    if (_persistRequested) return;
-    _persistRequested = true;
-    try {
-      if (navigator.storage && navigator.storage.persist) {
-        await navigator.storage.persist();
-      }
-    } catch (_) { _swallow('_requestPersist', _); }
-  }
-
-  // Walk the store ordered by capturedAt ASC; collect all entries with a
-  // running size total. Used by both eviction and stats.
-  function _scan() {
-    return _tx('readonly').then(function(os) {
-      return new Promise(function(resolve, reject) {
-        var entries = [];
-        var totalSize = 0;
-        var cur = os.index('capturedAt').openCursor();
-        cur.onsuccess = function(e) {
-          var c = e.target.result;
-          if (!c) { resolve({ entries: entries, totalSize: totalSize }); return; }
-          entries.push({
-            id: c.value.id,
-            stopId: c.value.stopId,
-            filename: c.value.filename,
-            capturedAt: c.value.capturedAt,
-            size: (c.value.blob && c.value.blob.size) || 0,
-            source: c.value.source || 'photostamp',
-            ownerKind: c.value.ownerKind || (c.value.stopId != null ? 'stop' : 'ad-hoc'),
-            ownerId: c.value.ownerId != null ? c.value.ownerId : c.value.stopId,
-            ownerKey: c.value.ownerKey || null
-          });
-          totalSize += (c.value.blob && c.value.blob.size) || 0;
-          c.continue();
-        };
-        cur.onerror = function() { reject(cur.error); };
-      });
-    });
-  }
-
-  function _deleteIds(ids) {
-    if (!ids.length) return Promise.resolve(0);
-    return _tx('readwrite').then(function(os) {
-      return new Promise(function(resolve, reject) {
-        var done = 0;
-        ids.forEach(function(id) {
-          var req = os.delete(id);
-          req.onsuccess = function() { done++; if (done === ids.length) resolve(done); };
-          req.onerror   = function() { reject(req.error); };
-        });
-      });
-    });
-  }
-
-  // Drop expired (>TTL_MS old) and over-cap (oldest first) entries.
-  // Returns { droppedTime, droppedSize, remaining, totalSize }.
-  async function evict() {
-    var now = Date.now();
-    var scan;
-    try { scan = await _scan(); }
-    catch(_) { return { droppedTime:0, droppedSize:0, remaining:0, totalSize:0 }; }
-    var cap = await _activeCap();
-    var killTime = [];
-    var killSize = [];
-    var keep = [];
-    var totalSize = 0;
-    // Phase 1: time-based — drop everything older than TTL
-    for (var i = 0; i < scan.entries.length; i++) {
-      var e = scan.entries[i];
-      var ts = e.capturedAt ? new Date(e.capturedAt).getTime() : 0;
-      if (!ts || (now - ts) > TTL_MS) { killTime.push(e.id); }
-      else { keep.push(e); totalSize += e.size; }
-    }
-    // Phase 2: size-based, with source priority.
-    //
-    // The cache holds photos from multiple sources: 'photostamp' (the
-    // primary high-value field photos), 'photoscan'/'custom-layer-scan'
-    // (camera images of address lists, lower long-term value once OCR ran),
-    // and 'manual' (other ad-hoc captures). On overflow, drop in this
-    // priority order so the most valuable photos survive longest:
-    //
-    //   1. Drop oldest non-photostamp entries first (across all stops/owners)
-    //   2. Drop oldest photostamp entries that aren't the newest for their stop
-    //   3. As a last resort, drop oldest photostamp entries period
-    if (totalSize > cap) {
-      var stillKept = [];
-      // Step 1: clear out non-photostamp first, oldest first
-      for (var k1 = 0; k1 < keep.length; k1++) {
-        var ent1 = keep[k1];
-        if (totalSize <= cap) { stillKept.push(ent1); continue; }
-        if (ent1.source && ent1.source !== 'photostamp') {
-          killSize.push(ent1.id);
-          totalSize -= ent1.size;
-        } else {
-          stillKept.push(ent1);
-        }
-      }
-      keep = stillKept;
-      // Step 2: among photostamp entries, protect the newest per stop
-      if (totalSize > cap) {
-        var newestForStop = {};
-        for (var j = 0; j < keep.length; j++) {
-          var kk = keep[j];
-          if (kk.source === 'photostamp' && kk.stopId != null) {
-            newestForStop[kk.stopId] = kk.id; // overwritten by later (newer) entries
-          }
-        }
-        var stillKept2 = [];
-        for (var k2 = 0; k2 < keep.length; k2++) {
-          var ent = keep[k2];
-          if (totalSize <= cap) { stillKept2.push(ent); continue; }
-          if (newestForStop[ent.stopId] === ent.id) { stillKept2.push(ent); continue; } // protect newest per stop
-          killSize.push(ent.id);
-          totalSize -= ent.size;
-        }
-        keep = stillKept2;
-      }
-      // Step 3: if still over cap (single-stop overflow), drop oldest period
-      if (totalSize > cap) {
-        for (var k3 = 0; k3 < keep.length && totalSize > cap; k3++) {
-          killSize.push(keep[k3].id);
-          totalSize -= keep[k3].size;
-          keep[k3] = null;
-        }
-        keep = keep.filter(function(x){ return x; });
-      }
-    }
-    var allKills = killTime.concat(killSize);
-    if (allKills.length) {
-      await _tryLogAsync('photocache-delete-evicted', function() { return _deleteIds(allKills); });
-    }
-    return {
-      droppedTime: killTime.length,
-      droppedSize: killSize.length,
-      remaining:   keep.length,
-      totalSize:   totalSize
-    };
-  }
-
-  // Add a stamped photo. Runs evict() AFTER write so the new entry is always
-  // honored (subject to single-entry overflow). On QuotaExceededError, retry
-  // once after dropping the oldest entry; if it still fails, swallow quietly —
-  // the user's gallery still has the photo, the app feature just won't.
-  async function put(arg1, filename, blob, capturedAtISO) {
-    // Two call forms supported:
-    //   1. Legacy 4-arg:  put(stopId, filename, blob, capturedAtISO)
-    //   2. Options form:  put({ blob, filename, capturedAt, source, ownerKind, ownerId, meta })
-    var stopId, source, ownerKind, ownerId, meta;
-    if (typeof arg1 === 'object' && arg1 !== null && arg1.blob) {
-      var o = arg1;
-      blob = o.blob;
-      filename = o.filename;
-      capturedAtISO = o.capturedAt;
-      source = o.source || 'manual';
-      ownerKind = o.ownerKind || 'ad-hoc';
-      ownerId = (o.ownerId == null) ? null : o.ownerId;
-      meta = o.meta || null;
-      stopId = (ownerKind === 'stop') ? ownerId : null;
-    } else {
-      stopId = arg1;
-      source = 'photostamp';
-      ownerKind = 'stop';
-      ownerId = stopId;
-      meta = null;
-    }
-    if (!blob || !blob.size) return null;
-    // For stop-owned photos, stopId is required (preserves legacy behavior).
-    // For other ownership kinds, ownerId can be null (ad-hoc captures).
-    if (ownerKind === 'stop' && stopId == null) return null;
-    _requestPersist(); // fire-and-forget
-    var ownerKey = ownerKind + ':' + (ownerId == null ? 'null' : ownerId);
-    var record = {
-      stopId: stopId,                                 // back-compat with index('stopId')
-      filename: filename || ('photo-' + Date.now() + '.jpg'),
-      capturedAt: capturedAtISO || new Date().toISOString(),
-      blob: blob,
-      source: source,
-      ownerKind: ownerKind,
-      ownerId: ownerId,
-      ownerKey: ownerKey,
-      meta: meta
-    };
-    try {
-      await _tx('readwrite').then(function(os) {
-        return new Promise(function(resolve, reject) {
-          var req = os.add(record);
-          req.onsuccess = function() { resolve(req.result); };
-          req.onerror   = function() { reject(req.error); };
-        });
-      });
-    } catch(e) {
-      // Probably QuotaExceededError. Make room and retry once.
-      await _tryLogAsync('photocache-evict-on-quota', function() { return evict(); });
-      // Force one more eviction by dropping the oldest entry outright
-      await _tryLogAsync('photocache-force-evict-oldest', async function() {
-        var scan = await _scan();
-        if (scan.entries.length) {
-          await _deleteIds([scan.entries[0].id]);
-        }
-      });
-      try {
-        await _tx('readwrite').then(function(os) {
-          return new Promise(function(resolve, reject) {
-            var req = os.add(record);
-            req.onsuccess = function() { resolve(req.result); };
-            req.onerror   = function() { reject(req.error); };
-          });
-        });
-      } catch(_) { return null; } // give up silently
-    }
-    // Post-write housekeeping (don't await — let it happen async)
-    evict().catch(function(){});
-    return true;
-  }
-
-  // Fetch all cached entries for a stop, oldest first. Returns array of
-  // { id, filename, blob, capturedAt }.
-  function getForStop(stopId) {
-    if (stopId == null) return Promise.resolve([]);
-    return _tx('readonly').then(function(os) {
-      return new Promise(function(resolve, reject) {
-        var out = [];
-        var cur = os.index('stopId').openCursor(IDBKeyRange.only(stopId));
-        cur.onsuccess = function(e) {
-          var c = e.target.result;
-          if (!c) {
-            out.sort(function(a, b) {
-              return new Date(a.capturedAt).getTime() - new Date(b.capturedAt).getTime();
-            });
-            resolve(out);
-            return;
-          }
-          out.push({
-            id: c.value.id,
-            filename: c.value.filename,
-            blob: c.value.blob,
-            capturedAt: c.value.capturedAt
-          });
-          c.continue();
-        };
-        cur.onerror = function() { reject(cur.error); };
-      });
-    }).catch(function(){ return []; });
-  }
-
-  // Returns { count, totalSize, perStop: {stopId: count}, capUsed }
-  async function stats() {
-    try {
-      var scan = await _scan();
-      var perStop = {};
-      var bySource = {};      // count per source
-      var bySizeBySource = {}; // bytes per source
-      scan.entries.forEach(function(e) {
-        perStop[e.stopId] = (perStop[e.stopId] || 0) + 1;
-        var src = e.source || 'photostamp';
-        bySource[src] = (bySource[src] || 0) + 1;
-        bySizeBySource[src] = (bySizeBySource[src] || 0) + (e.size || 0);
-      });
-      var cap = await _activeCap();
-      return {
-        count: scan.entries.length,
-        totalSize: scan.totalSize,
-        perStop: perStop,
-        bySource: bySource,
-        bySizeBySource: bySizeBySource,
-        capUsed: cap
-      };
-    } catch(_) {
-      return { count:0, totalSize:0, perStop:{}, bySource:{}, bySizeBySource:{}, capUsed: SIZE_CAP_NORMAL };
-    }
-  }
-
-  // Fetch all entries for a given source (e.g. all 'photoscan' images).
-  // Used by the photoscan history view (future) and by Phase 0 tests.
-  async function getBySource(source) {
-    if (!source) return [];
-    try {
-      var scan = await _scan();
-      var matching = scan.entries.filter(function(e) {
-        return (e.source || 'photostamp') === source;
-      });
-      // Walk the actual blobs out of the store (scan only carries metadata)
-      return _tx('readonly').then(function(os) {
-        return Promise.all(matching.map(function(meta) {
-          return new Promise(function(resolve) {
-            var req = os.get(meta.id);
-            req.onsuccess = function() {
-              var rec = req.result;
-              if (!rec) { resolve(null); return; }
-              resolve({
-                id: rec.id,
-                filename: rec.filename,
-                blob: rec.blob,
-                capturedAt: rec.capturedAt,
-                source: rec.source,
-                ownerKind: rec.ownerKind,
-                ownerId: rec.ownerId,
-                meta: rec.meta || null
-              });
-            };
-            req.onerror = function() { resolve(null); };
-          });
-        }));
-      }).then(function(rows) { return rows.filter(function(r){ return r != null; }); });
-    } catch(_) { return []; }
-  }
-
-  // Fetch all entries for a given owner (ownerKind + ownerId).
-  // Generalization of getForStop. For ownerKind='stop', equivalent to
-  // getForStop. Used by future custom-layer photo history views and tests.
-  async function getByOwner(ownerKind, ownerId) {
-    if (!ownerKind) return [];
-    if (ownerKind === 'stop' && ownerId != null) {
-      // Re-use the existing index-based fast path
-      return getForStop(ownerId);
-    }
-    try {
-      var scan = await _scan();
-      var key = ownerKind + ':' + (ownerId == null ? 'null' : ownerId);
-      var matching = scan.entries.filter(function(e) {
-        return (e.ownerKey || (e.ownerKind + ':' + (e.ownerId == null ? 'null' : e.ownerId))) === key;
-      });
-      return _tx('readonly').then(function(os) {
-        return Promise.all(matching.map(function(meta) {
-          return new Promise(function(resolve) {
-            var req = os.get(meta.id);
-            req.onsuccess = function() {
-              var rec = req.result;
-              if (!rec) { resolve(null); return; }
-              resolve({
-                id: rec.id,
-                filename: rec.filename,
-                blob: rec.blob,
-                capturedAt: rec.capturedAt,
-                source: rec.source,
-                meta: rec.meta || null
-              });
-            };
-            req.onerror = function() { resolve(null); };
-          });
-        }));
-      }).then(function(rows) { return rows.filter(function(r){ return r != null; }); });
-    } catch(_) { return []; }
-  }
-
-  // Returns Set of stopIds that have at least one cached photo. Useful for
-  // efficiently deciding whether to render the "Email + Photos" button on
-  // each stop card without doing per-stop async lookups.
-  async function stopIdsWithPhotos() {
-    try {
-      var scan = await _scan();
-      var s = new Set();
-      scan.entries.forEach(function(e) { if (e.stopId != null) s.add(e.stopId); });
-      return s;
-    } catch(_) { return new Set(); }
-  }
-
-  // Wipe everything. User-facing "Clear cache" button.
-  async function clear() {
-    try {
-      await _tx('readwrite').then(function(os) {
-        return new Promise(function(resolve, reject) {
-          var req = os.clear();
-          req.onsuccess = function() { resolve(); };
-          req.onerror   = function() { reject(req.error); };
-        });
-      });
-      return true;
-    } catch(_) { return false; }
-  }
-
-  // Drop all entries for a single stop. Called when a stop is deleted so we
-  // don't keep orphaned blobs.
-  async function clearStop(stopId) {
-    if (stopId == null) return 0;
-    try {
-      var entries = await getForStop(stopId);
-      if (!entries.length) return 0;
-      await _deleteIds(entries.map(function(e){ return e.id; }));
-      return entries.length;
-    } catch(_) { return 0; }
-  }
-
-  return {
-    put:              put,
-    getForStop:       getForStop,
-    getBySource:      getBySource,
-    getByOwner:       getByOwner,
-    evict:            evict,
-    stats:            stats,
-    stopIdsWithPhotos: stopIdsWithPhotos,
-    clear:            clear,
-    clearStop:        clearStop,
-    TTL_MS:           TTL_MS,
-    SIZE_CAP_NORMAL:  SIZE_CAP_NORMAL,
-    SIZE_CAP_TIGHT:   SIZE_CAP_TIGHT
-  };
-})();
-
-// Boot-time eviction sweep — fire and forget. Cheap because it only reads the
-// capturedAt index, not full blobs.
-try { PhotoCache.evict().catch(function(){}); } catch (_) { _swallow('clearStop', _); }
-
-// ── Universal image-capture helpers ─────────────────────────────────────────
-// Every flow that captures or selects a photo through the app calls
-// _stashCapturedImage(blob, opts). It writes the photo to the shared
-// PhotoCache pool and (if the user opted in) offers a share-panel download.
-//
-// Why one helper for all sources: photostamp, photoscan, custom-layer-scan,
-// and any future capture flow share the same memory pool and the same TTL +
-// size-cap rules. Plumbing them into separate code paths would mean four
-// places to change when the policy changes; this way it's one.
+// ── Image-capture helpers ───────────────────────────────────────────────────
+// photoscan and custom-layer-scan call _stashCapturedImage(blob, opts). Since
+// Drop CK it no longer stores anything: it only honors the optional
+// "Save ... images" preference by offering the image through the share sheet.
+// (Name kept so the existing callers and test harness exposures still work.)
 
 // Read the per-source download preference. Off by default for both
 // photoscan and custom-layer-scan — privacy + storage default. The user
-// can flip these on per-source from Settings → Photo Cache panel.
+// can flip these on per-source from the toggles in Settings → Photo Stamp.
 function _isSourceDownloadEnabled(source) {
   if (source === 'photoscan')           return LS.get('pref-save-photoscan')           === '1';
   if (source === 'custom-layer-scan')   return LS.get('pref-save-custom-layer-scan')   === '1';
@@ -21007,61 +20388,25 @@ function _downloadBlobViaAnchor(blob, filename) {
   } catch(_) { return Promise.resolve(false); }
 }
 
-// The single entrypoint every capture flow calls.
-//
-//   await _stashCapturedImage(blob, {
-//     source:    'photostamp' | 'photoscan' | 'custom-layer-scan' | 'manual',
-//     ownerKind: 'stop' | 'layer' | 'ad-hoc',
-//     ownerId:   <stop.id | layer.id | null>,
-//     filename:  '<download name>',         // optional
-//     capturedAt:'<ISO>',                   // optional, defaults now
-//     meta:      { ... },                   // optional, any JSON-safe info
-//     skipDownloadOffer: true               // photostamp sets this true; it
-//                                           // has its own download flow.
-//   });
-//
-// Returns true on successful cache write, false on quota failure.
+// Entry point for the scan flows (photoscan, custom-layer-scan).
+// Returns true if the optional share-sheet offer was started, else false.
+// Nothing is cached or stored.
 async function _stashCapturedImage(blob, opts) {
   opts = opts || {};
   if (!blob || !blob.size) return false;
   var source = opts.source || 'manual';
-  var ownerKind = opts.ownerKind || 'ad-hoc';
-  var ownerId = (opts.ownerId == null) ? null : opts.ownerId;
   var filename = opts.filename || _defaultCaptureFilename(source);
-  var capturedAt = opts.capturedAt || new Date().toISOString();
-
-  // Cache write — uses new options-form put()
-  var ok = false;
-  try {
-    var res = await PhotoCache.put({
-      blob: blob,
-      filename: filename,
-      capturedAt: capturedAt,
-      source: source,
-      ownerKind: ownerKind,
-      ownerId: ownerId,
-      meta: opts.meta || null
-    });
-    ok = (res === true);
-  } catch(_) { ok = false; }
-
-  // Optional: offer the user a download via share panel.
-  // Don't await — let the share sheet open while the rest of the flow continues.
   if (!opts.skipDownloadOffer && _isSourceDownloadEnabled(source)) {
+    // Don't await — let the share sheet open while the rest of the flow continues.
     _offerImageDownload(blob, filename).catch(function(){});
+    return true;
   }
-
-  return ok;
+  return false;
 }
 
-// Expose PhotoCache + universal capture helpers on window so test
-// harnesses (jsdom) and inline event handlers can reach them. In a real
-// browser, sequential inline <script> blocks share global scope and this
-// is a no-op for most usage; under jsdom's runScripts:'dangerously',
-// top-level const/function declarations are scoped to their inline
-// script's execution context, NOT the window. Without these exposures,
-// w.PhotoCache reads as undefined from outside the script.
-window.PhotoCache = PhotoCache;
+// Expose the capture helpers on window so test harnesses (jsdom) and inline
+// event handlers can reach them (jsdom scopes top-level declarations to the
+// inline script, not the window).
 window._stashCapturedImage    = _stashCapturedImage;
 window._offerImageDownload    = _offerImageDownload;
 window._downloadBlobViaAnchor = _downloadBlobViaAnchor;
@@ -25962,9 +25307,8 @@ async function onCustomLayerScanSelected(evt) {
   statusEl.style.color = '#666';
   statusEl.textContent = '🔍 Reading addresses from image…';
 
-  // Stash the camera image into the unified photo pool — counts against the
-  // shared 200MB / 50MB-tight cap. If the user enabled "Save custom-layer
-  // scan images" in Settings, the helper also surfaces a share sheet.
+  // If the user enabled "Save custom-layer scan images" in Settings →
+  // Photo Stamp, the helper surfaces a share sheet. (Nothing is cached.)
   try {
     _stashCapturedImage(file, {
       source: 'custom-layer-scan',
@@ -26534,16 +25878,12 @@ function _cndPdfReadFileAsImage(file) {
     reader.readAsDataURL(file);
   });
 }
-async function _cndPdfAddFilesToStore(files, store) {
-  for (var i = 0; i < files.length; i++) {
-    var img = await _cndPdfReadFileAsImage(files[i]);
-    store.push({ file: files[i], img: img, name: files[i].name, dataUrl: img.src });
-  }
-}
+// (_cndPdfAddFilesToStore now lives in the Drop CI block below — images of any type + PDFs)
 function _cndPdfRenderPhotoList(listEl, photos, removeFnName, moveFnName) {
   if (!listEl) return;
   listEl.innerHTML = photos.map(function(p, i) {
     return '<div style="display:flex;align-items:center;gap:10px;padding:8px;border:1px solid #d9d6cd;background:#fdfcfa">' +
+      '<div style="min-width:18px;text-align:center;font-family:\'Space Mono\',monospace;font-size:0.6rem;font-weight:700;color:#28323f">' + (i + 1) + '</div>' +
       '<img src="' + p.dataUrl + '" style="width:48px;height:48px;object-fit:cover;border:1px solid #d9d6cd">' +
       '<div style="flex:1;font-size:0.6rem;word-break:break-all;color:#3c4a5c">' + escHtml(p.name) + '</div>' +
       '<div style="display:flex;gap:4px">' +
@@ -26561,6 +25901,7 @@ function openCndPdfModal() {
   if (!modal) return;
   modal.style.display = 'flex';
   cndPdfSwitchTab('simple');
+  cndPdfSetOutMode(_cndPdfOutMode);
   _cndPdfRenderPeopleList();
   _cndPdfRenderReasonOptions();
   _cndPdfLoadSavedFolder();
@@ -26571,26 +25912,29 @@ function closeCndPdfModal() {
   if (modal) modal.style.display = 'none';
   _exitToolFullscreen();
 }
+var _CNDPDF_TABS = ['simple', 'cnd', 'merge', 'edit'];
 function cndPdfSwitchTab(which) {
-  var cndTab = document.getElementById('cndpdf-tab-cnd');
-  var simpleTab = document.getElementById('cndpdf-tab-simple');
-  var cndPanel = document.getElementById('cndpdf-panel-cnd');
-  var simplePanel = document.getElementById('cndpdf-panel-simple');
-  if (!cndTab || !simpleTab || !cndPanel || !simplePanel) return;
-  var isCnd = which === 'cnd';
-  cndPanel.style.display = isCnd ? 'block' : 'none';
-  simplePanel.style.display = isCnd ? 'none' : 'block';
-  cndTab.style.background = isCnd ? '#28323f' : '#eae7de';
-  cndTab.style.color = isCnd ? '#fff' : '#3c4a5c';
-  cndTab.style.borderColor = isCnd ? '#28323f' : '#d9d6cd';
-  simpleTab.style.background = isCnd ? '#eae7de' : '#28323f';
-  simpleTab.style.color = isCnd ? '#3c4a5c' : '#fff';
-  simpleTab.style.borderColor = isCnd ? '#d9d6cd' : '#28323f';
+  // Drop CI: four tabs now (Image Convert / Docu-Stamp / Merge / Edit PDF).
+  // Ids keep their historical names — 'simple' is the Image Convert tab.
+  if (_CNDPDF_TABS.indexOf(which) === -1) which = 'simple';
+  _CNDPDF_TABS.forEach(function(k) {
+    var tab = document.getElementById('cndpdf-tab-' + k);
+    var panel = document.getElementById('cndpdf-panel-' + k);
+    var on = k === which;
+    if (panel) panel.style.display = on ? 'block' : 'none';
+    if (tab) {
+      tab.style.background = on ? '#28323f' : '#eae7de';
+      tab.style.color = on ? '#fff' : '#3c4a5c';
+      tab.style.borderColor = on ? '#28323f' : '#d9d6cd';
+    }
+  });
   // 2026-08-17: keep the preview honest — without this, switching to the
   // Docu-Stamp tab before touching any field would show the static
   // placeholder markup instead of what _cndPdfBuildHeaderLines would
   // actually produce for the current (now blank-by-default) field state.
-  if (isCnd) cndPdfUpdatePreview();
+  if (which === 'cnd') cndPdfUpdatePreview();
+  if (which === 'merge') _cndMgRender();
+  if (which === 'edit') _cndEdOnShow();
 }
 
 // ---- date mask (MM/DD/YYYY with auto slashes + 2-digit-year expansion) ----
@@ -27162,12 +26506,931 @@ function cndPdfSimplePhotoMove(i, dir) {
   var tmp = _cndPdfSimplePhotos[i]; _cndPdfSimplePhotos[i] = _cndPdfSimplePhotos[j]; _cndPdfSimplePhotos[j] = tmp;
   _cndPdfRenderPhotoList(document.getElementById('cndpdf-simple-photo-list'), _cndPdfSimplePhotos, 'cndPdfSimplePhotoRemove', 'cndPdfSimplePhotoMove');
 }
+// ============================================================================
+// Drop CI (2026-10-19): PDF Docs grows from two tabs to four.
+//   Image Convert  (was "Simple Convert" — label only; ids unchanged)
+//   Docu-Stamp     (now also takes PDFs — every page is stamped — and any
+//                   browser-decodable image type; Clear All + Clear Address)
+//   Merge          (any number of PDFs, reorder, per-page include/exclude,
+//                   page thumbnails, merged-file preview)
+//   Edit PDF       (text boxes, pen/highlighter/shapes, eraser, whiteout,
+//                   undo/redo, save as a new PDF)
+// pdf.js (page rendering/thumbnails) and pdf-lib (writing PDFs) are lazy-
+// loaded from cdnjs on first use of a PDF feature, exactly like jsPDF above —
+// cdnjs is already in the CSP, so no new host. Nothing is inlined, so
+// index.html does not grow by the ~1 MB these libraries weigh.
+// ============================================================================
+var _CNDPDF_JS_VER = '3.11.174';
+var _CNDPDF_LIB_VER = '1.17.1';
+var _cndPdfLibPromises = {};
+
+function _cndPdfLoadScriptOnce(key, url, getter, failMsg) {
+  var got = getter();
+  if (got) return Promise.resolve(got);
+  if (_cndPdfLibPromises[key]) return _cndPdfLibPromises[key];
+  var p = new Promise(function(resolve, reject) {
+    var s = document.createElement('script');
+    s.src = url;
+    s.onload = function() {
+      var lib = getter();
+      if (lib) resolve(lib); else reject(new Error(failMsg));
+    };
+    s.onerror = function() { reject(new Error(failMsg)); };
+    document.head.appendChild(s);
+  });
+  // A failed load must be retryable (offline → back online), so don't cache rejections.
+  p.catch(function() { delete _cndPdfLibPromises[key]; });
+  _cndPdfLibPromises[key] = p;
+  return p;
+}
+function _cndPdfEnsurePdfJs() {
+  return _cndPdfLoadScriptOnce('pdfjs',
+    'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/' + _CNDPDF_JS_VER + '/pdf.min.js',
+    function() { return window.pdfjsLib || null; },
+    'Could not load the PDF viewer library — check your connection and try again'
+  ).then(function(lib) {
+    if (!lib.GlobalWorkerOptions.workerSrc) {
+      lib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/' + _CNDPDF_JS_VER + '/pdf.worker.min.js';
+    }
+    return lib;
+  });
+}
+function _cndPdfEnsurePdfLib() {
+  return _cndPdfLoadScriptOnce('pdflib',
+    'https://cdnjs.cloudflare.com/ajax/libs/pdf-lib/' + _CNDPDF_LIB_VER + '/pdf-lib.min.js',
+    function() { return (window.PDFLib && window.PDFLib.PDFDocument) ? window.PDFLib : null; },
+    'Could not load the PDF writer library — check your connection and try again'
+  );
+}
+
+function _cndPdfIsPdfFile(f) {
+  return !!f && (f.type === 'application/pdf' || /\.pdf$/i.test(f.name || ''));
+}
+function _cndPdfIsImageFile(f) {
+  return !!f && ((f.type || '').indexOf('image/') === 0 || /\.(jpe?g|png|gif|webp|bmp|avif|heic|heif|tiff?)$/i.test(f.name || ''));
+}
+function _cndPdfBaseName(name) { return String(name || 'file').replace(/\.[^.]+$/, ''); }
+function _cndPdfSetStatus(id, msg, color) {
+  var el = document.getElementById(id);
+  if (!el) return;
+  el.textContent = msg || '';
+  el.style.color = color || '#3c4a5c';
+}
+var _CND_ERR = '#a3402f', _CND_OK = '#3f6b4c', _CND_NEUTRAL = '#3c4a5c';
+
+function _cndPdfReadBytes(file) {
+  if (file.arrayBuffer) return file.arrayBuffer().then(function(b) { return new Uint8Array(b); });
+  return new Promise(function(resolve, reject) {
+    var r = new FileReader();
+    r.onload = function() { resolve(new Uint8Array(r.result)); };
+    r.onerror = function() { reject(r.error || new Error('Could not read file')); };
+    r.readAsArrayBuffer(file);
+  });
+}
+// pdf.js transfers the buffer it is given to its worker, which would detach
+// our copy — always hand it a clone so the original bytes stay usable for
+// pdf-lib later.
+async function _cndPdfOpenWithPdfJs(bytes) {
+  var lib = await _cndPdfEnsurePdfJs();
+  var task = lib.getDocument({ data: bytes.slice(0), isEvalSupported: false });
+  try { return await task.promise; }
+  catch (e) {
+    if (e && e.name === 'PasswordException') throw new Error('password-protected — remove the password first');
+    throw new Error('not a readable PDF');
+  }
+}
+async function _cndPdfRenderPageToCanvas(pdf, n, longSide) {
+  var page = await pdf.getPage(n);
+  var v1 = page.getViewport({ scale: 1 });
+  var scale = longSide / Math.max(v1.width, v1.height);
+  var vp = page.getViewport({ scale: scale });
+  var c = document.createElement('canvas');
+  c.width = Math.max(1, Math.ceil(vp.width));
+  c.height = Math.max(1, Math.ceil(vp.height));
+  var ctx = c.getContext('2d');
+  ctx.fillStyle = '#fff';
+  ctx.fillRect(0, 0, c.width, c.height);
+  await page.render({ canvasContext: ctx, viewport: vp }).promise;
+  if (page.cleanup) page.cleanup();
+  return c;
+}
+function _cndPdfLoadImageFromUrl(url) {
+  return new Promise(function(resolve, reject) {
+    var img = new Image();
+    img.onload = function() { resolve(img); };
+    img.onerror = function() { reject(new Error('could not be decoded')); };
+    img.src = url;
+  });
+}
+
+// ---- Docu-Stamp / Image Convert: add files (images of any browser-decodable
+// type, plus PDFs when opts.allowPdf). Anything that is not already a JPEG is
+// re-encoded to JPEG through a canvas so every stored entry has a JPEG
+// dataUrl — jsPDF.addImage(…,'JPEG') in cndPdfSimpleGenerate would choke on a
+// PNG/WebP/GIF data URL otherwise. Per-file try/catch: one bad file no
+// longer aborts the whole batch.
+async function _cndPdfAddFilesToStore(files, store, opts) {
+  opts = opts || {};
+  var failed = [], added = 0;
+  for (var i = 0; i < files.length; i++) {
+    var f = files[i];
+    try {
+      if (_cndPdfIsPdfFile(f)) {
+        if (!opts.allowPdf) { failed.push(f.name + ' (PDFs go in the Docu-Stamp tab)'); continue; }
+        var pdf = await _cndPdfOpenWithPdfJs(await _cndPdfReadBytes(f));
+        var base = _cndPdfBaseName(f.name);
+        var pageCap = Math.min(pdf.numPages, 60); // each page is a full-size decoded image in memory
+        if (pdf.numPages > pageCap) failed.push(f.name + ' (only the first ' + pageCap + ' of ' + pdf.numPages + ' pages were added)');
+        for (var p = 1; p <= pageCap; p++) {
+          if (opts.onProgress) opts.onProgress('Reading ' + f.name + ' — page ' + p + ' of ' + pageCap + '…');
+          var c = await _cndPdfRenderPageToCanvas(pdf, p, 1900);
+          var url = c.toDataURL('image/jpeg', 0.92);
+          var pimg = await _cndPdfLoadImageFromUrl(url);
+          store.push({ file: f, img: pimg, name: base + ' (p' + p + ')', dataUrl: url });
+          added++;
+        }
+        try { pdf.destroy(); } catch (e0) { /* already gone */ }
+      } else {
+        var img = await _cndPdfReadFileAsImage(f);
+        var dataUrl = img.src;
+        if (f.type !== 'image/jpeg') {
+          var cv = document.createElement('canvas');
+          cv.width = img.naturalWidth || img.width; cv.height = img.naturalHeight || img.height;
+          var cx = cv.getContext('2d');
+          cx.fillStyle = '#fff'; cx.fillRect(0, 0, cv.width, cv.height); // transparency → white
+          cx.drawImage(img, 0, 0);
+          dataUrl = cv.toDataURL('image/jpeg', 0.92);
+          img = await _cndPdfLoadImageFromUrl(dataUrl);
+        }
+        store.push({ file: f, img: img, name: f.name, dataUrl: dataUrl });
+        added++;
+      }
+    } catch (err) {
+      var why = (err && err.message) ? err.message : 'could not be read';
+      if (/\.(heic|heif)$/i.test(f.name || '')) why = 'HEIC isn’t readable in this browser — export it as JPEG first';
+      failed.push(f.name + ' (' + why + ')');
+    }
+  }
+  return { added: added, failed: failed };
+}
+function _cndPdfReportAdd(statusId, res) {
+  if (res.failed.length) {
+    _cndPdfSetStatus(statusId, 'Skipped ' + res.failed.length + ': ' + res.failed.join('; ') + (res.added ? ' — added ' + res.added + '.' : ''), _CND_ERR);
+  } else if (res.added) {
+    _cndPdfSetStatus(statusId, 'Added ' + res.added + ' page' + (res.added > 1 ? 's' : '') + '.', _CND_OK);
+  }
+}
+
+// ---- Docu-Stamp: Clear Address / Clear All ----
+var _cndPdfAddrEpoch = 0; // bumps on clear so an in-flight geoLookup can't refill cleared fields
+function cndPdfClearAddress() {
+  _cndPdfAddrEpoch++;
+  clearTimeout(_cndPdfAddrDebounce);
+  if (_cndPdfAddrFetchCtrl) { try { _cndPdfAddrFetchCtrl.abort(); } catch (e) { /* ignore */ } _cndPdfAddrFetchCtrl = null; }
+  _cndPdfAddrSuggestions = [];
+  _cndPdfHideAddrSuggestions();
+  ['cndpdf-address', 'cndpdf-neighborhood', 'cndpdf-ward', 'cndpdf-police-district', 'cndpdf-zip'].forEach(function(id) {
+    var el = document.getElementById(id);
+    if (el) el.value = '';
+  });
+  var g = document.getElementById('cndpdf-geo-status');
+  if (g) g.textContent = '';
+  cndPdfUpdatePreview();
+  var a = document.getElementById('cndpdf-address');
+  if (a) { try { a.focus(); } catch (e) { /* ignore */ } }
+}
+// Clear All = start the next property: photos, the whole address block,
+// Reason, Dated/Posted, Notes and status. "Who's on this" is deliberately
+// kept — it's the same inspector(s) property after property.
 function cndPdfClearAll() {
   _cndPdfPhotos = [];
   _cndPdfRenderPhotoList(document.getElementById('cndpdf-photo-list'), _cndPdfPhotos, 'cndPdfPhotoRemove', 'cndPdfPhotoMove');
-  var statusEl = document.getElementById('cndpdf-status');
-  if (statusEl) statusEl.textContent = '';
-  _cndPdfUpdateThumbnail();
+  _cndPdfSetStatus('cndpdf-status', '');
+  _cndPdfAddrEpoch++;
+  clearTimeout(_cndPdfAddrDebounce);
+  if (_cndPdfAddrFetchCtrl) { try { _cndPdfAddrFetchCtrl.abort(); } catch (e) { /* ignore */ } _cndPdfAddrFetchCtrl = null; }
+  _cndPdfAddrSuggestions = [];
+  _cndPdfHideAddrSuggestions();
+  ['cndpdf-address', 'cndpdf-neighborhood', 'cndpdf-ward', 'cndpdf-police-district', 'cndpdf-zip',
+   'cndpdf-reason-custom', 'cndpdf-dated', 'cndpdf-posted', 'cndpdf-notes'].forEach(function(id) {
+    var el = document.getElementById(id);
+    if (el) el.value = '';
+  });
+  var g = document.getElementById('cndpdf-geo-status');
+  if (g) g.textContent = '';
+  var sel = document.getElementById('cndpdf-reason');
+  if (sel) sel.value = '';
+  try { cndPdfCloseCalendar(); } catch (e1) { /* calendar not open */ }
+  cndPdfReasonChanged();   // hides the custom-reason box and refreshes the preview
+  cndPdfUpdatePreview();
+}
+
+// ============================================================================
+// MERGE TAB
+// ============================================================================
+var _cndMg = { docs: [], nextId: 1, busy: false, queue: [], pumping: false, nameTouched: false };
+var _CNDMG_MAX_MERGED_TILES = 400;
+
+function _cndMgDoc(id) {
+  id = Number(id);
+  for (var i = 0; i < _cndMg.docs.length; i++) if (_cndMg.docs[i].id === id) return _cndMg.docs[i];
+  return null;
+}
+function _cndMgSelectedCount(d) { var c = 0; for (var i = 0; i < d.on.length; i++) if (d.on[i]) c++; return c; }
+function _cndMgTotalSelected() { return _cndMg.docs.reduce(function(s, d) { return s + _cndMgSelectedCount(d); }, 0); }
+function _cndMgFmtSize(b) { return b >= 1048576 ? (b / 1048576).toFixed(1) + ' MB' : Math.max(1, Math.round(b / 1024)) + ' KB'; }
+
+async function cndPdfMergeAddFiles(files) {
+  var pdfs = files.filter(_cndPdfIsPdfFile);
+  var skipped = files.length - pdfs.length;
+  if (!pdfs.length) { _cndPdfSetStatus('cndpdf-merge-status', 'Choose one or more PDF files.', _CND_ERR); return; }
+  var problems = [];
+  for (var i = 0; i < pdfs.length; i++) {
+    var f = pdfs[i];
+    _cndPdfSetStatus('cndpdf-merge-status', 'Reading ' + f.name + '…', _CND_NEUTRAL);
+    try {
+      var bytes = await _cndPdfReadBytes(f);
+      var pdf = await _cndPdfOpenWithPdfJs(bytes);
+      var d = { id: _cndMg.nextId++, name: f.name, size: bytes.length, bytes: bytes, pdf: pdf, n: pdf.numPages,
+                on: [], thumbs: [], open: true };
+      for (var p = 0; p < d.n; p++) { d.on.push(true); d.thumbs.push(null); _cndMg.queue.push({ id: d.id, n: p + 1 }); }
+      _cndMg.docs.push(d);
+      _cndMgRender();
+      _cndMgPump();
+    } catch (err) {
+      problems.push(f.name + ': ' + (err && err.message ? err.message : 'could not be read'));
+    }
+  }
+  if (skipped) problems.push(skipped + ' non-PDF file' + (skipped > 1 ? 's' : '') + ' ignored');
+  if (problems.length) _cndPdfSetStatus('cndpdf-merge-status', problems.join('; ') + '.', _CND_ERR);
+  else _cndPdfSetStatus('cndpdf-merge-status', '');
+}
+
+// One thumbnail at a time keeps memory flat on a phone even for a 300-page PDF.
+async function _cndMgPump() {
+  if (_cndMg.pumping) return;
+  _cndMg.pumping = true;
+  try {
+    while (_cndMg.queue.length) {
+      var job = _cndMg.queue.shift();
+      var d = _cndMgDoc(job.id);
+      if (!d || d.thumbs[job.n - 1]) continue;
+      try {
+        var c = await _cndPdfRenderPageToCanvas(d.pdf, job.n, 170);
+        d.thumbs[job.n - 1] = c.toDataURL('image/jpeg', 0.65);
+      } catch (e) {
+        _swallow('cndMgThumb', e);
+        d.thumbs[job.n - 1] = 'data:image/svg+xml;utf8,' + encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" width="90" height="120"><rect width="90" height="120" fill="#eee"/><text x="45" y="64" font-size="11" text-anchor="middle" fill="#a3402f">no preview</text></svg>');
+      }
+      var url = d.thumbs[job.n - 1];
+      var nodes = document.querySelectorAll('[data-mgthumb="' + d.id + ':' + job.n + '"]');
+      for (var k = 0; k < nodes.length; k++) nodes[k].innerHTML = '<img alt="" src="' + url + '">';
+    }
+  } finally { _cndMg.pumping = false; }
+}
+
+function _cndMgThumbInner(d, n) {
+  var u = d.thumbs[n - 1];
+  return u ? '<img alt="" src="' + u + '">' : '<span style="font-size:0.6rem;color:#b9b5a8">…</span>';
+}
+function _cndMgRender() {
+  var listEl = document.getElementById('cndpdf-merge-list');
+  var mergedEl = document.getElementById('cndpdf-merge-merged');
+  var sumEl = document.getElementById('cndpdf-merge-summary');
+  var btn = document.getElementById('cndpdf-merge-go');
+  if (!listEl || !mergedEl) return;
+  var docs = _cndMg.docs;
+  listEl.innerHTML = docs.map(function(d, di) {
+    var sel = _cndMgSelectedCount(d);
+    var head = '<div class="cndmg-head">' +
+      '<div class="cndmg-name"><b>' + (di + 1) + '.</b> ' + escHtml(d.name) +
+      '<div class="cndmg-meta">' + d.n + ' page' + (d.n > 1 ? 's' : '') + ' · ' + _cndMgFmtSize(d.size) + ' · ' + sel + ' selected</div></div>' +
+      '<button class="cndmg-btn" data-fn="cndPdfMergeMoveDoc" data-args="[' + d.id + ',-1]"' + (di === 0 ? ' disabled style="opacity:.35"' : '') + ' aria-label="Move up">↑</button>' +
+      '<button class="cndmg-btn" data-fn="cndPdfMergeMoveDoc" data-args="[' + d.id + ',1]"' + (di === docs.length - 1 ? ' disabled style="opacity:.35"' : '') + ' aria-label="Move down">↓</button>' +
+      '<button class="cndmg-btn danger" data-fn="cndPdfMergeRemoveDoc" data-args="[' + d.id + ']">Remove</button></div>' +
+      '<div class="cndmg-head" style="padding-top:0">' +
+      '<button class="cndmg-btn" data-fn="cndPdfMergeSetAll" data-args="[' + d.id + ',true]">Select all</button>' +
+      '<button class="cndmg-btn" data-fn="cndPdfMergeSetAll" data-args="[' + d.id + ',false]">Select none</button>' +
+      '<button class="cndmg-btn" data-fn="cndPdfMergeToggleOpen" data-args="[' + d.id + ']">' + (d.open ? 'Hide pages' : 'Show pages') + '</button></div>';
+    var grid = '';
+    if (d.open) {
+      var tiles = '';
+      for (var n = 1; n <= d.n; n++) {
+        tiles += '<div class="cndmg-tile' + (d.on[n - 1] ? '' : ' off') + '" data-fn="cndPdfMergeTogglePage" data-args="[' + d.id + ',' + n + ']">' +
+          '<div class="th" data-mgthumb="' + d.id + ':' + n + '">' + _cndMgThumbInner(d, n) + '</div>' +
+          '<span class="n">' + n + '</span><span class="ck">✓</span></div>';
+      }
+      grid = '<div class="cndmg-grid">' + tiles + '</div>';
+    }
+    return '<div class="cndmg-doc">' + head + grid + '</div>';
+  }).join('');
+
+  // Merged-files panel: the exact page sequence that will be written.
+  var tilesHtml = '', shown = 0, total = 0;
+  docs.forEach(function(d, di) {
+    for (var n = 1; n <= d.n; n++) {
+      if (!d.on[n - 1]) continue;
+      total++;
+      if (shown >= _CNDMG_MAX_MERGED_TILES) continue;
+      shown++;
+      tilesHtml += '<div class="cndmg-tile mini" title="Tap to leave this page out" data-fn="cndPdfMergeTogglePage" data-args="[' + d.id + ',' + n + ']">' +
+        '<div class="th" data-mgthumb="' + d.id + ':' + n + '">' + _cndMgThumbInner(d, n) + '</div>' +
+        '<span class="n">' + total + '</span><span class="src">' + (di + 1) + '·p' + n + '</span></div>';
+    }
+  });
+  if (!docs.length) {
+    mergedEl.innerHTML = '<div style="font-size:0.6rem;color:#8a8577;padding:8px 0">Nothing to merge yet — add PDFs above.</div>';
+  } else if (!total) {
+    mergedEl.innerHTML = '<div style="font-size:0.6rem;color:#a3402f;padding:8px 0">Every page is deselected — select at least one page.</div>';
+  } else {
+    mergedEl.innerHTML = '<div class="cndmg-grid" style="border-top:none;padding:0">' + tilesHtml + '</div>' +
+      (total > shown ? '<div style="font-size:0.55rem;color:#8a8577;margin-top:6px">Showing the first ' + shown + ' of ' + total + ' pages — all ' + total + ' will be merged.</div>' : '');
+  }
+  var nonEmpty = docs.filter(function(d) { return _cndMgSelectedCount(d) > 0; }).length;
+  if (sumEl) sumEl.textContent = total ? (total + ' page' + (total > 1 ? 's' : '') + ' from ' + nonEmpty + ' file' + (nonEmpty > 1 ? 's' : '') + ' · tap a page to leave it out') : '';
+  if (btn) { btn.disabled = !total || _cndMg.busy; btn.style.opacity = (!total || _cndMg.busy) ? '0.5' : '1'; }
+  var nameEl = document.getElementById('cndpdf-merge-outname');
+  if (nameEl && !_cndMg.nameTouched) nameEl.value = _cndMgDefaultName();
+  var clr = document.getElementById('cndpdf-merge-clear');
+  if (clr) clr.style.display = docs.length ? '' : 'none';
+}
+function _cndMgDefaultName() {
+  var d = _cndMg.docs[0];
+  return d ? _cndPdfBaseName(d.name) + (_cndMg.docs.length > 1 ? '_merged' : '_edited') + '_' + _cndPdfTodayDateStr().replace(/\D/g, '') : 'merged_' + _cndPdfTodayDateStr().replace(/\D/g, '');
+}
+function cndPdfMergeOutNameInput() { _cndMg.nameTouched = true; }
+function cndPdfMergeMoveDoc(id, dir) {
+  var i = _cndMg.docs.indexOf(_cndMgDoc(id)), j = i + Number(dir);
+  if (i < 0 || j < 0 || j >= _cndMg.docs.length) return;
+  var t = _cndMg.docs[i]; _cndMg.docs[i] = _cndMg.docs[j]; _cndMg.docs[j] = t;
+  _cndMgRender();
+}
+function cndPdfMergeRemoveDoc(id) {
+  var d = _cndMgDoc(id);
+  if (!d) return;
+  _cndMg.docs.splice(_cndMg.docs.indexOf(d), 1);
+  try { d.pdf.destroy(); } catch (e) { /* ignore */ }
+  _cndMg.queue = _cndMg.queue.filter(function(j) { return j.id !== d.id; });
+  _cndMgRender();
+}
+function cndPdfMergeSetAll(id, on) {
+  var d = _cndMgDoc(id);
+  if (!d) return;
+  var v = (on === true || on === 'true');
+  for (var i = 0; i < d.on.length; i++) d.on[i] = v;
+  _cndMgRender();
+}
+function cndPdfMergeToggleOpen(id) {
+  var d = _cndMgDoc(id);
+  if (!d) return;
+  d.open = !d.open;
+  _cndMgRender();
+}
+function cndPdfMergeTogglePage(id, n) {
+  var d = _cndMgDoc(id);
+  n = Number(n);
+  if (!d || !(n >= 1 && n <= d.n)) return;
+  d.on[n - 1] = !d.on[n - 1];
+  _cndMgRender();
+}
+function cndPdfMergeClear() {
+  _cndMg.docs.forEach(function(d) { try { d.pdf.destroy(); } catch (e) { /* ignore */ } });
+  _cndMg.docs = []; _cndMg.queue = []; _cndMg.nameTouched = false;
+  _cndPdfSetStatus('cndpdf-merge-status', '');
+  _cndMgRender();
+}
+async function cndPdfMergeRun() {
+  if (_cndMg.busy) return;
+  var plan = _cndMg.docs.map(function(d) {
+    var idx = [];
+    for (var i = 0; i < d.on.length; i++) if (d.on[i]) idx.push(i);
+    return { d: d, idx: idx };
+  }).filter(function(x) { return x.idx.length; });
+  if (!plan.length) { _cndPdfSetStatus('cndpdf-merge-status', 'Select at least one page to merge.', _CND_ERR); return; }
+  _cndMg.busy = true; _cndMgRender();
+  try {
+    _cndPdfSetStatus('cndpdf-merge-status', 'Merging…', _CND_NEUTRAL);
+    var PL = await _cndPdfEnsurePdfLib();
+    var out = await PL.PDFDocument.create();
+    var pageCount = 0;
+    for (var i = 0; i < plan.length; i++) {
+      var src;
+      try { src = await PL.PDFDocument.load(plan[i].d.bytes, { ignoreEncryption: true }); }
+      catch (e) { throw new Error('"' + plan[i].d.name + '" could not be merged (' + (e && e.message ? e.message : 'unreadable') + ')'); }
+      var copied = await out.copyPages(src, plan[i].idx);
+      copied.forEach(function(pg) { out.addPage(pg); pageCount++; });
+    }
+    var bytes = await out.save();
+    var nameEl = document.getElementById('cndpdf-merge-outname');
+    var base = ((nameEl && nameEl.value) || '').replace(/\.pdf$/i, '').replace(/[\\\/:*?"<>|]+/g, '_').trim() || _cndMgDefaultName();
+    var result = await _cndPdfSavePdfBlobs([{ blob: new Blob([bytes], { type: 'application/pdf' }), filename: base + '.pdf' }]);
+    if (result.method === 'cancelled') _cndPdfSetStatus('cndpdf-merge-status', 'Save cancelled.', _CND_NEUTRAL);
+    else _cndPdfSetStatus('cndpdf-merge-status', 'Saved ' + base + '.pdf' + (result.method === 'folder' ? ' to "' + result.detail + '"' : '') + ' (' + pageCount + ' page' + (pageCount > 1 ? 's' : '') + ').', _CND_OK);
+  } catch (err) {
+    _cndPdfSetStatus('cndpdf-merge-status', 'Error merging: ' + (err && err.message ? err.message : err), _CND_ERR);
+  } finally {
+    _cndMg.busy = false; _cndMgRender();
+  }
+}
+
+// ============================================================================
+// EDIT PDF TAB
+// ============================================================================
+// Model: every mark is a vector object in PDF page units (points, top-left
+// origin, as the page displays — rotation already applied by pdf.js). The page
+// itself is rendered once to a base canvas; marks live on a transparent ink
+// canvas above it and are redrawn from the model. Saving renders each edited
+// page's marks to a transparent PNG and lays it over the original page with
+// pdf-lib, so the original PDF content (text, vectors, fonts) is untouched.
+var _cndEd = {
+  name: '', bytes: null, pdf: null, n: 0, page: 1, objs: {}, dims: {},
+  undo: [], redo: [], tool: 'pen', color: '#d32f2f', lastColor: '#d32f2f', size: 3, zoom: 1,
+  token: 0, renderTask: null, k: 1, cssScale: 1, cur: null, drag: null, erasing: false,
+  textTarget: null, editObj: null, busy: false
+};
+var _CNDED_COLORS = ['#111111', '#d32f2f', '#1565c0', '#2e7d32', '#ef6c00', '#ffe600', '#ffffff'];
+var _CNDED_TOOLS = [
+  ['pan', 'Pan'], ['move', 'Move'], ['text', 'Text'], ['pen', 'Pen'], ['highlight', 'Highlight'],
+  ['line', 'Line'], ['arrow', 'Arrow'], ['rect', 'Box'], ['ellipse', 'Oval'], ['white', 'Whiteout'], ['erase', 'Eraser']
+];
+
+function _cndEdEl(id) { return document.getElementById(id); }
+function _cndEdFontPt() { return 8 + _cndEd.size * 2; }
+function _cndEdMarks(pg) { pg = pg || _cndEd.page; return _cndEd.objs[pg] || (_cndEd.objs[pg] = []); }
+function _cndEdTotalMarks() { var c = 0; for (var k in _cndEd.objs) c += _cndEd.objs[k].length; return c; }
+
+function _cndEdPushUndo() {
+  _cndEd.undo.push(JSON.stringify(_cndEd.objs));
+  if (_cndEd.undo.length > 80) _cndEd.undo.shift();
+  _cndEd.redo = [];
+}
+function cndPdfEditUndo() {
+  _cndEdCommitText();
+  if (!_cndEd.undo.length) return;
+  _cndEd.redo.push(JSON.stringify(_cndEd.objs));
+  _cndEd.objs = JSON.parse(_cndEd.undo.pop());
+  _cndEdRedraw(); _cndEdUpdateUi();
+}
+function cndPdfEditRedo() {
+  _cndEdCommitText();
+  if (!_cndEd.redo.length) return;
+  _cndEd.undo.push(JSON.stringify(_cndEd.objs));
+  _cndEd.objs = JSON.parse(_cndEd.redo.pop());
+  _cndEdRedraw(); _cndEdUpdateUi();
+}
+function cndPdfEditClearPage() {
+  _cndEdCommitText();
+  if (!_cndEdMarks().length) return;
+  _cndEdPushUndo();
+  _cndEd.objs[_cndEd.page] = [];
+  _cndEdRedraw(); _cndEdUpdateUi();
+}
+
+// ---- file open / close ----
+async function cndPdfEditOpen(file) {
+  if (!file) return;
+  if (!_cndPdfIsPdfFile(file)) { _cndPdfSetStatus('cndpdf-edit-status', 'Choose a PDF file.', _CND_ERR); return; }
+  try {
+    _cndPdfSetStatus('cndpdf-edit-status', 'Opening ' + file.name + '…', _CND_NEUTRAL);
+    var bytes = await _cndPdfReadBytes(file);
+    var pdf = await _cndPdfOpenWithPdfJs(bytes);
+    cndPdfEditClose(true);
+    var e = _cndEd;
+    e.name = file.name; e.bytes = bytes; e.pdf = pdf; e.n = pdf.numPages; e.page = 1;
+    e.objs = {}; e.dims = {}; e.undo = []; e.redo = []; e.zoom = 1; e.cur = null; e.drag = null;
+    _cndEdEl('cndpdf-edit-drop').style.display = 'none';
+    _cndEdEl('cndpdf-edit-work').style.display = 'block';
+    _cndEdBuildToolbar();
+    _cndPdfSetStatus('cndpdf-edit-status', '');
+    _cndEdWireInk();
+    await _cndEdRenderPage();
+    _cndEdUpdateUi();
+  } catch (err) {
+    _cndPdfSetStatus('cndpdf-edit-status', file.name + ': ' + (err && err.message ? err.message : 'could not be opened') + '.', _CND_ERR);
+  }
+}
+function cndPdfEditClose(silent) {
+  var e = _cndEd;
+  _cndEdCommitText();
+  if (e.renderTask) { try { e.renderTask.cancel(); } catch (x) { /* ignore */ } e.renderTask = null; }
+  e.token++;
+  if (e.pdf) { try { e.pdf.destroy(); } catch (x2) { /* ignore */ } }
+  e.pdf = null; e.bytes = null; e.n = 0; e.objs = {}; e.undo = []; e.redo = []; e.cur = null; e.drag = null;
+  var drop = _cndEdEl('cndpdf-edit-drop'), work = _cndEdEl('cndpdf-edit-work');
+  if (drop) drop.style.display = '';
+  if (work) work.style.display = 'none';
+  if (!silent) _cndPdfSetStatus('cndpdf-edit-status', '');
+}
+function _cndEdOnShow() {
+  if (_cndEd.pdf) _cndEdRenderPage();
+}
+
+// ---- toolbar ----
+function _cndEdBuildToolbar() {
+  var tb = _cndEdEl('cndpdf-edit-tools');
+  if (tb) tb.innerHTML = _CNDED_TOOLS.map(function(t) {
+    return '<button type="button" class="cnded-tool' + (_cndEd.tool === t[0] ? ' active' : '') + '" data-fn="cndPdfEditSetTool" data-arg="' + t[0] + '">' + t[1] + '</button>';
+  }).join('');
+  var cb = _cndEdEl('cndpdf-edit-colors');
+  if (cb) cb.innerHTML = _CNDED_COLORS.map(function(c) {
+    return '<button type="button" class="cnded-swatch' + (_cndEd.color.toLowerCase() === c ? ' active' : '') + '" data-fn="cndPdfEditSetColor" data-arg="' + c + '" style="background:' + c + '" aria-label="Color ' + c + '"></button>';
+  }).join('');
+  var sl = _cndEdEl('cndpdf-edit-size');
+  if (sl) sl.value = String(_cndEd.size);
+  _cndEdSizeLabel();
+  _cndEdApplyCursor();
+}
+function _cndEdSizeLabel() {
+  var l = _cndEdEl('cndpdf-edit-size-label');
+  if (l) l.textContent = (_cndEd.tool === 'text' ? _cndEdFontPt() + ' pt' : _cndEd.size + ' pt');
+}
+function cndPdfEditSetTool(t) {
+  _cndEdCommitText();
+  var e = _cndEd;
+  if (e.tool === 'highlight' && t !== 'highlight') e.color = e.lastColor;
+  if (t === 'highlight' && e.tool !== 'highlight') { e.lastColor = e.color; e.color = '#ffe600'; }
+  e.tool = t;
+  _cndEdBuildToolbar();
+}
+function cndPdfEditSetColor(c) {
+  _cndEd.color = c;
+  if (_cndEd.tool !== 'highlight') _cndEd.lastColor = c;
+  _cndEdBuildToolbar();
+}
+function cndPdfEditCustomColor(v) {
+  if (v) cndPdfEditSetColor(String(v).toLowerCase());
+}
+function cndPdfEditSizeChanged() {
+  var sl = _cndEdEl('cndpdf-edit-size');
+  _cndEd.size = Math.max(1, Math.min(20, Number(sl && sl.value) || 3));
+  _cndEdSizeLabel();
+}
+function _cndEdApplyCursor() {
+  var ink = _cndEdEl('cndpdf-edit-ink');
+  if (!ink) return;
+  var t = _cndEd.tool;
+  ink.style.touchAction = (t === 'pan') ? 'auto' : 'none';
+  ink.style.cursor = t === 'pan' ? 'grab' : t === 'move' ? 'move' : t === 'text' ? 'text' : t === 'erase' ? 'cell' : 'crosshair';
+}
+function cndPdfEditZoom(dir) {
+  _cndEdCommitText();
+  var z = _cndEd.zoom * (Number(dir) > 0 ? 1.25 : 0.8);
+  _cndEd.zoom = Math.max(0.5, Math.min(4, z));
+  _cndEdRenderPage();
+}
+function cndPdfEditPage(dir) {
+  _cndEdCommitText();
+  var p = _cndEd.page + Number(dir);
+  if (p < 1 || p > _cndEd.n) return;
+  _cndEd.page = p;
+  _cndEdRenderPage().then(_cndEdUpdateUi);
+}
+function _cndEdUpdateUi() {
+  var e = _cndEd;
+  var pg = _cndEdEl('cndpdf-edit-pageinfo');
+  if (pg) pg.textContent = 'Page ' + e.page + ' / ' + e.n + ' · ' + _cndEdMarks().length + ' mark' + (_cndEdMarks().length === 1 ? '' : 's') + ' here · ' + _cndEdTotalMarks() + ' total';
+  var u = _cndEdEl('cndpdf-edit-undo'), r = _cndEdEl('cndpdf-edit-redo');
+  if (u) u.style.opacity = e.undo.length ? '1' : '0.4';
+  if (r) r.style.opacity = e.redo.length ? '1' : '0.4';
+}
+
+// ---- rendering ----
+async function _cndEdRenderPage() {
+  var e = _cndEd;
+  if (!e.pdf) return;
+  var token = ++e.token;
+  if (e.renderTask) { try { e.renderTask.cancel(); } catch (x) { /* ignore */ } e.renderTask = null; }
+  var base = _cndEdEl('cndpdf-edit-base'), ink = _cndEdEl('cndpdf-edit-ink'), stage = _cndEdEl('cndpdf-edit-stage');
+  if (!base || !ink || !stage) return;
+  var page;
+  try { page = await e.pdf.getPage(e.page); } catch (err) { _cndPdfSetStatus('cndpdf-edit-status', 'Could not read page ' + e.page + '.', _CND_ERR); return; }
+  if (token !== e.token) return;
+  var v1 = page.getViewport({ scale: 1 });
+  e.dims[e.page] = { w: v1.width, h: v1.height };
+  var avail = stage.clientWidth || 320;
+  var cssW = Math.max(160, (avail - 2) * e.zoom);
+  var cssH = cssW * v1.height / v1.width;
+  var dpr = Math.min(window.devicePixelRatio || 1, 2);
+  var pxW = cssW * dpr, pxH = cssH * dpr;
+  var big = Math.max(pxW, pxH);
+  if (big > 3600) { pxW *= 3600 / big; pxH *= 3600 / big; }
+  pxW = Math.round(pxW); pxH = Math.round(pxH);
+  base.width = pxW; base.height = pxH; ink.width = pxW; ink.height = pxH;
+  base.style.width = ink.style.width = cssW + 'px';
+  base.style.height = ink.style.height = cssH + 'px';
+  e.k = pxW / v1.width; e.cssScale = cssW / v1.width;
+  var ctx = base.getContext('2d');
+  ctx.fillStyle = '#fff'; ctx.fillRect(0, 0, pxW, pxH);
+  e.renderTask = page.render({ canvasContext: ctx, viewport: page.getViewport({ scale: e.k }) });
+  try { await e.renderTask.promise; }
+  catch (err2) { if (!(err2 && err2.name === 'RenderingCancelledException')) _swallow('cndEdRender', err2); return; }
+  if (token !== e.token) return;
+  e.renderTask = null;
+  _cndEdRedraw();
+}
+function _cndEdRedraw() {
+  var ink = _cndEdEl('cndpdf-edit-ink');
+  if (!ink) return;
+  var ctx = ink.getContext('2d');
+  ctx.setTransform(1, 0, 0, 1, 0, 0);
+  ctx.clearRect(0, 0, ink.width, ink.height);
+  ctx.setTransform(_cndEd.k, 0, 0, _cndEd.k, 0, 0);
+  var list = _cndEdMarks();
+  for (var i = 0; i < list.length; i++) if (list[i] !== _cndEd.editObj) _cndEdDrawObj(ctx, list[i]);
+  if (_cndEd.cur) _cndEdDrawObj(ctx, _cndEd.cur);
+}
+function _cndEdTextLines(o) { return String(o.text || '').split('\n'); }
+function _cndEdTextBox(ctx, o) {
+  ctx.font = (o.size) + 'px Helvetica, Arial, sans-serif';
+  var lines = _cndEdTextLines(o), w = 0;
+  for (var i = 0; i < lines.length; i++) w = Math.max(w, ctx.measureText(lines[i]).width);
+  return { w: w, h: lines.length * o.size * 1.2 };
+}
+function _cndEdDrawObj(ctx, o) {
+  ctx.save();
+  ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+  ctx.strokeStyle = o.color; ctx.fillStyle = o.color; ctx.lineWidth = o.w || 1;
+  ctx.globalAlpha = o.a != null ? o.a : 1;
+  if (o.t === 'pen') {
+    var p = o.pts;
+    if (p.length === 1) { ctx.beginPath(); ctx.arc(p[0][0], p[0][1], o.w / 2, 0, Math.PI * 2); ctx.fill(); }
+    else if (p.length > 1) {
+      if (o.hl) ctx.lineCap = 'butt';
+      ctx.beginPath(); ctx.moveTo(p[0][0], p[0][1]);
+      for (var i = 1; i < p.length - 1; i++) {
+        var mx = (p[i][0] + p[i + 1][0]) / 2, my = (p[i][1] + p[i + 1][1]) / 2;
+        ctx.quadraticCurveTo(p[i][0], p[i][1], mx, my);
+      }
+      ctx.lineTo(p[p.length - 1][0], p[p.length - 1][1]);
+      ctx.stroke();
+    }
+  } else if (o.t === 'line' || o.t === 'arrow') {
+    ctx.beginPath(); ctx.moveTo(o.x1, o.y1); ctx.lineTo(o.x2, o.y2); ctx.stroke();
+    if (o.t === 'arrow') {
+      var ang = Math.atan2(o.y2 - o.y1, o.x2 - o.x1), hl = Math.max(9, o.w * 4);
+      ctx.beginPath();
+      ctx.moveTo(o.x2, o.y2); ctx.lineTo(o.x2 - hl * Math.cos(ang - 0.45), o.y2 - hl * Math.sin(ang - 0.45));
+      ctx.moveTo(o.x2, o.y2); ctx.lineTo(o.x2 - hl * Math.cos(ang + 0.45), o.y2 - hl * Math.sin(ang + 0.45));
+      ctx.stroke();
+    }
+  } else if (o.t === 'rect') {
+    ctx.strokeRect(Math.min(o.x1, o.x2), Math.min(o.y1, o.y2), Math.abs(o.x2 - o.x1), Math.abs(o.y2 - o.y1));
+  } else if (o.t === 'white') {
+    ctx.fillStyle = '#ffffff';
+    ctx.fillRect(Math.min(o.x1, o.x2), Math.min(o.y1, o.y2), Math.abs(o.x2 - o.x1), Math.abs(o.y2 - o.y1));
+  } else if (o.t === 'ellipse') {
+    ctx.beginPath();
+    ctx.ellipse((o.x1 + o.x2) / 2, (o.y1 + o.y2) / 2, Math.max(0.5, Math.abs(o.x2 - o.x1) / 2), Math.max(0.5, Math.abs(o.y2 - o.y1) / 2), 0, 0, Math.PI * 2);
+    ctx.stroke();
+  } else if (o.t === 'text') {
+    ctx.font = o.size + 'px Helvetica, Arial, sans-serif';
+    ctx.textBaseline = 'top';
+    var ls = _cndEdTextLines(o);
+    for (var j = 0; j < ls.length; j++) ctx.fillText(ls[j], o.x, o.y + j * o.size * 1.2);
+  }
+  ctx.restore();
+}
+
+// ---- hit testing / moving ----
+function _cndEdSegDist(px, py, x1, y1, x2, y2) {
+  var dx = x2 - x1, dy = y2 - y1, l2 = dx * dx + dy * dy;
+  var t = l2 ? Math.max(0, Math.min(1, ((px - x1) * dx + (py - y1) * dy) / l2)) : 0;
+  var cx = x1 + t * dx, cy = y1 + t * dy;
+  return Math.sqrt((px - cx) * (px - cx) + (py - cy) * (py - cy));
+}
+function _cndEdHit(o, x, y, r) {
+  var ctx = _cndEdEl('cndpdf-edit-ink').getContext('2d');
+  var pad = r + (o.w || 1) / 2;
+  if (o.t === 'pen') {
+    if (o.pts.length === 1) return Math.hypot(x - o.pts[0][0], y - o.pts[0][1]) <= pad;
+    for (var i = 0; i < o.pts.length - 1; i++) if (_cndEdSegDist(x, y, o.pts[i][0], o.pts[i][1], o.pts[i + 1][0], o.pts[i + 1][1]) <= pad) return true;
+    return false;
+  }
+  if (o.t === 'line' || o.t === 'arrow') return _cndEdSegDist(x, y, o.x1, o.y1, o.x2, o.y2) <= pad;
+  var minx = Math.min(o.x1, o.x2), maxx = Math.max(o.x1, o.x2), miny = Math.min(o.y1, o.y2), maxy = Math.max(o.y1, o.y2);
+  if (o.t === 'white') return x >= minx - r && x <= maxx + r && y >= miny - r && y <= maxy + r;
+  if (o.t === 'rect') {
+    return _cndEdSegDist(x, y, minx, miny, maxx, miny) <= pad || _cndEdSegDist(x, y, maxx, miny, maxx, maxy) <= pad ||
+           _cndEdSegDist(x, y, maxx, maxy, minx, maxy) <= pad || _cndEdSegDist(x, y, minx, maxy, minx, miny) <= pad;
+  }
+  if (o.t === 'ellipse') {
+    var cx = (minx + maxx) / 2, cy = (miny + maxy) / 2, rx = Math.max(1, (maxx - minx) / 2), ry = Math.max(1, (maxy - miny) / 2);
+    var nx = (x - cx) / rx, ny = (y - cy) / ry, d = Math.sqrt(nx * nx + ny * ny);
+    return Math.abs(d - 1) * Math.min(rx, ry) <= pad;
+  }
+  if (o.t === 'text') {
+    var b = _cndEdTextBox(ctx, o);
+    return x >= o.x - r && x <= o.x + b.w + r && y >= o.y - r && y <= o.y + b.h + r;
+  }
+  return false;
+}
+function _cndEdTopHit(x, y, r) {
+  var list = _cndEdMarks();
+  for (var i = list.length - 1; i >= 0; i--) if (_cndEdHit(list[i], x, y, r)) return list[i];
+  return null;
+}
+function _cndEdTranslate(o, dx, dy) {
+  if (o.t === 'pen') { for (var i = 0; i < o.pts.length; i++) { o.pts[i][0] += dx; o.pts[i][1] += dy; } }
+  else if (o.t === 'text') { o.x += dx; o.y += dy; }
+  else { o.x1 += dx; o.x2 += dx; o.y1 += dy; o.y2 += dy; }
+}
+
+// ---- pointer handling ----
+function _cndEdWireInk() {
+  var ink = _cndEdEl('cndpdf-edit-ink');
+  if (!ink || ink.getAttribute('data-wired')) return;
+  ink.setAttribute('data-wired', '1');
+  ink.addEventListener('pointerdown', _cndEdDown);
+  ink.addEventListener('pointermove', _cndEdMove);
+  ink.addEventListener('pointerup', _cndEdUp);
+  ink.addEventListener('pointercancel', _cndEdUp);
+  var ta = _cndEdEl('cndpdf-edit-textbox');
+  if (ta) {
+    ta.addEventListener('blur', _cndEdCommitText);
+    ta.addEventListener('input', _cndEdFitTextbox);
+    ta.addEventListener('keydown', function(ev) { if (ev.key === 'Escape') { ev.preventDefault(); ta.blur(); } });
+  }
+}
+function _cndEdPt(ev) {
+  var ink = _cndEdEl('cndpdf-edit-ink'), r = ink.getBoundingClientRect();
+  var d = _cndEd.dims[_cndEd.page];
+  return { x: (ev.clientX - r.left) / r.width * d.w, y: (ev.clientY - r.top) / r.height * d.h };
+}
+function _cndEdDown(ev) {
+  var e = _cndEd;
+  if (!e.pdf || e.tool === 'pan') return;
+  if (e.textTarget) { _cndEdCommitText(); ev.preventDefault(); return; }
+  ev.preventDefault();
+  var ink = ev.currentTarget;
+  try { ink.setPointerCapture(ev.pointerId); } catch (x) { /* ignore */ }
+  var pt = _cndEdPt(ev), t = e.tool, hitR = 6 / e.cssScale; // ~6 css px of finger slop
+  if (t === 'text') {
+    var hit = _cndEdTopHit(pt.x, pt.y, 2);
+    if (hit && hit.t === 'text') _cndEdOpenText(hit, hit.x, hit.y);
+    else _cndEdOpenText(null, pt.x, pt.y);
+    return;
+  }
+  if (t === 'move') {
+    var h = _cndEdTopHit(pt.x, pt.y, hitR);
+    if (h) { e.drag = { o: h, x: pt.x, y: pt.y, snap: JSON.stringify(e.objs), moved: false }; }
+    return;
+  }
+  if (t === 'erase') {
+    e.erasing = { snap: JSON.stringify(e.objs), did: false };
+    _cndEdEraseAt(pt);
+    return;
+  }
+  var base = { color: e.color, w: e.size };
+  if (t === 'pen') e.cur = { t: 'pen', pts: [[pt.x, pt.y]], color: e.color, w: e.size };
+  else if (t === 'highlight') e.cur = { t: 'pen', pts: [[pt.x, pt.y]], color: e.color, w: Math.max(6, e.size * 4), a: 0.35, hl: true };
+  else if (t === 'line' || t === 'arrow' || t === 'rect' || t === 'ellipse') e.cur = { t: t, x1: pt.x, y1: pt.y, x2: pt.x, y2: pt.y, color: base.color, w: base.w };
+  else if (t === 'white') e.cur = { t: 'white', x1: pt.x, y1: pt.y, x2: pt.x, y2: pt.y, color: '#ffffff', w: 1 };
+  _cndEdRedraw();
+}
+function _cndEdMove(ev) {
+  var e = _cndEd;
+  if (!e.pdf) return;
+  if (!e.cur && !e.drag && !e.erasing) return;
+  ev.preventDefault();
+  var pt = _cndEdPt(ev);
+  if (e.cur) {
+    var c = e.cur;
+    if (c.t === 'pen') {
+      var last = c.pts[c.pts.length - 1];
+      if (Math.hypot(pt.x - last[0], pt.y - last[1]) > 0.6 / e.cssScale) c.pts.push([pt.x, pt.y]);
+    } else { c.x2 = pt.x; c.y2 = pt.y; }
+    _cndEdRedraw();
+  } else if (e.drag) {
+    var dx = pt.x - e.drag.x, dy = pt.y - e.drag.y;
+    if (!e.drag.moved && Math.hypot(dx, dy) * e.cssScale < 3) return;
+    e.drag.moved = true;
+    _cndEdTranslate(e.drag.o, dx, dy);
+    e.drag.x = pt.x; e.drag.y = pt.y;
+    _cndEdRedraw();
+  } else if (e.erasing) {
+    _cndEdEraseAt(pt);
+  }
+}
+function _cndEdUp(ev) {
+  var e = _cndEd;
+  if (e.cur) {
+    var c = e.cur; e.cur = null;
+    var keep = true;
+    if (c.t !== 'pen' && Math.hypot(c.x2 - c.x1, c.y2 - c.y1) < 2) keep = false; // accidental tap
+    if (keep) {
+      e.undo.push(JSON.stringify(e.objs)); // snapshot BEFORE adding
+      if (e.undo.length > 80) e.undo.shift();
+      e.redo = [];
+      _cndEdMarks().push(c);
+    }
+    _cndEdRedraw(); _cndEdUpdateUi();
+  }
+  if (e.drag) {
+    if (e.drag.moved) { e.undo.push(e.drag.snap); if (e.undo.length > 80) e.undo.shift(); e.redo = []; }
+    e.drag = null; _cndEdUpdateUi();
+  }
+  if (e.erasing) {
+    if (e.erasing.did) { e.undo.push(e.erasing.snap); if (e.undo.length > 80) e.undo.shift(); e.redo = []; }
+    e.erasing = false; _cndEdUpdateUi();
+  }
+  void ev;
+}
+function _cndEdEraseAt(pt) {
+  var e = _cndEd, r = (4 + e.size * 1.5) / e.cssScale * 0.6 + 2;
+  var list = _cndEdMarks(), before = list.length;
+  e.objs[e.page] = list.filter(function(o) { return !_cndEdHit(o, pt.x, pt.y, r); });
+  if (e.objs[e.page].length !== before) { e.erasing.did = true; _cndEdRedraw(); }
+}
+
+// ---- text boxes ----
+function _cndEdOpenText(obj, x, y) {
+  var e = _cndEd, ta = _cndEdEl('cndpdf-edit-textbox');
+  if (!ta) return;
+  e.textTarget = { obj: obj, x: x, y: y };
+  e.editObj = obj;
+  var size = obj ? obj.size : _cndEdFontPt();
+  var color = obj ? obj.color : e.color;
+  ta.value = obj ? obj.text : '';
+  ta.style.display = 'block';
+  ta.style.left = (x * e.cssScale) + 'px';
+  ta.style.top = (y * e.cssScale) + 'px';
+  ta.style.fontSize = Math.max(16, size * e.cssScale) + 'px'; // >=16px stops iOS zooming the page on focus
+  ta.style.lineHeight = '1.2';
+  ta.style.color = (color.toLowerCase() === '#ffffff') ? '#999' : color;
+  ta.dataset.size = String(size); ta.dataset.color = color;
+  _cndEdFitTextbox();
+  _cndEdRedraw();
+  setTimeout(function() { try { ta.focus(); } catch (x2) { /* ignore */ } }, 0);
+}
+function _cndEdFitTextbox() {
+  var ta = _cndEdEl('cndpdf-edit-textbox');
+  if (!ta) return;
+  var lines = ta.value.split('\n');
+  ta.rows = Math.max(1, lines.length);
+  var longest = lines.reduce(function(m, l) { return Math.max(m, l.length); }, 0);
+  var fs = parseFloat(ta.style.fontSize) || 16;
+  ta.style.width = Math.max(110, Math.min(longest * fs * 0.62 + 26, ((_cndEdEl('cndpdf-edit-stage') || {}).clientWidth || 600))) + 'px';
+}
+function _cndEdCommitText() {
+  var e = _cndEd, ta = _cndEdEl('cndpdf-edit-textbox');
+  if (!e.textTarget || !ta) return;
+  var tgt = e.textTarget, val = ta.value;
+  e.textTarget = null; e.editObj = null;
+  ta.style.display = 'none';
+  if (tgt.obj) {
+    if (!val.trim()) { _cndEdPushUndo(); e.objs[e.page] = _cndEdMarks().filter(function(o) { return o !== tgt.obj; }); }
+    else if (val !== tgt.obj.text) { _cndEdPushUndo(); tgt.obj.text = val; }
+  } else if (val.trim()) {
+    _cndEdPushUndo();
+    _cndEdMarks().push({ t: 'text', x: tgt.x, y: tgt.y, text: val, color: ta.dataset.color || e.color, size: Number(ta.dataset.size) || _cndEdFontPt() });
+  }
+  _cndEdRedraw(); _cndEdUpdateUi();
+}
+
+// ---- save ----
+async function cndPdfEditSave() {
+  var e = _cndEd;
+  if (!e.pdf || e.busy) return;
+  _cndEdCommitText();
+  if (!_cndEdTotalMarks()) { _cndPdfSetStatus('cndpdf-edit-status', 'Nothing to save yet — add a mark first.', _CND_ERR); return; }
+  e.busy = true;
+  try {
+    _cndPdfSetStatus('cndpdf-edit-status', 'Building PDF…', _CND_NEUTRAL);
+    var PL = await _cndPdfEnsurePdfLib();
+    var doc = await PL.PDFDocument.load(e.bytes, { ignoreEncryption: true });
+    var pages = doc.getPages();
+    for (var pn = 1; pn <= e.n; pn++) {
+      var marks = e.objs[pn];
+      if (!marks || !marks.length) continue;
+      var page = pages[pn - 1];
+      var jsPage = await e.pdf.getPage(pn);
+      var v = jsPage.getViewport({ scale: 1 });
+      var W = v.width, H = v.height;
+      var k = Math.max(1.5, Math.min(3, 3600 / Math.max(W, H)));
+      var cv = document.createElement('canvas');
+      cv.width = Math.ceil(W * k); cv.height = Math.ceil(H * k);
+      var ctx = cv.getContext('2d');
+      ctx.setTransform(k, 0, 0, k, 0, 0);
+      marks.forEach(function(o) { _cndEdDrawObj(ctx, o); });
+      var blob = await new Promise(function(res) { cv.toBlob(res, 'image/png'); });
+      if (!blob) throw new Error('could not render page ' + pn);
+      var png = await doc.embedPng(await blob.arrayBuffer());
+      var rot = ((page.getRotation().angle % 360) + 360) % 360;
+      var cb = page.getCropBox ? page.getCropBox() : page.getMediaBox();
+      var x = cb.x, y = cb.y;
+      if (rot === 90) { x = cb.x + cb.width; }
+      else if (rot === 180) { x = cb.x + cb.width; y = cb.y + cb.height; }
+      else if (rot === 270) { y = cb.y + cb.height; }
+      page.drawImage(png, { x: x, y: y, width: W, height: H, rotate: PL.degrees(rot) });
+    }
+    var out = await doc.save();
+    var fname = _cndPdfBaseName(e.name) + '_edited.pdf';
+    var result = await _cndPdfSavePdfBlobs([{ blob: new Blob([out], { type: 'application/pdf' }), filename: fname }]);
+    if (result.method === 'cancelled') _cndPdfSetStatus('cndpdf-edit-status', 'Save cancelled.', _CND_NEUTRAL);
+    else _cndPdfSetStatus('cndpdf-edit-status', 'Saved ' + fname + (result.method === 'folder' ? ' to "' + result.detail + '"' : '') + '. The original is unchanged.', _CND_OK);
+  } catch (err) {
+    _cndPdfSetStatus('cndpdf-edit-status', 'Error saving: ' + (err && err.message ? err.message : err), _CND_ERR);
+  } finally { e.busy = false; }
 }
 function cndPdfSimpleClearAll() {
   _cndPdfSimplePhotos = [];
@@ -27209,10 +27472,39 @@ function _cndPdfBuildFilename(index) {
 
   var parts = [addressSlug || 'property'];
   if (reasonToken) parts.push(reasonToken);
-  parts.push('PostedOn', dateDigits, String(index));
+  parts.push('PostedOn', dateDigits);
+  if (index != null) parts.push(String(index)); // Drop CJ: single-PDF output has no per-photo number
   return parts.join('_') + '.pdf';
 }
 
+// Drop CJ (2026-10-21): output mode toggle. 'multi' (default, the long-standing
+// behavior) = one stamped PDF per photo/page. 'single' = ONE PDF: page 1 is
+// the first file with the stamp header band across the top, and every other
+// file follows underneath it as its own page, in the order shown in the list
+// (reorder with the ↑/↓ buttons). Later pages carry no stamp — the stamp
+// appears once, at the top of the document.
+// jsPDF silently SWAPS a [w,h] page format when w>h and orientation is the
+// default 'portrait' — a landscape photo got a portrait page and the image
+// was drawn off the edge (cropped). Always pass the orientation explicitly.
+function _cndPdfOrient(w, h) { return w > h ? 'landscape' : 'portrait'; }
+var _cndPdfOutMode = 'multi';
+function cndPdfSetOutMode(mode) {
+  _cndPdfOutMode = (mode === 'single') ? 'single' : 'multi';
+  var single = _cndPdfOutMode === 'single';
+  [['cndpdf-mode-multi', !single], ['cndpdf-mode-single', single]].forEach(function(p) {
+    var el = document.getElementById(p[0]);
+    if (!el) return;
+    el.style.background = p[1] ? '#28323f' : '#eae7de';
+    el.style.color = p[1] ? '#fff' : '#3c4a5c';
+    el.style.borderColor = p[1] ? '#28323f' : '#d9d6cd';
+  });
+  var btn = document.getElementById('cndpdf-generate-btn');
+  if (btn) btn.textContent = single ? 'Generate Combined PDF' : 'Generate Stamped PDFs';
+  var hint = document.getElementById('cndpdf-mode-hint');
+  if (hint) hint.textContent = single
+    ? 'One PDF: the stamp across the top of page 1, then every file in the order listed above.'
+    : 'One stamped PDF per photo (or per PDF page), each with the stamp on it.';
+}
 async function cndPdfGenerate() {
   var statusEl = document.getElementById('cndpdf-status');
   if (!_cndPdfPhotos.length) {
@@ -27227,19 +27519,34 @@ async function cndPdfGenerate() {
   try {
     var jsPDFCtor = await _cndPdfEnsureJsPDF();
     var lines = _cndPdfBuildHeaderLines();
-    var canvases = _cndPdfPhotos.map(function(p) { return _cndPdfStampImage(p.img, lines); });
-    var files = canvases.map(function(c, i) {
-      var doc = new jsPDFCtor({ unit: 'pt', format: [c.width, c.height] });
-      doc.addImage(c.toDataURL('image/jpeg', 0.92), 'JPEG', 0, 0, c.width, c.height);
-      return { blob: doc.output('blob'), filename: _cndPdfBuildFilename(i + 1) };
-    });
+    var files;
+    if (_cndPdfOutMode === 'single') {
+      var first = _cndPdfStampImage(_cndPdfPhotos[0].img, lines);
+      var doc = new jsPDFCtor({ unit: 'pt', format: [first.width, first.height], orientation: _cndPdfOrient(first.width, first.height) });
+      doc.addImage(first.toDataURL('image/jpeg', 0.92), 'JPEG', 0, 0, first.width, first.height);
+      for (var i = 1; i < _cndPdfPhotos.length; i++) {
+        var p = _cndPdfPhotos[i];
+        doc.addPage([p.img.width, p.img.height], _cndPdfOrient(p.img.width, p.img.height));
+        doc.addImage(p.dataUrl, 'JPEG', 0, 0, p.img.width, p.img.height);
+      }
+      files = [{ blob: doc.output('blob'), filename: _cndPdfBuildFilename(null) }];
+    } else {
+      var canvases = _cndPdfPhotos.map(function(p) { return _cndPdfStampImage(p.img, lines); });
+      files = canvases.map(function(c, i) {
+        var d = new jsPDFCtor({ unit: 'pt', format: [c.width, c.height], orientation: _cndPdfOrient(c.width, c.height) });
+        d.addImage(c.toDataURL('image/jpeg', 0.92), 'JPEG', 0, 0, c.width, c.height);
+        return { blob: d.output('blob'), filename: _cndPdfBuildFilename(i + 1) };
+      });
+    }
     var result = await _cndPdfSavePdfBlobs(files);
     if (result.method === 'cancelled') {
       if (statusEl) { statusEl.textContent = 'Save cancelled.'; statusEl.style.color = '#3c4a5c'; }
     } else {
       var where = result.method === 'folder' ? (' to "' + result.detail + '"') : '';
       if (statusEl) {
-        statusEl.textContent = 'Saved ' + files.length + ' file' + (files.length > 1 ? 's' : '') + where + '.';
+        statusEl.textContent = _cndPdfOutMode === 'single'
+          ? ('Saved ' + files[0].filename + where + ' (' + _cndPdfPhotos.length + ' page' + (_cndPdfPhotos.length > 1 ? 's' : '') + ').')
+          : ('Saved ' + files.length + ' file' + (files.length > 1 ? 's' : '') + where + '.');
         statusEl.style.color = '#3f6b4c';
       }
     }
@@ -27328,9 +27635,9 @@ async function cndPdfSimpleGenerate() {
   }
   try {
     var jsPDFCtor = await _cndPdfEnsureJsPDF();
-    var doc = new jsPDFCtor({ unit: 'pt', format: [_cndPdfSimplePhotos[0].img.width, _cndPdfSimplePhotos[0].img.height] });
+    var doc = new jsPDFCtor({ unit: 'pt', format: [_cndPdfSimplePhotos[0].img.width, _cndPdfSimplePhotos[0].img.height], orientation: _cndPdfOrient(_cndPdfSimplePhotos[0].img.width, _cndPdfSimplePhotos[0].img.height) });
     _cndPdfSimplePhotos.forEach(function(p, i) {
-      if (i > 0) doc.addPage([p.img.width, p.img.height]);
+      if (i > 0) doc.addPage([p.img.width, p.img.height], _cndPdfOrient(p.img.width, p.img.height));
       doc.addImage(p.dataUrl, 'JPEG', 0, 0, p.img.width, p.img.height);
     });
     var blob = doc.output('blob');
@@ -27354,22 +27661,37 @@ async function cndPdfSimpleGenerate() {
 function _cndPdfSetupDropzones() {
   if (_cndPdfDropzonesWired) return;
   _cndPdfDropzonesWired = true;
+  var isImgOrPdf = function(f) { return _cndPdfIsImageFile(f) || _cndPdfIsPdfFile(f); };
   _cndPdfWireDropzone(document.getElementById('cndpdf-drop'), document.getElementById('cndpdf-file-input'), async function(files) {
     if (!files.length) return;
-    await _cndPdfAddFilesToStore(files, _cndPdfPhotos);
+    _cndPdfSetStatus('cndpdf-status', 'Reading…', '#3c4a5c');
+    var res = await _cndPdfAddFilesToStore(files, _cndPdfPhotos, { allowPdf: true, onProgress: function(m) { _cndPdfSetStatus('cndpdf-status', m, '#3c4a5c'); } });
     _cndPdfRenderPhotoList(document.getElementById('cndpdf-photo-list'), _cndPdfPhotos, 'cndPdfPhotoRemove', 'cndPdfPhotoMove');
     _cndPdfUpdateThumbnail();
-  });
+    _cndPdfReportAdd('cndpdf-status', res);
+  }, isImgOrPdf);
   _cndPdfWireDropzone(document.getElementById('cndpdf-simple-drop'), document.getElementById('cndpdf-simple-file-input'), async function(files) {
     if (!files.length) return;
-    await _cndPdfAddFilesToStore(files, _cndPdfSimplePhotos);
+    _cndPdfSetStatus('cndpdf-simple-status', 'Reading…', '#3c4a5c');
+    var res = await _cndPdfAddFilesToStore(files, _cndPdfSimplePhotos, { allowPdf: false });
     _cndPdfRenderPhotoList(document.getElementById('cndpdf-simple-photo-list'), _cndPdfSimplePhotos, 'cndPdfSimplePhotoRemove', 'cndPdfSimplePhotoMove');
-  });
+    _cndPdfReportAdd('cndpdf-simple-status', res);
+  }, _cndPdfIsImageFile);
+  _cndPdfWireDropzone(document.getElementById('cndpdf-merge-drop'), document.getElementById('cndpdf-merge-file-input'), function(files) {
+    if (files.length) cndPdfMergeAddFiles(files);
+  }, _cndPdfIsPdfFile);
+  _cndPdfWireDropzone(document.getElementById('cndpdf-edit-drop'), document.getElementById('cndpdf-edit-file-input'), function(files) {
+    if (files.length) cndPdfEditOpen(files[0]);
+  }, _cndPdfIsPdfFile);
 }
-function _cndPdfWireDropzone(dropEl, inputEl, onFiles) {
+function _cndPdfWireDropzone(dropEl, inputEl, onFiles, accept) {
   if (!dropEl || !inputEl) return;
   dropEl.addEventListener('click', function() { inputEl.click(); });
-  inputEl.addEventListener('change', function(e) { onFiles(Array.from(e.target.files)); });
+  inputEl.addEventListener('change', function(e) {
+    var files = Array.from(e.target.files);
+    e.target.value = ''; // lets the same file be chosen again after Clear
+    onFiles(files);
+  });
   ['dragover','dragenter'].forEach(function(evt) {
     dropEl.addEventListener(evt, function(e) { e.preventDefault(); dropEl.style.borderColor = '#b8742f'; dropEl.style.background = '#fbf3e8'; });
   });
@@ -27377,7 +27699,7 @@ function _cndPdfWireDropzone(dropEl, inputEl, onFiles) {
     dropEl.addEventListener(evt, function(e) { e.preventDefault(); dropEl.style.borderColor = '#b9b5a8'; dropEl.style.background = '#fbfaf7'; });
   });
   dropEl.addEventListener('drop', function(e) {
-    var files = Array.from(e.dataTransfer.files).filter(function(f) { return f.type.indexOf('image/') === 0; });
+    var files = Array.from(e.dataTransfer.files).filter(accept || function() { return true; });
     onFiles(files);
   });
 }
@@ -27448,6 +27770,7 @@ async function cndPdfSelectAddrSuggestion(i) {
   if (!s) return;
   _cndPdfAddrSuggestions = [];
   _cndPdfHideAddrSuggestions();
+  var addrEpoch = _cndPdfAddrEpoch; // Clear Address / Clear All bump this; late lookups must not refill cleared fields
   var inputEl = document.getElementById('cndpdf-address');
   if (inputEl) inputEl.value = s.address;
   // 2026-08-17: ZIP comes straight from the geocoder suggestion (Nominatim's
@@ -27474,6 +27797,7 @@ async function cndPdfSelectAddrSuggestion(i) {
   if (geoStatusEl) geoStatusEl.textContent = 'Looking up neighborhood, ward, and police district…';
   try {
     var geo = await geoLookup(s.lat, s.lng);
+    if (addrEpoch !== _cndPdfAddrEpoch) return;
     document.getElementById('cndpdf-neighborhood').value = geo.neighborhoodName || '';
     document.getElementById('cndpdf-ward').value = geo.ward != null ? String(geo.ward) : '';
     document.getElementById('cndpdf-police-district').value = geo.policeDistrict || '';
@@ -27903,14 +28227,6 @@ function _stampImageBlob(blob, meta) {
   });
 }
 
-function _canShareFiles() {
-  if (!navigator.canShare || !navigator.share) return false;
-  try {
-    var testFile = new File([new Blob(['test'],{type:'text/plain'})], 't.txt', {type:'text/plain'});
-    return navigator.canShare({ files: [testFile] });
-  } catch(_e) { return false; }
-}
-
 // Direct download — goes to Downloads folder on Android; triggers Save dialog on iOS
 function downloadStampedPhoto() {
   if (!_photoContext.stampedBlob) { showToast('No photo'); return; }
@@ -27950,7 +28266,7 @@ async function downloadStampedPhotoAsPdf() {
       im.onerror = function() { reject(new Error('Could not read image dimensions')); };
       im.src = _photoContext.stampedDataUrl;
     });
-    var doc = new jsPDFCtor({ unit: 'pt', format: [img.width, img.height] });
+    var doc = new jsPDFCtor({ unit: 'pt', format: [img.width, img.height], orientation: _cndPdfOrient(img.width, img.height) });
     doc.addImage(_photoContext.stampedDataUrl, 'JPEG', 0, 0, img.width, img.height);
     var blob = doc.output('blob');
     var url = URL.createObjectURL(blob);
@@ -28079,9 +28395,8 @@ function closePhotoPreview(opts) {
 // SHARE STOP SUMMARY — Web Share Sheet (email / Drive / Messages / etc.)
 // with mailto: fallback for browsers w/o Web Share API.
 // ============================================================
-// Build subject/body text for a stop. Extracted so both the plain email flow
-// (emailStopSummary) and the email-with-photos flow (emailStopWithPhotos) can
-// use the same content. Returns { subject, body } with CRLF line endings —
+// Build subject/body text for a stop (used by the email and share summary
+// flows). Returns { subject, body } with CRLF line endings —
 // some Android Gmail versions flatten LF-only text when it arrives via the
 // share sheet, which makes the summary read as one ugly paragraph.
 function _buildStopSummaryText(s) {
@@ -28315,91 +28630,6 @@ function _mailtoStopSummary(subject, body) {
   showToast('📧 Opening mail app…');
 }
 
-// Email with photos attached.
-//   - Called with no argument: uses the active photo session's in-memory shots
-//     (the "I just took these and want to email them right now" path).
-//   - Called with a stopId argument: pulls photos from PhotoCache for that
-//     stop (the "I took these earlier today and want to email them now" path).
-//     This works for any stop with cached photos, which is roughly any stop
-//     photographed in the last 48 hours (subject to size cap eviction).
-// In both cases the email body comes from _buildStopSummaryText so the format
-// is identical to the regular Email Summary button.
-async function emailStopWithPhotos(stopIdArg) {
-  var stop, files = [];
-  if (stopIdArg != null) {
-    // Cached-photo path: look up the stop and read blobs from IndexedDB
-    var id = Number(stopIdArg);
-    stop = (typeof stops !== 'undefined') ? stops.find(function(x){ return x.id === id; }) : null;
-    if (!stop) { showToast('Stop not found'); return; }
-    var cached;
-    try { cached = await PhotoCache.getForStop(id); } catch(_) { cached = []; }
-    if (!cached.length) {
-      showToast('No cached photos for this stop (older than 48h or cleared)');
-      return;
-    }
-    for (var i = 0; i < cached.length; i++) {
-      var c = cached[i];
-      try { files.push(new File([c.blob], c.filename, { type: 'image/jpeg' })); }
-      catch (_e) { _swallow('emailStopWithPhotos', _e); }
-    }
-  } else {
-    // Active-session path (original behavior)
-    if (!_photoSession.active || _photoSession.stopId == null) {
-      showToast('Start a photo session linked to a stop first');
-      return;
-    }
-    if (!_photoSession.shots || !_photoSession.shots.length) {
-      showToast('Take at least one photo first');
-      return;
-    }
-    stop = (typeof stops !== 'undefined')
-      ? stops.find(function(x){ return x.id === _photoSession.stopId; })
-      : null;
-    if (!stop) { showToast('Linked stop not found'); return; }
-    for (var j = 0; j < _photoSession.shots.length; j++) {
-      var sh = _photoSession.shots[j];
-      try { files.push(new File([sh.blob], sh.filename, { type: 'image/jpeg' })); }
-      catch (_e) { _swallow('emailStopWithPhotos', _e); }
-    }
-  }
-  if (!files.length) { showToast('No photos to attach'); return; }
-
-  var pkt = _buildStopSummaryText(stop);
-
-  if (!navigator.canShare || !navigator.share) {
-    showToast('Share with attachments not supported on this device');
-    return;
-  }
-  if (!navigator.canShare({ files: files })) {
-    showToast('Attachments too large for share sheet');
-    return;
-  }
-  try {
-    await navigator.share({
-      files: files,
-      title: pkt.subject,
-      text: pkt.body
-    });
-    // Success — for the active-session iOS path, end the session and close
-    // the modal (matches shareStampedPhoto's behavior). For the cached-photo
-    // path, just toast — the stop card stays as it was.
-    if (stopIdArg == null && _isIOS()) {
-      showToast('✓ Emailed summary + ' + files.length + ' photo' + (files.length===1?'':'s'));
-      _endPhotoSession();
-      var pm = document.getElementById('photo-preview-modal');
-      if (pm) {
-        pm.style.display = 'none';
-        Accessibility.modalClosed(pm);
-      }
-    } else {
-      showToast('✓ Sent summary + ' + files.length + ' photo' + (files.length===1?'':'s'));
-    }
-  } catch(err) {
-    if (err && err.name === 'AbortError') return; // user canceled — no toast
-    showToast('⚠ Share failed: ' + (err && err.message || 'unknown'));
-  }
-}
-
 // ============================================================
 // APP ANALYTICS (opt-in, off by default) — POSTs to the owner's
 // Google Apps Script endpoint so usage can be tracked without
@@ -28484,16 +28714,15 @@ function isVoiceCleanupEnabled() {
 // Per-source download toggles for the unified photo pool. When ON, after
 // the user takes a photo through that flow, the camera image is offered
 // through the share panel (Web Share API → save to gallery, Drive, etc).
-// Off by default — privacy + storage. Independent of cache retention; the
-// cache always stores the photo for 48hrs subject to size cap.
+// Off by default — privacy + storage. Nothing is cached.
 function toggleSavePhotoscan(on) {
   LS.set('pref-save-photoscan', on ? '1' : '0');
-  showToast(on ? '✓ Photoscan images will be offered for saving' : 'Photoscan images stay in cache only');
+  showToast(on ? '✓ Photoscan images will be offered for saving' : 'Photoscan images will not be saved');
 }
 
 function toggleSaveCustomLayerScan(on) {
   LS.set('pref-save-custom-layer-scan', on ? '1' : '0');
-  showToast(on ? '✓ Custom-layer scan images will be offered for saving' : 'Custom-layer scan images stay in cache only');
+  showToast(on ? '✓ Custom-layer scan images will be offered for saving' : 'Custom-layer scan images will not be saved');
 }
 
 // ── Fiscal-day cutoff + archive UI handlers ──────────────────────────────
@@ -29075,65 +29304,7 @@ function _openSettingsPanel() {
   try { renderSettingsPhotoStamp(); } catch (_e) { _swallow('_openSettingsPanel', _e); }
   try { renderSettingsCustomTypes(); } catch (_e) { _swallow('_openSettingsPanel', _e); }
   try { renderAiUsage(); } catch (_e) { _swallow('_openSettingsPanel', _e); }
-  try { renderPhotoCacheStats(); } catch (_e) { _swallow('_openSettingsPanel', _e); }
   try { renderClusterRadius(); } catch (_e) { _swallow('_openSettingsPanel', _e); }
-}
-
-// ── Photo cache stats readout (Settings panel) ──────────────────────────────
-async function renderPhotoCacheStats() {
-  var body = document.getElementById('settings-photo-cache-body');
-  if (!body) return;
-  if (typeof PhotoCache === 'undefined') { body.textContent = 'Cache unavailable.'; return; }
-  try {
-    var s = await PhotoCache.stats();
-    if (s.count === 0) {
-      body.innerHTML = 'Cache is empty.';
-      return;
-    }
-    var mb     = (s.totalSize / (1024 * 1024)).toFixed(1);
-    var capMb  = Math.round(s.capUsed / (1024 * 1024));
-    var pct    = Math.round((s.totalSize / s.capUsed) * 100);
-    var stops  = Object.keys(s.perStop).length;
-
-    // Per-source breakdown line — only render if there's anything beyond
-    // the default photostamp source, since it's noise otherwise.
-    var sourceLine = '';
-    var sources = Object.keys(s.bySource || {});
-    if (sources.length > 1 || (sources.length === 1 && sources[0] !== 'photostamp')) {
-      var labels = {
-        'photostamp':         '📷 stamped',
-        'photoscan':          '🔍 photoscan',
-        'custom-layer-scan':  '🎨 layer scan',
-        'manual':             '🗂 other'
-      };
-      var parts = sources.map(function(src) {
-        var cnt = s.bySource[src];
-        var sz  = ((s.bySizeBySource[src] || 0) / (1024 * 1024)).toFixed(1);
-        return '<span>' + (labels[src] || src) + ': ' + cnt + ' (' + sz + ' MB)</span>';
-      });
-      sourceLine = '<div style="margin-top:5px;display:flex;flex-wrap:wrap;gap:8px;font-size:0.55rem;color:#777">' + parts.join('') + '</div>';
-    }
-
-    body.innerHTML =
-      '<div><b>' + s.count + '</b> photo' + (s.count===1?'':'s') + ' across <b>' + stops + '</b> stop' + (stops===1?'':'s') + '</div>' +
-      '<div><b>' + mb + ' MB</b> used of ' + capMb + ' MB (' + pct + '%)</div>' +
-      '<div style="background:#ddd;height:6px;border-radius:3px;margin-top:6px;overflow:hidden"><div style="background:' + (pct>80?'#c0392b':'#2980b9') + ';height:100%;width:' + Math.min(pct,100) + '%"></div></div>' +
-      sourceLine;
-  } catch(e) {
-    body.textContent = 'Cache stats unavailable.';
-  }
-}
-
-async function clearPhotoCache() {
-  if (typeof PhotoCache === 'undefined') return;
-  if (!confirm('Clear all cached photos now? Your phone gallery copies are not affected.')) return;
-  var ok = await PhotoCache.clear();
-  if (ok) {
-    showToast('✓ Photo cache cleared');
-    renderPhotoCacheStats();
-  } else {
-    showToast('⚠ Clear failed');
-  }
 }
 
 // ── Nearby-cluster radius (settings) ──────────────────────────────────────
@@ -30775,13 +30946,13 @@ var _SUPPORT_DESK_KNOWLEDGE = (
 "- Stamp Settings controls which fields get burned in. Available fields: Address, Date, Time, GPS Coordinates, Compass Direction, Photo Sequence #, Case/SR/WR #, User Name, Title/Department, Photo Notes, Neighborhood Name, Neighborhood Number, Ward Number, and Election Precinct (e.g. 'Ward 2, Precinct 6').\n" +
 "- Before shooting, a small situational map (\"Prepare Photo\") lets the inspector tap the correct parcel/address on a map first, so the stamp is accurate even when standing between two addresses.\n" +
 "- Photos can be marked up (pen, arrow, text, redaction) before saving; the markup is baked into the saved image.\n" +
-"- Stamped photos are cached on the device temporarily (about 48 hours) and then auto-deleted to save space — they need to be uploaded to the city system, exported, or synced (see Google Drive Sync below) to keep them long-term.\n" +
+"- Stamped photos are saved to the phone's gallery / Downloads folder; the app keeps no copy of its own — upload them to the city system, export them, or sync (see Google Drive Sync below) to keep them long-term.\n" +
 "- Every shot saves to the device automatically as soon as it's taken (on phone, tablet, and iPad alike) — there is no separate Save/Share step to remember.\n" +
 "- A stop's photo count is a live total, not a stored number — it always reflects everything actually logged. If photos of the same stop were taken on more than one device, the count shows a breakdown, e.g. \"3 photos (2 iPad, 1 Phone)\"; device names come from Settings → Device Name (set a name per device so this breakdown is readable — an unnamed device just shows as \"Device\" plus a few characters of its ID).\n" +
 "- Photo Tracker (in the Reports tab / a Map overlay layer) automatically groups PhotoStamp photos by location and flags addresses with repeated photo activity above a configurable threshold, color-coded by severity, with an exportable report and CSV.\n\n" +
 
 "PDF DOCS\n" +
-"- Reached from the header's PDF icon. Two tools under one screen: Simple Convert (the default tab) turns one or more photos into a single PDF, naming the output file from the input filenames automatically; Docu-Stamp (the second tab) builds a formal photo-documentation PDF with a stamped header line — pick a Reason (Blank by default — leaves the reason off the stamp entirely — or C&D, Survey/Area Canvas, Code Violation, Vacant Property, Housing Conservation, Weights & Measures, or Custom with free text) and list the people involved (add a Title and Name for each person present; add more with \"+ Add Person\"). Any field left empty — Reason, Address, Dated, Posted, People — is simply left off the stamped header rather than showing a placeholder.\n" +
+"- Reached from the header's PDF icon. Four tools under one screen: Image Convert (the default tab) turns one or more photos (JPG, PNG, WebP, GIF, BMP and other browser-readable types) into a single PDF, naming the output file from the input filenames automatically; Merge (third tab) combines any number of PDFs — reorder the files with the arrows, tap page thumbnails to leave pages out, and preview the merged page order before saving; Edit PDF (fourth tab) opens a PDF so you can add text boxes, draw with pen, highlighter, lines, arrows, boxes and ovals, whiteout or erase marks, then Save as new PDF (the original is never changed); Docu-Stamp (second tab, also accepts PDFs — every page gets the stamp — and has Clear Address and Clear All buttons, and an Output toggle: One PDF per photo, or a Single combined PDF with the stamp across the top of page 1 and every file after it in the order listed — reorder with the ↑ ↓ buttons) builds a formal photo-documentation PDF with a stamped header line — pick a Reason (Blank by default — leaves the reason off the stamp entirely — or C&D, Survey/Area Canvas, Code Violation, Vacant Property, Housing Conservation, Weights & Measures, or Custom with free text) and list the people involved (add a Title and Name for each person present; add more with \"+ Add Person\"). Any field left empty — Reason, Address, Dated, Posted, People — is simply left off the stamped header rather than showing a placeholder.\n" +
 "- A stamped photo can also be turned into its own single-page PDF directly from the Stamped Photo screen's 📄 PDF button, right after capture.\n\n" +
 
 "REPORTS\n" +
@@ -37267,9 +37438,14 @@ function wizSaveRole() {
          etc.) were deliberately NOT renamed throughout the JS below —
          purely internal, not user-visible, and renaming them everywhere
          would be a large mechanical change for no user-facing benefit. -->
+    <!-- Drop CI (2026-10-19): "Simple Convert" is now labelled "Image Convert"
+         (label only — the 'simple' ids/args are internal), and two tabs were
+         added: Merge and Edit PDF. -->
     <div style="display:flex;gap:2px;margin-bottom:14px">
-      <div class="cndpdf-tab active" data-fn="cndPdfSwitchTab" data-arg="simple" id="cndpdf-tab-simple" style="flex:1;padding:10px 12px;background:#28323f;color:#fff;border:1px solid #28323f;font-family:Syne,sans-serif;font-weight:700;font-size:0.62rem;letter-spacing:0.3px;cursor:pointer;text-align:center">Simple Convert</div>
-      <div class="cndpdf-tab" data-fn="cndPdfSwitchTab" data-arg="cnd" id="cndpdf-tab-cnd" style="flex:1;padding:10px 12px;background:#eae7de;color:#3c4a5c;border:1px solid #d9d6cd;font-family:Syne,sans-serif;font-weight:700;font-size:0.62rem;letter-spacing:0.3px;cursor:pointer;text-align:center">Docu-Stamp</div>
+      <div class="cndpdf-tab active" data-fn="cndPdfSwitchTab" data-arg="simple" id="cndpdf-tab-simple" style="flex:1;min-width:0;padding:10px 4px;background:#28323f;color:#fff;border:1px solid #28323f;font-family:Syne,sans-serif;font-weight:700;font-size:0.6rem;letter-spacing:0.2px;cursor:pointer;text-align:center">Image Convert</div>
+      <div class="cndpdf-tab" data-fn="cndPdfSwitchTab" data-arg="cnd" id="cndpdf-tab-cnd" style="flex:1;min-width:0;padding:10px 4px;background:#eae7de;color:#3c4a5c;border:1px solid #d9d6cd;font-family:Syne,sans-serif;font-weight:700;font-size:0.6rem;letter-spacing:0.2px;cursor:pointer;text-align:center">Docu-Stamp</div>
+      <div class="cndpdf-tab" data-fn="cndPdfSwitchTab" data-arg="merge" id="cndpdf-tab-merge" style="flex:1;min-width:0;padding:10px 4px;background:#eae7de;color:#3c4a5c;border:1px solid #d9d6cd;font-family:Syne,sans-serif;font-weight:700;font-size:0.6rem;letter-spacing:0.2px;cursor:pointer;text-align:center">Merge</div>
+      <div class="cndpdf-tab" data-fn="cndPdfSwitchTab" data-arg="edit" id="cndpdf-tab-edit" style="flex:1;min-width:0;padding:10px 4px;background:#eae7de;color:#3c4a5c;border:1px solid #d9d6cd;font-family:Syne,sans-serif;font-weight:700;font-size:0.6rem;letter-spacing:0.2px;cursor:pointer;text-align:center">Edit PDF</div>
     </div>
 
     <!-- Save-location bar (File System Access API, same as standalone) -->
@@ -37284,7 +37460,10 @@ function wizSaveRole() {
     <!-- C&D MODE -->
     <div id="cndpdf-panel-cnd" style="display:none">
       <div style="position:relative;margin-bottom:12px">
-        <label style="display:block;font-size:0.56rem;text-transform:uppercase;letter-spacing:0.06em;color:#3c4a5c;margin-bottom:5px;font-weight:600">Property Address</label>
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:5px">
+          <label style="display:block;font-size:0.56rem;text-transform:uppercase;letter-spacing:0.06em;color:#3c4a5c;font-weight:600">Property Address</label>
+          <button type="button" data-fn="cndPdfClearAddress" style="background:none;border:1px dashed #b9b5a8;color:#3c4a5c;cursor:pointer;font-size:0.56rem;font-weight:600;padding:4px 9px">Clear Address</button>
+        </div>
         <input type="text" id="cndpdf-address" placeholder="Start typing an address…" autocomplete="off" oninput="cndPdfAddrInputChanged()" style="width:100%;padding:9px 10px;border:1px solid #c7c3b8;background:#fdfcfa;font-size:0.72rem;color:#1b2430;box-sizing:border-box">
         <div id="cndpdf-addr-suggestions" style="display:none;position:absolute;left:0;right:0;top:100%;background:#fdfcfa;border:1px solid #d9d6cd;box-shadow:0 6px 18px rgba(0,0,0,0.12);z-index:50;max-height:220px;overflow-y:auto"></div>
         <div id="cndpdf-geo-status" style="font-size:0.55rem;color:#8a8577;margin-top:4px"></div>
@@ -37407,8 +37586,8 @@ function wizSaveRole() {
       <div id="cndpdf-preview" style="font-family:'Space Mono',monospace;font-size:0.6rem;color:#3c4a5c;background:#eeece5;border:1px solid #d9d6cd;padding:10px 12px;margin:10px 0;line-height:1.6;white-space:pre-wrap;text-align:center">—</div>
 
       <div id="cndpdf-drop" style="border:2px dashed #b9b5a8;padding:22px;text-align:center;color:#3c4a5c;font-size:0.62rem;cursor:pointer;margin:14px 0;background:#fbfaf7">
-        Tap to choose photos (JPG / PNG) — each becomes a stamped page
-        <input type="file" id="cndpdf-file-input" accept="image/*" multiple style="display:none">
+        Tap to choose photos (JPG, PNG, WebP, GIF, BMP…) or PDFs — each photo, and each page of a PDF, becomes a stamped page
+        <input type="file" id="cndpdf-file-input" accept="image/*,application/pdf,.pdf" multiple style="display:none">
       </div>
       <div class="cndpdf-photo-list" id="cndpdf-photo-list" style="display:flex;flex-direction:column;gap:8px;margin:12px 0"></div>
 
@@ -37417,20 +37596,28 @@ function wizSaveRole() {
         <canvas id="cndpdf-thumb-canvas" style="width:100%;max-width:380px;height:auto;border:1px solid #d9d6cd;background:#fdfcfa;display:block"></canvas>
       </div>
 
-      <div style="display:flex;gap:8px;align-items:center;margin-top:16px;flex-wrap:wrap">
-        <button data-fn="cndPdfGenerate" style="padding:10px 18px;font-size:0.68rem;font-weight:700;border:1px solid #28323f;background:#28323f;color:#fff;cursor:pointer">Generate Stamped PDF</button>
+      <div style="margin-top:16px">
+        <label style="display:block;font-size:0.56rem;text-transform:uppercase;color:#3c4a5c;margin-bottom:5px;font-weight:600">Output</label>
+        <div style="display:flex;gap:2px">
+          <div id="cndpdf-mode-multi" data-fn="cndPdfSetOutMode" data-arg="multi" style="flex:1;padding:9px 6px;background:#28323f;color:#fff;border:1px solid #28323f;font-family:Syne,sans-serif;font-weight:700;font-size:0.6rem;cursor:pointer;text-align:center">One PDF per photo</div>
+          <div id="cndpdf-mode-single" data-fn="cndPdfSetOutMode" data-arg="single" style="flex:1;padding:9px 6px;background:#eae7de;color:#3c4a5c;border:1px solid #d9d6cd;font-family:Syne,sans-serif;font-weight:700;font-size:0.6rem;cursor:pointer;text-align:center">Single combined PDF</div>
+        </div>
+        <div id="cndpdf-mode-hint" style="font-size:0.55rem;color:#8a8577;margin-top:4px">One stamped PDF per photo (or per PDF page), each with the stamp on it.</div>
+      </div>
+      <div style="display:flex;gap:8px;align-items:center;margin-top:12px;flex-wrap:wrap">
+        <button id="cndpdf-generate-btn" data-fn="cndPdfGenerate" style="padding:10px 18px;font-size:0.68rem;font-weight:700;border:1px solid #28323f;background:#28323f;color:#fff;cursor:pointer">Generate Stamped PDFs</button>
         <button data-fn="cndPdfClearAll" style="padding:10px 18px;font-size:0.68rem;font-weight:700;border:1px solid #28323f;background:transparent;color:#28323f;cursor:pointer">Clear All</button>
         <span id="cndpdf-status" style="font-size:0.6rem;color:#3c4a5c"></span>
       </div>
       <div style="font-size:0.55rem;color:#8a8577;margin-top:16px;border-top:1px solid #d9d6cd;padding-top:12px;line-height:1.5">
-        Any field left blank — including Reason — is left out of the stamp entirely, not shown as a placeholder. The same header is applied to every photo added — fill in once per property, add all photos for that posting, then Generate. Hit Clear All to start the next property.
+        Any field left blank — including Reason — is left out of the stamp entirely, not shown as a placeholder. Use ↑ ↓ in the list to set the order (it matters most for the single combined PDF). The same header is applied to every photo in One-PDF-per-photo mode; in Single combined mode it appears once, across the top of page 1. Fill in once per property, add all photos for that posting, then Generate. Hit Clear All to start the next property — it empties the photos, address, reason, dates and notes (the "Who's on this" list stays); Clear Address above only resets the address, neighborhood, ward, police district and ZIP.
       </div>
     </div>
 
     <!-- SIMPLE MODE -->
     <div id="cndpdf-panel-simple">
       <div id="cndpdf-simple-drop" style="border:2px dashed #b9b5a8;padding:22px;text-align:center;color:#3c4a5c;font-size:0.62rem;cursor:pointer;margin:14px 0;background:#fbfaf7">
-        Tap to choose photos (JPG / PNG) — each becomes one PDF page, no header
+        Tap to choose photos (JPG, PNG, WebP, GIF, BMP…) — each becomes one PDF page, no header
         <input type="file" id="cndpdf-simple-file-input" accept="image/*" multiple style="display:none">
       </div>
       <div class="cndpdf-photo-list" id="cndpdf-simple-photo-list" style="display:flex;flex-direction:column;gap:8px;margin:12px 0"></div>
@@ -37441,6 +37628,78 @@ function wizSaveRole() {
       </div>
       <div style="font-size:0.55rem;color:#8a8577;margin-top:16px;border-top:1px solid #d9d6cd;padding-top:12px;line-height:1.5">
         For quick batches that don't need the C&amp;D header — just stacks the images into a single PDF in the order added.
+      </div>
+    </div>
+
+    <!-- MERGE TAB (Drop CI) — ported from the standalone PageMerge tool and
+         generalized: any number of PDFs, reorder, per-page include/exclude,
+         page thumbnails. See the _cndMg* block in the PDF Docs script. -->
+    <div id="cndpdf-panel-merge" style="display:none">
+      <div id="cndpdf-merge-drop" style="border:2px dashed #b9b5a8;padding:22px;text-align:center;color:#3c4a5c;font-size:0.62rem;cursor:pointer;margin:14px 0;background:#fbfaf7">
+        Tap to add PDFs to merge — add as many as you like
+        <input type="file" id="cndpdf-merge-file-input" accept="application/pdf,.pdf" multiple style="display:none">
+      </div>
+      <div style="font-size:0.56rem;text-transform:uppercase;color:#3c4a5c;font-weight:600;margin:4px 0 6px">Files — in merge order</div>
+      <div id="cndpdf-merge-list"></div>
+      <div style="font-size:0.56rem;text-transform:uppercase;color:#3c4a5c;font-weight:600;margin:14px 0 2px">Merged files</div>
+      <div id="cndpdf-merge-summary" style="font-size:0.55rem;color:#8a8577;margin-bottom:6px"></div>
+      <div id="cndpdf-merge-merged" style="border:1px solid #d9d6cd;background:#fdfcfa;padding:8px;max-height:46vh;overflow-y:auto"></div>
+      <div style="margin-top:12px">
+        <label style="display:block;font-size:0.56rem;text-transform:uppercase;color:#3c4a5c;margin-bottom:5px;font-weight:600">Output file name</label>
+        <input type="text" id="cndpdf-merge-outname" oninput="cndPdfMergeOutNameInput()" autocomplete="off" style="width:100%;padding:9px 10px;border:1px solid #c7c3b8;background:#fdfcfa;font-size:0.72rem;color:#1b2430;box-sizing:border-box">
+      </div>
+      <div style="display:flex;gap:8px;align-items:center;margin-top:14px;flex-wrap:wrap">
+        <button id="cndpdf-merge-go" data-fn="cndPdfMergeRun" style="padding:10px 18px;font-size:0.68rem;font-weight:700;border:1px solid #28323f;background:#28323f;color:#fff;cursor:pointer">Merge &amp; Save PDF</button>
+        <button id="cndpdf-merge-clear" data-fn="cndPdfMergeClear" style="padding:10px 18px;font-size:0.68rem;font-weight:700;border:1px solid #28323f;background:transparent;color:#28323f;cursor:pointer;display:none">Clear All</button>
+        <span id="cndpdf-merge-status" style="font-size:0.6rem;color:#3c4a5c"></span>
+      </div>
+      <div style="font-size:0.55rem;color:#8a8577;margin-top:16px;border-top:1px solid #d9d6cd;padding-top:12px;line-height:1.5">
+        Use ↑ ↓ to reorder files. Tap any page thumbnail to leave it out (or back in) — in the file list or in the Merged files preview. Nothing is uploaded; merging happens on this device. Needs a connection the first time, to load the PDF engine.
+      </div>
+    </div>
+
+    <!-- EDIT PDF TAB (Drop CI) — see the _cndEd* block in the PDF Docs script. -->
+    <div id="cndpdf-panel-edit" style="display:none">
+      <div id="cndpdf-edit-drop" style="border:2px dashed #b9b5a8;padding:22px;text-align:center;color:#3c4a5c;font-size:0.62rem;cursor:pointer;margin:14px 0;background:#fbfaf7">
+        Tap to open a PDF to edit
+        <input type="file" id="cndpdf-edit-file-input" accept="application/pdf,.pdf" style="display:none">
+      </div>
+      <div id="cndpdf-edit-work" style="display:none">
+        <div id="cndpdf-edit-tools" class="cnded-row"></div>
+        <div class="cnded-row" style="align-items:center">
+          <span id="cndpdf-edit-colors" class="cnded-row" style="margin:0"></span>
+          <input type="color" id="cndpdf-edit-color-custom" aria-label="Custom color" oninput="cndPdfEditCustomColor(this.value)" style="width:30px;height:26px;padding:0;border:1px solid #c7c3b8;background:none;cursor:pointer">
+          <label style="font-size:0.55rem;color:#3c4a5c;margin-left:6px">Size</label>
+          <input type="range" id="cndpdf-edit-size" min="1" max="20" value="3" oninput="cndPdfEditSizeChanged()" style="width:110px">
+          <span id="cndpdf-edit-size-label" style="font-size:0.55rem;color:#3c4a5c;font-family:'Space Mono',monospace;min-width:38px"></span>
+        </div>
+        <div class="cnded-row" style="align-items:center">
+          <button type="button" id="cndpdf-edit-undo" class="cndmg-btn" data-fn="cndPdfEditUndo">Undo</button>
+          <button type="button" id="cndpdf-edit-redo" class="cndmg-btn" data-fn="cndPdfEditRedo">Redo</button>
+          <button type="button" class="cndmg-btn" data-fn="cndPdfEditClearPage">Clear page</button>
+          <button type="button" class="cndmg-btn" data-fn="cndPdfEditZoom" data-arg="-1" aria-label="Zoom out">−</button>
+          <button type="button" class="cndmg-btn" data-fn="cndPdfEditZoom" data-arg="1" aria-label="Zoom in">+</button>
+        </div>
+        <div class="cnded-row" style="align-items:center;justify-content:space-between">
+          <button type="button" class="cndmg-btn" data-fn="cndPdfEditPage" data-arg="-1">◀ Prev</button>
+          <span id="cndpdf-edit-pageinfo" style="font-size:0.55rem;color:#3c4a5c;font-family:'Space Mono',monospace;text-align:center"></span>
+          <button type="button" class="cndmg-btn" data-fn="cndPdfEditPage" data-arg="1">Next ▶</button>
+        </div>
+        <div id="cndpdf-edit-stage" style="overflow:auto;max-height:68vh;border:1px solid #d9d6cd;background:#d6d3ca;padding:0;-webkit-overflow-scrolling:touch">
+          <div style="position:relative;display:inline-block;line-height:0;vertical-align:top">
+            <canvas id="cndpdf-edit-base" style="display:block;background:#fff"></canvas>
+            <canvas id="cndpdf-edit-ink" style="position:absolute;left:0;top:0"></canvas>
+            <textarea id="cndpdf-edit-textbox" wrap="off" spellcheck="false" style="display:none;position:absolute;margin:0;padding:0 2px;border:1px dashed #1565c0;background:rgba(255,255,255,0.6);outline:none;resize:none;overflow:hidden;font-family:Helvetica,Arial,sans-serif;line-height:1.2"></textarea>
+          </div>
+        </div>
+        <div style="display:flex;gap:8px;align-items:center;margin-top:14px;flex-wrap:wrap">
+          <button data-fn="cndPdfEditSave" style="padding:10px 18px;font-size:0.68rem;font-weight:700;border:1px solid #28323f;background:#28323f;color:#fff;cursor:pointer">Save as new PDF</button>
+          <button data-fn="cndPdfEditClose" style="padding:10px 18px;font-size:0.68rem;font-weight:700;border:1px solid #28323f;background:transparent;color:#28323f;cursor:pointer">Close PDF</button>
+        </div>
+      </div>
+      <span id="cndpdf-edit-status" style="display:block;font-size:0.6rem;color:#3c4a5c;margin-top:8px"></span>
+      <div style="font-size:0.55rem;color:#8a8577;margin-top:16px;border-top:1px solid #d9d6cd;padding-top:12px;line-height:1.5">
+        Text adds a text box (tap it again to edit; clear its text to delete it). Pen and Highlight draw freehand; Line, Arrow, Box and Oval draw shapes; Whiteout covers part of the page with white. Eraser removes any mark it touches (it erases your marks, not the original PDF). Move drags a mark; Pan lets you scroll a zoomed page by touch. Your original file is never changed — Save as new PDF writes a copy ending in _edited. Needs a connection the first time, to load the PDF engine.
       </div>
     </div>
   </div>
