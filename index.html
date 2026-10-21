@@ -229,6 +229,44 @@ var Diag = (function() {
 })();
 window.Diag = Diag;
 
+// ── Drop CL: boot timing, low-end flag, and a visible boot-failure screen ──
+// Boot timing: performance marks at head-start and end of init(), recorded
+// to Diag, so a real cheap phone's cold-start cost can be read out of
+// Settings → Diagnostics instead of estimated.
+window._bootT0 = (window.performance && performance.now) ? performance.now() : 0;
+// Low-end flag: ≤2 GB reported RAM (navigator.deviceMemory — Chrome/Android
+// only; Safari doesn't expose it, so iPhones never get the flag) or ≤2 CPU
+// cores. Core count alone is a weak signal — budget Androids are usually
+// 8-core — so it only catches the truly minimal devices. Used only to drop
+// purely decorative filters/shadows (see html.low-end CSS).
+try {
+  var _dm = navigator.deviceMemory, _hc = navigator.hardwareConcurrency;
+  if ((typeof _dm === 'number' && _dm > 0 && _dm <= 2) || (typeof _hc === 'number' && _hc > 0 && _hc <= 2)) {
+    document.documentElement.classList.add('low-end');
+  }
+} catch (_e) {}
+// Boot-failure screen: the main script needs ES2020 (optional chaining /
+// nullish coalescing — roughly Chrome 80+, iOS 13.4+). On an older engine
+// it fails to PARSE, which init()'s try/catch can't catch, and the user
+// just sees a blank app. If, a few seconds after load, the main script
+// never defined its entry point, show a plain explanation instead.
+window.addEventListener('load', function() {
+  setTimeout(function() {
+    try {
+      if (typeof window._initBody === 'function' || window._stlcrBooted) return;
+      var b = document.body; if (!b) return;
+      var d = document.createElement('div');
+      d.setAttribute('style', 'position:fixed;top:0;right:0;bottom:0;left:0;z-index:2147483647;background:#0d2b6b;color:#fff;font-family:sans-serif;padding:32px 22px;text-align:center;line-height:1.5');
+      d.innerHTML = '<div style="font-size:2rem;margin-bottom:10px">⚠️</div>' +
+        '<div style="font-weight:bold;font-size:1.05rem;margin-bottom:10px;color:#f5c518">STLCityRoute couldn\'t start on this browser</div>' +
+        '<div style="font-size:0.85rem;opacity:0.85">This usually means the phone\'s browser is too old. Update Chrome (Android) or iOS, then reopen the app. ' +
+        'If it\'s already up to date, reload once with a signal.</div>';
+      b.appendChild(d);
+      Diag.record('boot-failed', new Error('main script did not define _initBody'));
+    } catch (_e) {}
+  }, 4000);
+});
+
 // Drop-in replacement for `catch(_e){}`. Same swallow-and-continue
 // semantics — the ONLY difference is that the failure is now recoverable
 // after the fact. Global so every module and every inline handler can
@@ -302,8 +340,12 @@ window._swState = {
           }
         });
       });
+      // Drop CL: only reload when WE asked a waiting worker to take over.
+      // controllerchange also fires on a first-ever install (clients.claim
+      // gives an uncontrolled page its first controller) — that one needs
+      // no reload, the page already runs the current code.
       navigator.serviceWorker.addEventListener('controllerchange', () => {
-        if (window._swReloading) return;
+        if (window._swReloading || !window._swUpdateRequested) return;
         window._swReloading = true;
         window.location.reload();
       });
@@ -322,17 +364,60 @@ window._swState = {
   listenForInstallPrompt();
 })();
 
+// Drop CL: updates are applied only at a SAFE moment. Previously the new
+// worker skipped waiting at install and the page reloaded on
+// controllerchange — a deploy could reload the app mid-photo-session, with
+// the camera open, or while close-out notes were being typed, and that
+// in-memory work was lost. Now a waiting update is applied:
+//   - when the user taps the "update ready" toast, or
+//   - when the app goes to the background AND nothing is in flight.
+// Opening the camera also backgrounds the page, so "nothing in flight"
+// explicitly excludes an active photo session / pending camera return.
+var _swWaitingWorker = null;
+function _isSwUpdateSafe() {
+  try {
+    if (typeof _photoSession !== 'undefined' && _photoSession && _photoSession.active) return false;
+    if (sessionStorage.getItem('stlcr:camera-pending')) return false;
+    if (document.querySelector('.sync-header-btn.syncing')) return false;
+    var overlays = document.querySelectorAll('.modal-overlay, #settings-modal, #csb-nav-modal');
+    for (var i = 0; i < overlays.length; i++) {
+      if (overlays[i].style.display && overlays[i].style.display !== 'none') return false;
+    }
+  } catch (_e) { return false; }
+  return true;
+}
+function _applySwUpdateNow() {
+  if (!_swWaitingWorker) return;
+  window._swUpdateRequested = true;
+  try { if (typeof saveStops === 'function') saveStops(); } catch (_e) { _swallow('_applySwUpdateNow', _e); }
+  try { _swWaitingWorker.postMessage({ type: 'SKIP_WAITING' }); } catch (_e) { _swallow('_applySwUpdateNow', _e); }
+}
+window._applySwUpdateNow = _applySwUpdateNow;
 function notifyUpdateAvailable(worker) {
-  // Show a subtle update available toast after the app loads
+  // Can be reached twice (reg.waiting at load + updatefound); hook once.
+  var _first = !_swWaitingWorker;
+  _swWaitingWorker = worker;
+  if (!_first) return;
+  // Deferred 3s: lets the app finish booting, and guarantees #toast exists.
   setTimeout(() => {
+    try {
+      var t = document.getElementById('toast');
+      if (t && !t._swUpdateHooked) {
+        t._swUpdateHooked = true;
+        t.style.cursor = 'pointer';
+        t.addEventListener('click', function() {
+          // Only when the toast is actually showing the update message.
+          if (_swWaitingWorker && /update ready/i.test(t.textContent || '') && _isSwUpdateSafe()) _applySwUpdateNow();
+        });
+      }
+    } catch (_e) { _swallow('notifyUpdateAvailable', _e); }
     if (typeof showToast === 'function') {
-      showToast('App update available — tap to refresh');
+      showToast('App update ready — tap here to restart');
     }
   }, 3000);
-  // Auto-apply update
-  setTimeout(() => {
-    worker.postMessage({ type: 'SKIP_WAITING' });
-  }, 8000);
+  document.addEventListener('visibilitychange', function() {
+    if (document.visibilityState === 'hidden' && _isSwUpdateSafe()) _applySwUpdateNow();
+  });
 }
 
 function listenForInstallPrompt() {
@@ -355,8 +440,20 @@ function listenForInstallPrompt() {
       });
 }
 </script>
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
+<!-- Drop CL: fonts are self-hosted (./fonts/*.woff2, SIL OFL — licenses in
+     that folder) and precached by sw.js. They used to come from a render-
+     blocking fonts.googleapis.com stylesheet that the service worker never
+     cached (googleapis.com is in its PASSTHROUGH list), so on a weak-but-
+     connected signal the whole app could sit on a blank screen until that
+     request gave up. font-display:swap keeps text visible while they load. -->
+<style>
+@font-face{font-family:'Syne';font-style:normal;font-weight:400;font-display:swap;src:url(./fonts/syne-latin-400-normal.woff2) format('woff2')}
+@font-face{font-family:'Syne';font-style:normal;font-weight:600;font-display:swap;src:url(./fonts/syne-latin-600-normal.woff2) format('woff2')}
+@font-face{font-family:'Syne';font-style:normal;font-weight:700;font-display:swap;src:url(./fonts/syne-latin-700-normal.woff2) format('woff2')}
+@font-face{font-family:'Syne';font-style:normal;font-weight:800;font-display:swap;src:url(./fonts/syne-latin-800-normal.woff2) format('woff2')}
+@font-face{font-family:'Space Mono';font-style:normal;font-weight:400;font-display:swap;src:url(./fonts/space-mono-latin-400-normal.woff2) format('woff2')}
+@font-face{font-family:'Space Mono';font-style:normal;font-weight:700;font-display:swap;src:url(./fonts/space-mono-latin-700-normal.woff2) format('woff2')}
+</style>
 <!-- ══════════════════════════════════════════════════════════════════════
      LEAFLET — SELF-HOSTED (Drop BH, 2026-08-12)
      ══════════════════════════════════════════════════════════════════════
@@ -422,9 +519,9 @@ if (typeof L === 'undefined') {
 .u-card        { background:#ffffff; border-radius:12px; padding:14px; margin-bottom:10px; }
 .u-section-heading { font-family:'Syne',sans-serif; font-weight:800; font-size:0.8rem; color:var(--forest); margin-bottom:8px; }
 *{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
-body{font-family:'Space Mono',monospace;background:var(--forest);min-height:100dvh;color:var(--forest);overflow-x:hidden}
-body::before{content:'';position:fixed;inset:0;background:radial-gradient(ellipse at 20% 20%,rgba(245,197,24,0.07) 0%,transparent 60%),radial-gradient(ellipse at 80% 80%,rgba(26,74,156,0.35) 0%,transparent 60%),linear-gradient(160deg,#0d2b6b 0%,#071840 100%);z-index:0;pointer-events:none}
-#app{position:relative;z-index:1;max-width:480px;margin:0 auto;min-height:100dvh;display:flex;flex-direction:column}
+body{font-family:'Space Mono',monospace;background:var(--forest);min-height:100vh;min-height:100dvh;color:var(--forest);overflow-x:hidden}
+body::before{content:'';position:fixed;top:0;right:0;bottom:0;left:0;background:radial-gradient(ellipse at 20% 20%,rgba(245,197,24,0.07) 0%,transparent 60%),radial-gradient(ellipse at 80% 80%,rgba(26,74,156,0.35) 0%,transparent 60%),linear-gradient(160deg,#0d2b6b 0%,#071840 100%);z-index:0;pointer-events:none}
+#app{position:relative;z-index:1;max-width:480px;margin:0 auto;min-height:100vh;min-height:100dvh;display:flex;flex-direction:column}
 
 /* HEADER — two-row full-width layout */
 header{
@@ -1060,7 +1157,7 @@ html{scroll-padding-top:var(--topbar-h,0px)}
      popup below). Leaflet gestures only apply when the touch starts inside
      the map box, so the user can always swipe the area outside to scroll
      back up to the toolbar. */
-  height:65dvh;
+  height:65vh;height:65dvh;
   max-height:560px;
   min-height:320px;
   border-radius:var(--radius);
@@ -1083,8 +1180,8 @@ html{scroll-padding-top:var(--topbar-h,0px)}
 #map-toolbar-pin{margin-left:-16px;margin-right:-16px;padding-left:16px;padding-right:16px}
 
 /* CASE EDITOR MODAL */
-.modal-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,0.75);z-index:998;align-items:flex-end;justify-content:center;padding:0}
-.modal-sheet{background:white;border-radius:20px 20px 0 0;padding:18px 18px 30px;width:100%;max-width:480px;max-height:88dvh;overflow-y:auto;box-shadow:0 -8px 40px rgba(0,0,0,0.35)}
+.modal-overlay{display:none;position:fixed;top:0;right:0;bottom:0;left:0;background:rgba(0,0,0,0.75);z-index:998;align-items:flex-end;justify-content:center;padding:0}
+.modal-sheet{background:white;border-radius:20px 20px 0 0;padding:18px 18px 30px;width:100%;max-width:480px;max-height:88vh;max-height:88dvh;overflow-y:auto;box-shadow:0 -8px 40px rgba(0,0,0,0.35)}
 .modal-handle{width:40px;height:4px;background:#ddd;border-radius:2px;margin:0 auto 14px}
 .modal-title{font-family:'Syne',sans-serif;font-weight:800;font-size:0.9rem;color:var(--forest);margin-bottom:3px}
 .modal-addr{font-size:0.65rem;color:#888;font-family:'Space Mono',monospace;margin-bottom:14px}
@@ -1260,9 +1357,9 @@ body.tool-fullscreen-pdfdocs #cnd-pdf-modal .modal-sheet {
     max-width: 640px !important;
     margin: 0 auto;
     border-radius: 16px !important;
-    height: 92dvh !important;
-    max-height: 92dvh !important;
-    margin-top: 4dvh;
+    height: 92vh !important;height: 92dvh !important;
+    max-height: 92vh !important;max-height: 92dvh !important;
+    margin-top: 4vh;margin-top: 4dvh;
     box-shadow: 0 12px 60px rgba(0,0,0,0.45);
   }
 }
@@ -1300,7 +1397,7 @@ body.tool-fullscreen-pdfdocs #cnd-pdf-modal .modal-sheet {
      of the city visible without panning. Both taller (using vertical
      space a phone doesn't have at all) and full frame width. */
   body.app-fullscreen #visual-route-map {
-    height: 82dvh;
+    height: 82vh;height: 82dvh;
     max-height: 1100px;
   }
 
@@ -1424,7 +1521,7 @@ body.tool-fullscreen-pdfdocs #cnd-pdf-modal .modal-sheet {
 .cndmg-btn.danger{border-color:#d8b3a8;color:#a3402f}
 .cndmg-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(78px,1fr));gap:6px;padding:8px;border-top:1px solid #eae7de}
 .cndmg-tile{position:relative;border:2px solid #3f6b4c;background:#fff;cursor:pointer;aspect-ratio:3/4;overflow:hidden;user-select:none;-webkit-user-select:none}
-.cndmg-tile .th{position:absolute;inset:0;display:flex;align-items:center;justify-content:center}
+.cndmg-tile .th{position:absolute;top:0;right:0;bottom:0;left:0;display:flex;align-items:center;justify-content:center}
 .cndmg-tile img{width:100%;height:100%;object-fit:contain;display:block;pointer-events:none}
 .cndmg-tile.off{border-color:#d9d6cd}
 .cndmg-tile.off .th{opacity:.35}
@@ -1448,8 +1545,23 @@ body.tool-fullscreen-pdfdocs #cnd-pdf-modal .modal-sheet {
    needed. Applied identically in the two report-generator style
    blocks below (#photo-tracker-map, #area-map) so exported/printed
    maps match. */
-.leaflet-tile-pane img {
+/* Drop CL: filter applied once to the tile PANE instead of to every tile
+   <img> (20–40 separately filtered layers on a typical view — costly on
+   low-end GPUs during pan/zoom). Same visual result: the pane holds only
+   basemap tiles; overlays/markers are in sibling panes. */
+.leaflet-tile-pane {
   filter: grayscale(0.55) brightness(1.15) contrast(0.85) saturate(0.6);
+}
+/* Drop CL: low-end devices (body.low-end, set at boot when the browser
+   reports ≤2 GB RAM or ≤4 cores) drop purely decorative filters/shadows
+   that are expensive to paint on weak GPUs. */
+html.low-end .action-btn-icon, html.low-end .nav-circle, html.low-end .photo-circle,
+html.low-end .photostamp-header-btn, html.low-end .sync-header-btn, html.low-end .pdfdocs-header-btn,
+html.low-end .resources-header-btn, html.low-end .info-tile .info-tile-icon, html.low-end .btn-scan { filter: none !important; }
+html.low-end .leaflet-tooltip.boundary-label-ward, html.low-end .leaflet-tooltip.boundary-label-nbhd,
+html.low-end .leaflet-tooltip.boundary-label-police, html.low-end .leaflet-tooltip.boundary-label-precinct,
+html.low-end .leaflet-tooltip.boundary-label-cid, html.low-end .leaflet-tooltip.photo-setup-street-label {
+  text-shadow: 0 0 3px rgba(255,255,255,0.95) !important;
 }
 </style>
 </head>
@@ -1460,7 +1572,7 @@ body.tool-fullscreen-pdfdocs #cnd-pdf-modal .modal-sheet {
 <!-- PIN MODAL -->
 
 <!-- SETTINGS MODAL -->
-<div id="settings-modal" role="dialog" aria-modal="true" aria-labelledby="settings-modal-title" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.7);z-index:999;align-items:flex-start;justify-content:center;padding:20px;overflow-y:auto">
+<div id="settings-modal" role="dialog" aria-modal="true" aria-labelledby="settings-modal-title" style="display:none;position:fixed;top:0;right:0;bottom:0;left:0;background:rgba(0,0,0,0.7);z-index:999;align-items:flex-start;justify-content:center;padding:20px;overflow-y:auto">
   <div style="background:white;border-radius:var(--radius);padding:20px;width:100%;max-width:420px;box-shadow:0 8px 40px rgba(0,0,0,0.4);margin:auto">
     <div class="settings-modal-header">
       <div id="settings-modal-title" style="font-family:'Syne',sans-serif;font-weight:800;font-size:0.95rem;color:var(--forest)">⚙️ Settings</div>
@@ -1729,7 +1841,7 @@ body.tool-fullscreen-pdfdocs #cnd-pdf-modal .modal-sheet {
           </div>
           <label style="position:relative;display:inline-block;width:44px;height:24px;flex-shrink:0">
             <input type="checkbox" id="pref-left-hand-mode-toggle" onchange="setLeftHandMode(this.checked)" style="opacity:0;width:0;height:0">
-            <span id="pref-left-hand-mode-slider" style="position:absolute;cursor:pointer;inset:0;background:#ccc;transition:0.2s;border-radius:24px">
+            <span id="pref-left-hand-mode-slider" style="position:absolute;cursor:pointer;top:0;right:0;bottom:0;left:0;background:#ccc;transition:0.2s;border-radius:24px">
               <span style="position:absolute;height:18px;width:18px;left:3px;bottom:3px;background:white;transition:0.2s;border-radius:50%"></span>
             </span>
           </label>
@@ -1877,7 +1989,7 @@ body.tool-fullscreen-pdfdocs #cnd-pdf-modal .modal-sheet {
 
 <!-- ===== PROFILE IMPORT CONFIRMATION MODAL ===== -->
 <div id="profile-import-modal" class="modal-overlay" style="display:none;z-index:9700" role="dialog" aria-modal="true" aria-labelledby="profile-import-modal-title" data-backdrop-close data-fn="closeProfileImportModal">
-  <div class="modal-sheet" style="padding-bottom:24px;background:white;max-height:88dvh;overflow-y:auto">
+  <div class="modal-sheet" style="padding-bottom:24px;background:white;max-height:88vh;max-height:88dvh;overflow-y:auto">
     <div class="modal-handle"></div>
     <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px">
       <div id="profile-import-modal-title" style="font-family:'Syne',sans-serif;font-weight:800;font-size:0.95rem;color:var(--forest)">📥 Import Profile</div>
@@ -1910,7 +2022,7 @@ body.tool-fullscreen-pdfdocs #cnd-pdf-modal .modal-sheet {
 
 <!-- ===== STOP ARCHIVE VIEWER MODAL ===== -->
 <div id="archive-modal" class="modal-overlay" style="display:none;z-index:9650" role="dialog" aria-modal="true" aria-labelledby="archive-modal-title" data-backdrop-close data-fn="closeArchiveModal">
-  <div class="modal-sheet" style="padding-bottom:24px;background:white;max-height:88dvh;overflow-y:auto;width:100%;max-width:520px">
+  <div class="modal-sheet" style="padding-bottom:24px;background:white;max-height:88vh;max-height:88dvh;overflow-y:auto;width:100%;max-width:520px">
     <div class="modal-handle"></div>
     <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px;padding:0 4px">
       <div id="archive-modal-title" style="font-family:'Syne',sans-serif;font-weight:800;font-size:0.95rem;color:var(--forest)">📦 Stop Archive</div>
@@ -1930,7 +2042,7 @@ body.tool-fullscreen-pdfdocs #cnd-pdf-modal .modal-sheet {
      saveSettingsKey, so the resulting stored blob is interchangeable with
      what Settings produces. -->
 <div id="supercharge-modal" class="modal-overlay" style="display:none;z-index:9700" role="dialog" aria-modal="true" aria-labelledby="supercharge-modal-title" data-backdrop-close data-fn="closeSuperchargeModal">
-  <div class="modal-sheet" style="padding-bottom:24px;background:white;max-height:88dvh;overflow-y:auto;width:100%;max-width:520px">
+  <div class="modal-sheet" style="padding-bottom:24px;background:white;max-height:88vh;max-height:88dvh;overflow-y:auto;width:100%;max-width:520px">
     <div class="modal-handle"></div>
     <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;padding:0 4px">
       <div id="supercharge-modal-title" style="font-family:'Syne',sans-serif;font-weight:800;font-size:1rem;color:var(--forest);display:flex;align-items:center;gap:6px">
@@ -1995,7 +2107,7 @@ body.tool-fullscreen-pdfdocs #cnd-pdf-modal .modal-sheet {
      and renders the response. Triggered from the Info tab tile. Only useful
      when an API key is set; otherwise the tile re-routes to Supercharge. -->
 <div id="debrief-modal" class="modal-overlay" style="display:none;z-index:9650" role="dialog" aria-modal="true" aria-labelledby="debrief-modal-title" data-backdrop-close data-fn="closeDebriefModal">
-  <div class="modal-sheet" style="padding-bottom:24px;background:white;max-height:88dvh;overflow-y:auto;width:100%;max-width:540px">
+  <div class="modal-sheet" style="padding-bottom:24px;background:white;max-height:88vh;max-height:88dvh;overflow-y:auto;width:100%;max-width:540px">
     <div class="modal-handle"></div>
     <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;padding:0 4px">
       <div id="debrief-modal-title" style="font-family:'Syne',sans-serif;font-weight:800;font-size:1rem;color:var(--forest);display:flex;align-items:center;gap:6px">
@@ -2019,7 +2131,7 @@ body.tool-fullscreen-pdfdocs #cnd-pdf-modal .modal-sheet {
      Gemini, renders the answer plus a drill-down list of any matching
      stops the AI references by ID. Strict prompt to never invent data. -->
 <div id="ask-data-modal" class="modal-overlay" style="display:none;z-index:9650" role="dialog" aria-modal="true" aria-labelledby="ask-data-modal-title" data-backdrop-close data-fn="closeAskDataModal">
-  <div class="modal-sheet" style="padding-bottom:24px;background:white;max-height:88dvh;overflow-y:auto;width:100%;max-width:540px;display:flex;flex-direction:column;position:relative">
+  <div class="modal-sheet" style="padding-bottom:24px;background:white;max-height:88vh;max-height:88dvh;overflow-y:auto;width:100%;max-width:540px;display:flex;flex-direction:column;position:relative">
     <div class="modal-handle"></div>
     <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;padding:0 4px;gap:6px">
       <button data-fn="toggleAskDataHistory" id="ask-data-history-toggle" title="Conversation history" aria-label="Conversation history" style="background:none;border:1.5px solid #c5d8c8;color:var(--moss);font-family:Syne,sans-serif;font-weight:700;font-size:0.55rem;letter-spacing:0.4px;padding:6px 9px;border-radius:7px;cursor:pointer;flex-shrink:0">📚 HISTORY</button>
@@ -2074,7 +2186,7 @@ body.tool-fullscreen-pdfdocs #cnd-pdf-modal .modal-sheet {
      Single-session thread, no persistent history (unlike Ask Your Data —
      this doesn't need cross-session recall, questions are one-offs). -->
 <div id="support-desk-modal" class="modal-overlay" style="display:none;z-index:9650" role="dialog" aria-modal="true" aria-labelledby="support-desk-modal-title" data-backdrop-close data-fn="closeSupportDeskModal">
-  <div class="modal-sheet" style="padding-bottom:24px;background:white;max-height:88dvh;overflow-y:auto;width:100%;max-width:540px;display:flex;flex-direction:column;position:relative">
+  <div class="modal-sheet" style="padding-bottom:24px;background:white;max-height:88vh;max-height:88dvh;overflow-y:auto;width:100%;max-width:540px;display:flex;flex-direction:column;position:relative">
     <div class="modal-handle"></div>
     <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;padding:0 4px;gap:6px">
       <div id="support-desk-modal-title" style="font-family:'Syne',sans-serif;font-weight:800;font-size:1rem;color:var(--forest);display:flex;align-items:center;gap:6px;flex:1;justify-content:center">
@@ -2227,7 +2339,7 @@ body.tool-fullscreen-pdfdocs #cnd-pdf-modal .modal-sheet {
      as a real stop (routes through addStop's normal pipeline), edited,
      or removed. -->
 <div id="regular-stops-modal" class="modal-overlay" style="display:none" role="dialog" aria-modal="true" aria-labelledby="regular-stops-modal-title" data-backdrop-close data-fn="closeRegularStopsModal">
-  <div class="modal-sheet" style="padding-bottom:24px;background:white;max-height:85dvh;overflow-y:auto">
+  <div class="modal-sheet" style="padding-bottom:24px;background:white;max-height:85vh;max-height:85dvh;overflow-y:auto">
     <div class="modal-handle"></div>
     <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:4px">
       <div id="regular-stops-modal-title" style="font-family:'Syne',sans-serif;font-weight:800;font-size:0.9rem;color:#1a3320">⭐ Regular Stops</div>
@@ -2240,7 +2352,7 @@ body.tool-fullscreen-pdfdocs #cnd-pdf-modal .modal-sheet {
 
 <!-- ===== REGULAR STOP EDITOR MODAL (add/edit a single entry) ===== -->
 <div id="regular-stop-editor-modal" class="modal-overlay" style="display:none;z-index:1000" role="dialog" aria-modal="true" aria-labelledby="regular-stop-editor-title" data-backdrop-close data-fn="closeRegularStopEditor">
-  <div class="modal-sheet" style="padding-bottom:24px;background:white;max-height:90dvh;overflow-y:auto">
+  <div class="modal-sheet" style="padding-bottom:24px;background:white;max-height:90vh;max-height:90dvh;overflow-y:auto">
     <div class="modal-handle"></div>
     <div id="regular-stop-editor-title" style="font-family:'Syne',sans-serif;font-weight:800;font-size:0.9rem;color:#1a3320;margin-bottom:12px">+ New Regular Stop</div>
 
@@ -2366,7 +2478,7 @@ body.tool-fullscreen-pdfdocs #cnd-pdf-modal .modal-sheet {
 </div>
 
 <!-- ===== CSB NAVIGATOR MODAL ===== -->
-<div id="csb-nav-modal" role="dialog" aria-modal="true" aria-labelledby="csb-nav-modal-title" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.75);z-index:9200;overflow-y:auto;-webkit-overflow-scrolling:touch">
+<div id="csb-nav-modal" role="dialog" aria-modal="true" aria-labelledby="csb-nav-modal-title" style="display:none;position:fixed;top:0;right:0;bottom:0;left:0;background:rgba(0,0,0,0.75);z-index:9200;overflow-y:auto;-webkit-overflow-scrolling:touch">
   <div style="background:white;border-radius:16px 16px 0 0;padding:0 0 32px;max-width:480px;margin:40px auto 0;min-height:calc(100vh - 40px);box-shadow:0 -4px 30px rgba(0,0,0,0.3);display:flex;flex-direction:column">
 
     <!-- Sticky header -->
@@ -2662,7 +2774,7 @@ body.tool-fullscreen-pdfdocs #cnd-pdf-modal .modal-sheet {
            phone ended up doesn't silently connect to wherever tracking left
            off; the inspector explicitly confirms they're back on the route
            before tracking (and the highlight trail) picks back up. -->
-      <button data-fn="resumeSurveyAfterPause" id="survey-resume-overlay" style="display:none;position:absolute;inset:0;width:100%;height:100%;border:none;border-radius:10px;padding:0;cursor:pointer;background:#c0392b;color:white;font-family:Syne,sans-serif;font-weight:800;font-size:0.8rem;flex-direction:column;align-items:center;justify-content:center;gap:2px">
+      <button data-fn="resumeSurveyAfterPause" id="survey-resume-overlay" style="display:none;position:absolute;top:0;right:0;bottom:0;left:0;width:100%;height:100%;border:none;border-radius:10px;padding:0;cursor:pointer;background:#c0392b;color:white;font-family:Syne,sans-serif;font-weight:800;font-size:0.8rem;flex-direction:column;align-items:center;justify-content:center;gap:2px">
         <span style="font-size:1rem;line-height:1">▶</span>
         <span>Resume Survey</span>
       </button>
@@ -2908,7 +3020,7 @@ body.tool-fullscreen-pdfdocs #cnd-pdf-modal .modal-sheet {
 </div>
 
 <!-- ── FULLSCREEN OVERLAY (shared for all views) ── -->
-<div id="fullscreen-overlay" style="display:none;position:fixed;inset:0;z-index:9000;background:#0d2b6b;overflow-y:auto;padding:20px">
+<div id="fullscreen-overlay" style="display:none;position:fixed;top:0;right:0;bottom:0;left:0;z-index:9000;background:#0d2b6b;overflow-y:auto;padding:20px">
   <button data-fn="closeFullscreen" style="position:fixed;top:14px;right:14px;z-index:9001;background:rgba(126,200,80,0.2);border:1px solid rgba(126,200,80,0.4);color:var(--lime);border-radius:50%;width:38px;height:38px;font-size:1.1rem;cursor:pointer;display:flex;align-items:center;justify-content:center">✕</button>
   <div id="fullscreen-content" style="max-width:480px;margin:0 auto"></div>
 </div>
@@ -2917,7 +3029,7 @@ body.tool-fullscreen-pdfdocs #cnd-pdf-modal .modal-sheet {
 <!-- creds-customize-modal removed — content merged into #settings-modal -->
 
 <!-- ── TEXT EDITOR MODAL (shared for all editable panels) ── -->
-<div id="text-editor-modal" role="dialog" aria-modal="true" aria-labelledby="text-editor-title" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.75);z-index:9800;overflow-y:auto;padding:16px">
+<div id="text-editor-modal" role="dialog" aria-modal="true" aria-labelledby="text-editor-title" style="display:none;position:fixed;top:0;right:0;bottom:0;left:0;background:rgba(0,0,0,0.75);z-index:9800;overflow-y:auto;padding:16px">
   <div style="background:white;border-radius:16px;padding:20px;max-width:460px;margin:0 auto">
     <div style="font-family:'Syne',sans-serif;font-weight:800;font-size:0.9rem;color:var(--forest);margin-bottom:4px" id="text-editor-title">Edit Content</div>
     <div style="font-size:0.58rem;color:#888;font-family:'Space Mono',monospace;margin-bottom:10px" id="text-editor-sub"></div>
@@ -2931,7 +3043,7 @@ body.tool-fullscreen-pdfdocs #cnd-pdf-modal .modal-sheet {
 </div>
 
 <!-- ── DOCS UPLOADER MODAL ── -->
-<div id="docs-upload-modal" role="dialog" aria-modal="true" aria-labelledby="docs-upload-modal-title" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.75);z-index:9800;padding:16px;overflow-y:auto">
+<div id="docs-upload-modal" role="dialog" aria-modal="true" aria-labelledby="docs-upload-modal-title" style="display:none;position:fixed;top:0;right:0;bottom:0;left:0;background:rgba(0,0,0,0.75);z-index:9800;padding:16px;overflow-y:auto">
   <div style="background:white;border-radius:16px;padding:20px;max-width:460px;margin:0 auto">
     <div id="docs-upload-modal-title" style="font-family:'Syne',sans-serif;font-weight:800;font-size:0.9rem;color:var(--forest);margin-bottom:4px">📄 Reference Documents</div>
     <div style="font-size:0.56rem;color:#888;font-family:'Space Mono',monospace;margin-bottom:12px">Upload images to keep as scrollable reference thumbnails.</div>
@@ -3550,7 +3662,7 @@ body.tool-fullscreen-pdfdocs #cnd-pdf-modal .modal-sheet {
        was cramping it. No max-width/max-height cap, no rounded top corners
        (there's no "sheet" left to round), and overflow-y so the whole
        modal scrolls as one column on small phones. -->
-  <div class="modal-sheet" style="padding:18px 18px 24px;background:white;width:100%;max-width:none;height:100dvh;max-height:100dvh;border-radius:0;overflow-y:auto">
+  <div class="modal-sheet" style="padding:18px 18px 24px;background:white;width:100%;max-width:none;height:100vh;height:100dvh;max-height:100vh;max-height:100dvh;border-radius:0;overflow-y:auto">
     <div class="modal-handle"></div>
     <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px;gap:6px">
       <div id="photo-setup-modal-title" style="font-family:'Syne',sans-serif;font-weight:800;font-size:0.9rem;color:#8c4a00">📷 Prepare Photo</div>
@@ -3617,8 +3729,8 @@ body.tool-fullscreen-pdfdocs #cnd-pdf-modal .modal-sheet {
      working, not broken. Highest z-index in the file — must sit above the
      Prepare Photo modal (9998) and the Photo Preview modal (10000), since
      it needs to cover whichever is closing/opening around it. -->
-<div id="photo-processing-overlay" style="display:none;position:fixed;inset:0;z-index:10001;background:#0a0a0a;flex-direction:column;align-items:center;justify-content:center" role="status" aria-live="polite" aria-label="Stamping photo">
-  <img id="photo-processing-img" style="max-width:100%;max-height:100%;object-fit:contain;position:absolute;inset:0;width:100%;height:100%" alt="">
+<div id="photo-processing-overlay" style="display:none;position:fixed;top:0;right:0;bottom:0;left:0;z-index:10001;background:#0a0a0a;flex-direction:column;align-items:center;justify-content:center" role="status" aria-live="polite" aria-label="Stamping photo">
+  <img id="photo-processing-img" style="max-width:100%;max-height:100%;object-fit:contain;position:absolute;top:0;right:0;bottom:0;left:0;width:100%;height:100%" alt="">
   <div style="position:relative;display:flex;flex-direction:column;align-items:center;gap:12px;background:rgba(10,10,10,0.55);border-radius:16px;padding:22px 28px">
     <div style="font-size:2.6rem;line-height:1;animation:photostampPulse 1.1s ease-in-out infinite">📷</div>
     <div id="photo-processing-label" style="font-family:'Syne',sans-serif;font-weight:800;font-size:0.72rem;color:white;letter-spacing:0.5px">Stamping photo…</div>
@@ -3634,7 +3746,7 @@ body.tool-fullscreen-pdfdocs #cnd-pdf-modal .modal-sheet {
        routing map visible behind it, right after every single capture,
        was the "buggy behavior after the photo is taken" — a layout jump,
        not an actual bug, but it read as one every time. -->
-  <div class="modal-sheet" style="padding:18px 18px 24px;background:white;width:100%;max-width:none;height:100dvh;max-height:100dvh;border-radius:0;overflow-y:auto">
+  <div class="modal-sheet" style="padding:18px 18px 24px;background:white;width:100%;max-width:none;height:100vh;height:100dvh;max-height:100vh;max-height:100dvh;border-radius:0;overflow-y:auto">
     <div class="modal-handle"></div>
     <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px;gap:6px">
       <div id="photo-preview-modal-title" style="font-family:'Syne',sans-serif;font-weight:800;font-size:0.9rem;color:#8c4a00">📷 Stamped Photo</div>
@@ -3728,7 +3840,7 @@ body.tool-fullscreen-pdfdocs #cnd-pdf-modal .modal-sheet {
 
 <!-- PHOTO SETTINGS MODAL -->
 <div id="photo-settings-modal" class="modal-overlay" style="display:none;z-index:10001" role="dialog" aria-modal="true" aria-labelledby="photo-settings-modal-title" data-backdrop-close data-fn="closePhotoSettings">
-  <div class="modal-sheet" style="padding-bottom:24px;background:white;max-height:90dvh;overflow-y:auto">
+  <div class="modal-sheet" style="padding-bottom:24px;background:white;max-height:90vh;max-height:90dvh;overflow-y:auto">
     <div class="modal-handle"></div>
     <div id="photo-settings-modal-title" style="font-family:'Syne',sans-serif;font-weight:800;font-size:0.9rem;color:#8c4a00;margin-bottom:4px">📷 Stamp Settings</div>
     <div style="font-family:'Space Mono',monospace;font-size:0.58rem;color:#666;margin-bottom:12px;line-height:1.5">Choose what gets burned into the corner of every stamped photo.</div>
@@ -3781,7 +3893,7 @@ body.tool-fullscreen-pdfdocs #cnd-pdf-modal .modal-sheet {
 
 <!-- EDIT STOP MODAL — address / type / notes all-in-one -->
 <div id="edit-stop-modal" class="modal-overlay" style="display:none;z-index:10002" role="dialog" aria-modal="true" aria-labelledby="edit-stop-modal-title" data-backdrop-close data-fn="closeEditStop">
-  <div class="modal-sheet" style="padding-bottom:24px;background:white;max-height:90dvh;overflow-y:auto">
+  <div class="modal-sheet" style="padding-bottom:24px;background:white;max-height:90vh;max-height:90dvh;overflow-y:auto">
     <div class="modal-handle"></div>
     <div id="edit-stop-modal-title" style="font-family:'Syne',sans-serif;font-weight:800;font-size:0.9rem;color:#1a3320;margin-bottom:4px">✎ Edit Stop</div>
     <div style="font-family:'Space Mono',monospace;font-size:0.58rem;color:#666;margin-bottom:12px;line-height:1.5">Change the address, stop type, or initial notes on this stop.</div>
@@ -3834,7 +3946,7 @@ body.tool-fullscreen-pdfdocs #cnd-pdf-modal .modal-sheet {
 
 <!-- CUSTOM STOP TYPE CREATOR MODAL -->
 <div id="custom-type-modal" class="modal-overlay" style="display:none;z-index:10002" role="dialog" aria-modal="true" aria-labelledby="custom-type-modal-title" data-backdrop-close data-fn="closeCustomTypeModal">
-  <div class="modal-sheet" style="padding-bottom:24px;background:white;max-height:90dvh;overflow-y:auto">
+  <div class="modal-sheet" style="padding-bottom:24px;background:white;max-height:90vh;max-height:90dvh;overflow-y:auto">
     <div class="modal-handle"></div>
     <div id="custom-type-modal-title" style="font-family:'Syne',sans-serif;font-weight:800;font-size:0.9rem;color:#1a3320;margin-bottom:4px">＋ Create Custom Stop Type</div>
     <div style="font-family:'Space Mono',monospace;font-size:0.58rem;color:#666;margin-bottom:12px;line-height:1.5">Add a custom category to the stop type dropdown. Delete or edit any time from Settings.</div>
@@ -5335,6 +5447,8 @@ const ProfileBackup = (function() {
 
   // ─── Build the export object ────────────────────────────────────────────
   async function buildExport() {
+    // Drop CL: survey breadcrumbs are buffered in memory; persist them first.
+    try { if (typeof SurveyCoverage !== 'undefined' && SurveyCoverage.flush) SurveyCoverage.flush(); } catch (_e) { _swallow('buildExport', _e); }
     var lsBlob = {};
     var allKeys = LS.keys();
     allKeys.forEach(function(k) {
@@ -7408,12 +7522,29 @@ function renderDiagnosticsLog() {
   var entries;
   try { entries = (typeof _getSwallowedLog === 'function') ? _getSwallowedLog() : []; }
   catch(_) { entries = []; }
+  // Drop CL: device + boot-timing + storage summary at the top, so a field
+  // report from a cheap phone carries the numbers needed to act on it.
+  var head = '';
+  try {
+    var bt = JSON.parse(localStorage.getItem('stlcr:boot-timing') || '[]');
+    var top = (typeof _largestStorageGroups === 'function') ? _largestStorageGroups(4) : [];
+    var used = (typeof _measureLocalStorageBytes === 'function') ? _measureLocalStorageBytes() : 0;
+    head = '<div style="padding:6px 8px;border-bottom:2px solid #d0d0c8;background:#fafaf6">' +
+      '<div style="color:#222;font-weight:700">Device &amp; boot</div>' +
+      '<div style="color:#444">' + escHtml((navigator.deviceMemory ? navigator.deviceMemory + ' GB RAM · ' : '') +
+        (navigator.hardwareConcurrency ? navigator.hardwareConcurrency + ' cores · ' : '') +
+        (document.documentElement.classList.contains('low-end') ? 'low-end mode' : 'normal mode')) + '</div>' +
+      (bt.length ? '<div style="color:#444;margin-top:3px">Recent boots:<br>' + bt.slice(-5).reverse().map(escHtml).join('<br>') + '</div>' : '') +
+      '<div style="color:#444;margin-top:3px">Local storage: ' + Math.round(used / 1024) + ' KB of ~5120 KB' +
+        (top.length ? ' — ' + escHtml(top.map(function(g) { return g.label + ' ' + Math.round(g.bytes / 1024) + ' KB'; }).join(', ')) : '') + '</div>' +
+      '</div>';
+  } catch (_e) { _swallow('renderDiagnosticsLog', _e); }
   if (!entries || entries.length === 0) {
-    out.innerHTML = '<div style="color:#999;font-style:italic">No absorbed errors recorded. The app is either healthy or no _tryLog-wrapped operation has failed yet.</div>';
+    out.innerHTML = head + '<div style="color:#999;font-style:italic">No absorbed errors recorded. The app is either healthy or no _tryLog-wrapped operation has failed yet.</div>';
     return;
   }
   // Most recent first
-  var html = '';
+  var html = head;
   for (var i = entries.length - 1; i >= 0; i--) {
     var e = entries[i];
     var t = '';
@@ -8734,6 +8865,23 @@ function init() {
     if (!LS.get('setup-complete')) {
       setTimeout(_showFirstRunGpsSetup, 400);
     }
+    // Drop CL: boot timing (head-start → init done), visible in Diagnostics.
+    window._stlcrBooted = true;
+    try {
+      var _bootMs = Math.round(performance.now() - (window._bootT0 || 0));
+      var _nav = performance.getEntriesByType ? performance.getEntriesByType('navigation')[0] : null;
+      var _bootMsg = 'head→init ' + _bootMs + ' ms' +
+        (_nav ? ' · DOMContentLoaded at ' + Math.round(_nav.domContentLoadedEventEnd) + ' ms' : '') +
+        (navigator.deviceMemory ? ' · ' + navigator.deviceMemory + ' GB' : '') +
+        (navigator.hardwareConcurrency ? ' · ' + navigator.hardwareConcurrency + ' cores' : '');
+      // Last 10 boots kept in their own small key (not Diag — one entry per
+      // boot would push real errors out of Diag's 60-entry ring).
+      var _bt = []; try { _bt = JSON.parse(localStorage.getItem('stlcr:boot-timing') || '[]'); } catch (_e2) { _bt = []; }
+      _bt.push(new Date().toISOString().slice(0, 16) + ' ' + _bootMsg);
+      try { localStorage.setItem('stlcr:boot-timing', JSON.stringify(_bt.slice(-10))); } catch (_e2) { _swallow('init', _e2); }
+      // Slow boots ARE worth a Diag entry.
+      if (_bootMs > 4000) Diag.record('slow-boot', new Error(_bootMsg));
+    } catch (_e) { _swallow('init', _e); }
   } catch(e) {
     console.error('[init] Fatal error:', e);
     try { _beacon('crash', { msg: (e.message||'').slice(0,100), loc:'init', ver:'${APP_VERSION}' }); } catch (_) { _swallow('init', _); }
@@ -8886,14 +9034,15 @@ function _runOneTimeMigrations() {
   try {
     var _sd = safeParseLS('inspector-data', null);
     if (_sd && Array.isArray(_sd.stops) && _sd.stops.length) {
+      var _changed = false;   // Drop CL: only rewrite when something was actually filled in
       _sd.stops.forEach(function(s) {
         Object.keys(STOP_DEFAULTS).forEach(function(k) {
-          if (!(k in s)) s[k] = STOP_DEFAULTS[k];
+          if (!(k in s)) { s[k] = STOP_DEFAULTS[k]; _changed = true; }
         });
         // Ensure addedAt is set (older stops may not have it)
-        if (!s.addedAt) s.addedAt = new Date(s.id || Date.now()).toISOString();
+        if (!s.addedAt) { s.addedAt = new Date(s.id || Date.now()).toISOString(); _changed = true; }
       });
-      LS.set('inspector-data', JSON.stringify(_sd));
+      if (_changed) LS.set('inspector-data', JSON.stringify(_sd));
     }
   } catch (_e2) { _swallow('_runOneTimeMigrations', _e2); }
   // 2026-07-28: purge any leftover Anthropic API key material from a
@@ -9140,6 +9289,23 @@ function _cleanupRetiredState() {
     try { if (LS.get(k)) LS.remove(k); } catch (e) { _swallow('_cleanupRetiredState', e); }
   });
 
+  // Drop CL: purge the retired per-coordinate geoLookup cache ('geo-pt:v1'…
+  // 'geo-pt:v4', every profile). It grew by one key per unique photo/stop
+  // coordinate forever; older versions' keys were never removed at all.
+  // One-time, guarded by a shared marker.
+  try {
+    if (localStorage.getItem(LS_PREFIX + '_purged_geo_pt') !== '1') {
+      var _gp = [];
+      for (var _i = 0; _i < localStorage.length; _i++) {
+        var _k = localStorage.key(_i);
+        if (_k && _k.indexOf(LS_PREFIX) === 0 && _k.indexOf('geo-pt:') !== -1) _gp.push(_k);
+      }
+      _gp.forEach(function(k) { localStorage.removeItem(k); });
+      localStorage.setItem(LS_PREFIX + '_purged_geo_pt', '1');
+      if (_gp.length) Diag.record('geo-pt-purge', new Error('removed ' + _gp.length + ' retired geo-pt keys'));
+    }
+  } catch (e) { _swallow('_cleanupRetiredState', e); }
+
   // Scrub retired built-in layer IDs from map-layers-active so they don't
   // sit there forever as orphans. The renderer already ignores unknown IDs;
   // this is just hygiene. Safe no-op if the key is absent or malformed.
@@ -9200,6 +9366,7 @@ function _attachLifecycleListeners() {
   window.addEventListener('pagehide', function() {
     try { if (_saveStopsTimer) { clearTimeout(_saveStopsTimer); _saveStopsTimer = null; } } catch (_e) { _swallow('pagehide', _e); }
     try { saveStops(); } catch (_e) { _swallow('pagehide', _e); }
+    try { if (typeof SurveyCoverage !== 'undefined') SurveyCoverage.flush(); } catch (_e) { _swallow('pagehide', _e); }
   });
 
   // ── Cross-tab write detection (Drop BH) ─────────────────────────────────
@@ -9234,6 +9401,19 @@ function _attachLifecycleListeners() {
   // Storage headroom check, deferred so it never delays first paint.
   setTimeout(function() {
     try { _checkStorageHeadroom(); } catch (_e) { _swallow('_checkStorageHeadroom', _e); }
+    // Drop CL: ask the browser not to evict this origin's IndexedDB / cache
+    // storage under disk pressure (custom map layers, offline shell). Installed
+    // PWAs are usually granted silently; otherwise this is a harmless no-op.
+    try {
+      if (navigator.storage && navigator.storage.persist) {
+        navigator.storage.persisted().then(function(already) {
+          if (already) return true;
+          return navigator.storage.persist();
+        }).then(function(granted) {
+          if (!granted) Diag.record('storage-persist', new Error('persistent storage not granted'));
+        }).catch(function() {});
+      }
+    } catch (_e) { _swallow('storagePersist', _e); }
   }, 4000);
 }
 
@@ -9263,16 +9443,51 @@ function _measureLocalStorageBytes() {
   } catch (e) { _swallow('_measureLocalStorageBytes', e); }
   return total;
 }
+// Drop CL: also report WHICH keys are biggest. The old toast always said
+// "clear completed stops", but the usual heavyweights are the stop archive,
+// the photo log, chat history or stored images — telling the user the wrong
+// thing to delete doesn't free space.
+var _STORAGE_KEY_LABELS = [
+  [/stops-archive$/, 'stop archive (Settings → Fiscal-Day Cutoff & Archive)'],
+  [/inspector-data$/, 'current stops'],
+  [/chronic-(loc|index)/, 'photo tracker log'],
+  [/ask-data-conversations$/, 'Ask Your Data history'],
+  [/creds-ref-docs$/, 'ID card reference images'],
+  [/creds-id-front$/, 'ID photo'],
+  [/survey-breadcrumb:/, 'survey trails (Survey → Clear Path)'],
+  [/diag-log$/, 'diagnostics log']
+];
+function _largestStorageGroups(n) {
+  var groups = {};
+  try {
+    for (var i = 0; i < localStorage.length; i++) {
+      var k = localStorage.key(i);
+      if (!k) continue;
+      var bytes = (k.length + (localStorage.getItem(k) || '').length) * 2;
+      var label = 'other app data';
+      for (var j = 0; j < _STORAGE_KEY_LABELS.length; j++) {
+        if (_STORAGE_KEY_LABELS[j][0].test(k)) { label = _STORAGE_KEY_LABELS[j][1]; break; }
+      }
+      groups[label] = (groups[label] || 0) + bytes;
+    }
+  } catch (e) { _swallow('_largestStorageGroups', e); }
+  return Object.keys(groups).map(function(l) { return { label: l, bytes: groups[l] }; })
+    .sort(function(a, b) { return b.bytes - a.bytes; }).slice(0, n || 3);
+}
+window._largestStorageGroups = _largestStorageGroups;
 function _checkStorageHeadroom() {
   var used = _measureLocalStorageBytes();
   var pct = Math.round((used / STORAGE_SOFT_LIMIT_BYTES) * 100);
-  Diag.record('storage-headroom', new Error(pct + '% of ~5MB localStorage used (' + Math.round(used / 1024) + ' KB)'));
+  var top = _largestStorageGroups(3);
+  var topStr = top.map(function(g) { return g.label + ' ' + Math.round(g.bytes / 1024) + ' KB'; }).join(', ');
+  Diag.record('storage-headroom', new Error(pct + '% of ~5MB localStorage used (' + Math.round(used / 1024) + ' KB) — largest: ' + topStr));
   // Only two thresholds, and only one message per launch. A warning the user
   // sees every single day becomes invisible; these should feel rare.
+  var biggest = top.length ? top[0].label : 'completed stops';
   if (pct >= 90) {
-    showToast('⚠ Storage almost full (' + pct + '%) — clear completed stops soon or new data may not save.');
+    showToast('⚠ Storage almost full (' + pct + '%) — biggest item: ' + biggest + '. New data may not save.');
   } else if (pct >= 70) {
-    showToast('Storage is ' + pct + '% full — consider clearing completed stops.');
+    showToast('Storage is ' + pct + '% full — biggest item: ' + biggest + '.');
   }
   return pct;
 }
@@ -9333,6 +9548,10 @@ function _initBody() {
   _attachRouteListListener();
 
   _attachLifecycleListeners();
+
+  // Drop CL: reopen Photostamp if the OS killed the page while the camera
+  // was open (see _checkCameraReloadRecovery).
+  try { if (typeof _checkCameraReloadRecovery === 'function') _checkCameraReloadRecovery(); } catch (_e) { _swallow('_initBody', _e); }
 
   // Drop AS: silent Drive sync attempt — no-op unless already connected
   // with a passphrase already unlocked this session (see DriveSync
@@ -11813,6 +12032,35 @@ function updateStopCountBar() {
 // The module is intentionally a pure HTML producer. It does not attach
 // listeners (delegated handlers exist elsewhere) or touch the DOM. All
 // outputs are strings ready to drop into innerHTML.
+// ── Drop CL: stop-card icons by short blob: URL ──────────────────────────
+// Each stop card used to embed ~10 icons as full base64 data URIs, so one
+// card was tens of KB of markup and a 40-stop route was megabytes —
+// rebuilt via innerHTML on almost every tap (arrive, complete, reorder,
+// sync), on both the Stops and Route lists. Each distinct icon is now
+// converted to a Blob once and referenced by its ~60-char object URL, so
+// card markup is ~1–2 KB and the image bytes are parsed once per session.
+// The *_ICON_URI constants themselves are untouched (report exports and
+// CSS still embed the real data URIs). Falls back to the data URI if the
+// conversion fails for any reason.
+var _cardIconUrls = {};
+function _cardIcon(dataUri) {
+  if (!dataUri || dataUri.indexOf('data:') !== 0) return dataUri || '';
+  var hit = _cardIconUrls[dataUri];
+  if (hit) return hit;
+  try {
+    var comma = dataUri.indexOf(',');
+    var header = dataUri.slice(5, comma);            // e.g. "image/webp;base64"
+    var mime = header.split(';')[0] || 'image/png';
+    var bin = atob(dataUri.slice(comma + 1));
+    var bytes = new Uint8Array(bin.length);
+    for (var i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+    hit = URL.createObjectURL(new Blob([bytes], { type: mime }));
+  } catch (_e) { _swallow('_cardIcon', _e); hit = dataUri; }
+  _cardIconUrls[dataUri] = hit;
+  return hit;
+}
+window._cardIcon = _cardIcon;
+
 // MODULE: StopCard — shared HTML renderer for stops-tab and route-tab cards
 const StopCard = (function() {
 
@@ -11823,7 +12071,7 @@ const StopCard = (function() {
       ' style="display:flex;align-items:center;gap:10px;width:100%;background:none;' +
       'border:none;padding:10px 12px;text-align:left;font-family:Syne,sans-serif;' +
       'font-weight:700;font-size:0.65rem;color:' + color + ';cursor:pointer">' +
-      '<img src="' + iconUri + '" alt="" style="width:22px;height:22px;display:block;flex-shrink:0">' +
+      '<img src="' + _cardIcon(iconUri) + '" alt="" style="width:22px;height:22px;display:block;flex-shrink:0">' +
       label + '</button>';
   }
 
@@ -11836,7 +12084,7 @@ const StopCard = (function() {
       'border:none;padding:10px 12px;text-align:left;font-family:Syne,sans-serif;' +
       'font-weight:700;font-size:0.65rem;color:' + color + ';cursor:pointer;' +
       'border-bottom:1px solid #eee">' +
-      '<img src="' + iconUri + '" alt="" style="width:22px;height:22px;display:block;flex-shrink:0">' +
+      '<img src="' + _cardIcon(iconUri) + '" alt="" style="width:22px;height:22px;display:block;flex-shrink:0">' +
       label + '</button>';
   }
 
@@ -11882,7 +12130,7 @@ const StopCard = (function() {
     const menuPos = opensUp ? 'bottom:56px' : 'top:56px';
     return '<div class="action-btn-wrap">' +
       '<button data-action="util" data-id="' + s.id + '" title="Utility menu" class="action-btn-icon" aria-label="Utility">' +
-      '<img src="' + UTILITY_ICON_URI + '" alt="Utility"></button>' +
+      '<img src="' + _cardIcon(UTILITY_ICON_URI) + '" alt="Utility"></button>' +
       '<div id="' + menuIdPrefix + '-menu-' + s.id + '" style="display:none;position:absolute;' + menuPos + ';left:0;background:white;' +
       'border:1px solid #ddd;border-radius:8px;box-shadow:0 6px 18px rgba(0,0,0,0.22);' +
       // 2026-08-09 fix: was z-index:90. #visual-route-map's Leaflet map
@@ -11921,7 +12169,7 @@ const StopCard = (function() {
     const menuPos = opensUp ? 'bottom:56px' : 'top:56px';
     return '<div class="action-btn-wrap">' +
       '<button data-action="recon" data-id="' + s.id + '" title="' + (isMapTab ? 'Recon — Property Search, CSB, GIS' : 'Recon — Property Search, CSB, GIS, Map') + '" class="action-btn-icon" aria-label="Recon">' +
-      '<img src="' + RECON_ICON_URI + '" alt="Recon"></button>' +
+      '<img src="' + _cardIcon(RECON_ICON_URI) + '" alt="Recon"></button>' +
       '<div id="' + menuIdPrefix + '-menu-' + s.id + '" style="display:none;position:absolute;' + menuPos + ';left:0;background:white;' +
       'border:1px solid #ddd;border-radius:8px;box-shadow:0 6px 18px rgba(0,0,0,0.22);' +
       // 2026-08-09 fix: see matching comment in _utilDropdown above — same
@@ -11931,23 +12179,23 @@ const StopCard = (function() {
 
   function _photoBtn(s) {
     return '<button data-action="photo" data-id="' + s.id + '" title="Take photo — stamps address, date, GPS" class="action-btn-icon photo-btn-rounded" aria-label="Photo">' +
-      '<img src="' + PHOTO_ICON_URI + '" alt="Photo"></button>';
+      '<img src="' + _cardIcon(PHOTO_ICON_URI) + '" alt="Photo"></button>';
   }
 
   function _navBtn(s) {
     const fullAddr = escHtml(s.fullAddress || s.address + ', St. Louis, MO');
     const addr = escHtml(s.address);
     return '<button data-action="nav" data-addr="' + fullAddr + '" title="Navigate to ' + addr + '" class="action-btn-icon photo-btn-rounded" aria-label="Navigate">' +
-      '<img src="' + NAV_ICON_URI + '" alt="Navigate"></button>';
+      '<img src="' + _cardIcon(NAV_ICON_URI) + '" alt="Navigate"></button>';
   }
 
   function _stateBtns(s) {
     if (s.done) {
       return '<button data-action="restore" data-id="' + s.id + '" title="Restore stop (no confirm)" class="action-btn-icon" aria-label="Restore">' +
-        '<img src="' + RESTORE_ICON_URI + '" alt="Restore"></button>';
+        '<img src="' + _cardIcon(RESTORE_ICON_URI) + '" alt="Restore"></button>';
     }
     return '<button data-action="close" data-id="' + s.id + '" title="Mark complete" class="action-btn-icon" aria-label="Close">' +
-      '<img src="' + CLOSE_ICON_URI + '" alt="Close"></button>';
+      '<img src="' + _cardIcon(CLOSE_ICON_URI) + '" alt="Close"></button>';
   }
 
   function _pinColumn(s) {
@@ -11959,12 +12207,12 @@ const StopCard = (function() {
       (isStart ? 'Unpin as route start' : 'Pin as route start') +
       '" class="action-btn-pin" aria-label="' +
       (isStart ? 'Start pin set' : 'Set as route start') + '">' +
-      '<img src="' + (isStart ? PIN_ACTIVE_ICON_URI : PIN_ICON_URI) + '" alt=""></button>' +
+      '<img src="' + _cardIcon((isStart ? PIN_ACTIVE_ICON_URI : PIN_ICON_URI)) + '" alt=""></button>' +
       '<button data-action="pin-end" data-id="' + s.id + '" title="' +
       (isEnd ? 'Unpin as route end' : 'Pin as route end') +
       '" class="action-btn-pin" aria-label="' +
       (isEnd ? 'End pin set' : 'Set as route end') + '">' +
-      '<img src="' + (isEnd ? PIN_END_ACTIVE_ICON_URI : PIN_END_ICON_URI) + '" alt=""></button>' +
+      '<img src="' + _cardIcon((isEnd ? PIN_END_ACTIVE_ICON_URI : PIN_END_ICON_URI)) + '" alt=""></button>' +
       '</div>';
   }
 
@@ -11978,10 +12226,10 @@ const StopCard = (function() {
     return '<div class="action-row-reorder-col">' +
       '<button data-action="up" data-idx="' + i + '" title="Move up" class="action-row-reorder-btn"' +
       (i === 0 ? ' disabled' : '') + '>' +
-      '<img src="' + REORDER_UP_ICON_URI + '" alt="Move up"></button>' +
+      '<img src="' + _cardIcon(REORDER_UP_ICON_URI) + '" alt="Move up"></button>' +
       '<button data-action="dn" data-idx="' + i + '" title="Move down" class="action-row-reorder-btn"' +
       (i === pendingLen - 1 ? ' disabled' : '') + '>' +
-      '<img src="' + REORDER_DOWN_ICON_URI + '" alt="Move down"></button></div>';
+      '<img src="' + _cardIcon(REORDER_DOWN_ICON_URI) + '" alt="Move down"></button></div>';
   }
 
   // Detail row — the single source of truth for the badge stack. The
@@ -12165,8 +12413,12 @@ function renderStops() {
   // between, so there's no visible jump either way. If the new content is
   // genuinely shorter, the browser clamps the restored value, which is the
   // right behavior.
+  // Drop CL: since Drop CB the DOCUMENT scrolls, not #main-content, so the
+  // old scrollTop read was always 0 and the restore did nothing. Track
+  // both; restore whichever actually scrolled.
   const _scroller = document.getElementById('main-content');
   const _scrollY = _scroller ? _scroller.scrollTop : 0;
+  const _winScrollY = window.pageYOffset || 0;
 
   // Compute pending/done once — used multiple times below
   const pending = stops.filter(s => !s.done);
@@ -12210,7 +12462,8 @@ function renderStops() {
   }
   list.innerHTML = html;
   // Restore scroll captured at the top of this function (see comment there).
-  if (_scroller) _scroller.scrollTop = _scrollY;
+  if (_scroller && _scrollY) _scroller.scrollTop = _scrollY;
+  if (_winScrollY && Math.abs((window.pageYOffset || 0) - _winScrollY) > 1) window.scrollTo(0, _winScrollY);
 
   // Delegated click listener is attached once at init — see _attachStopsListListener()
 }
@@ -14893,8 +15146,12 @@ function renderRoute() {
   const list = document.getElementById('route-list');
   // Preserve scroll across the innerHTML rebuild — same rationale and
   // pattern as renderStops (see comment there).
+  // Drop CL: since Drop CB the DOCUMENT scrolls, not #main-content, so the
+  // old scrollTop read was always 0 and the restore did nothing. Track
+  // both; restore whichever actually scrolled.
   const _scroller = document.getElementById('main-content');
   const _scrollY = _scroller ? _scroller.scrollTop : 0;
+  const _winScrollY = window.pageYOffset || 0;
   // Same photo-stats cache renderStops populates — refreshed here too
   // since the Route tab renders stop cards through the same _detailRow
   // path and can be opened without renderStops having run first.
@@ -14944,7 +15201,8 @@ function renderRoute() {
   }
   list.innerHTML = html;
   // Restore scroll captured at the top of this function (see comment there).
-  if (_scroller) _scroller.scrollTop = _scrollY;
+  if (_scroller && _scrollY) _scroller.scrollTop = _scrollY;
+  if (_winScrollY && Math.abs((window.pageYOffset || 0) - _winScrollY) > 1) window.scrollTo(0, _winScrollY);
 
   // Delegated listener attached once — see _attachRouteListListener()
 }
@@ -16708,6 +16966,7 @@ async function _prepareImageForAPI(file) {
     const blob = await new Promise(res => canvas.toBlob(res, 'image/jpeg', q));
     if (!blob) continue;
     if (blob.size <= MAX_RAW_BYTES) {
+      _releaseCanvas(canvas); img.src = '';
       const base64 = await readBase64(blob);
       return { base64, mediaType: 'image/jpeg' };
     }
@@ -16722,6 +16981,7 @@ async function _prepareImageForAPI(file) {
   ctx.fillRect(0, 0, fallbackW, fallbackH);
   ctx.drawImage(img, 0, 0, fallbackW, fallbackH);
   const finalBlob = await new Promise(res => canvas.toBlob(res, 'image/jpeg', 0.55));
+  _releaseCanvas(canvas); img.src = '';
   if (finalBlob && finalBlob.size <= MAX_RAW_BYTES) {
     const base64 = await readBase64(finalBlob);
     return { base64, mediaType: 'image/jpeg' };
@@ -17950,7 +18210,10 @@ function renderSettingsPhotoStamp() {
 // which holds every shot in the current session.
 var _photoContext = {
   stopId: null,
-  stampedBlob: null, stampedDataUrl: null, filename: 'photo.jpg',
+  // Drop CL: stampedUrl is an object URL for the preview <img> (was a
+  // base64 stampedDataUrl). Always set/cleared via _setStampedBlob so the
+  // previous URL gets revoked.
+  stampedBlob: null, stampedUrl: null, filename: 'photo.jpg',
   // original (unstamped) blob so we can re-stamp with edited fields
   originalBlob: null,
   // User-supplied fields at setup time — may be edited later in preview
@@ -17973,6 +18236,82 @@ var _photoSession = {
   idleTimer: null,
   IDLE_MS: 5 * 60 * 1000
 };
+
+// Drop CL: single owner of the stamped preview object URL. Revokes the
+// previous URL every time, so a long session never accumulates them.
+function _setStampedBlob(blob) {
+  if (_photoContext.stampedUrl) {
+    try { URL.revokeObjectURL(_photoContext.stampedUrl); } catch (_e) { _swallow('_setStampedBlob', _e); }
+  }
+  _photoContext.stampedBlob = blob || null;
+  _photoContext.stampedUrl = null;
+  if (blob) {
+    try { _photoContext.stampedUrl = URL.createObjectURL(blob); } catch (_e) { _swallow('_setStampedBlob', _e); }
+  }
+}
+window._setStampedBlob = _setStampedBlob;
+
+// ── Drop CL: camera-closed-the-app recovery ──────────────────────────────
+// On low-RAM Android phones the OS often kills the backgrounded browser
+// while the camera app is open; when the camera returns, the page reloads
+// from scratch and the photo is gone with no explanation. We can't save the
+// photo, but we can recognise what happened: a sessionStorage marker is
+// written right before the camera/picker opens and cleared when a photo
+// arrives, when the session ends, or when the page simply becomes visible
+// again without being reloaded (a plain cancel). If a fresh page load
+// finds the marker (recent, < 10 min), the app reopens Photostamp with the
+// same address/notes and says why.
+var CAMERA_PENDING_KEY = 'stlcr:camera-pending';
+function _setCameraPendingMarker() {
+  try {
+    sessionStorage.setItem(CAMERA_PENDING_KEY, JSON.stringify({
+      at: Date.now(), stopId: _photoContext.stopId,
+      address: _photoContext.address || '', notes: _photoContext.notes || '',
+      caseType: _photoContext.caseType || null, caseNum: _photoContext.caseNum || ''
+    }));
+  } catch (_e) { _swallow('_setCameraPendingMarker', _e); }
+}
+function _clearCameraPendingMarker() {
+  try { sessionStorage.removeItem(CAMERA_PENDING_KEY); } catch (_e) { _swallow('_clearCameraPendingMarker', _e); }
+}
+// Page still alive when the camera/picker closes → no reload happened, so
+// any leftover marker is just a cancel. Delay lets a real change event
+// (which clears the marker itself) win the race.
+document.addEventListener('visibilitychange', function() {
+  if (document.visibilityState !== 'visible') return;
+  setTimeout(function() {
+    try { if (sessionStorage.getItem(CAMERA_PENDING_KEY) && !_cameraRecoveryActive) _clearCameraPendingMarker(); } catch (_e) { _swallow('cameraPendingVisible', _e); }
+  }, 2500);
+});
+var _cameraRecoveryActive = false;
+function _checkCameraReloadRecovery() {
+  var raw = null;
+  try { raw = sessionStorage.getItem(CAMERA_PENDING_KEY); } catch (_e) { return; }
+  if (!raw) return;
+  _clearCameraPendingMarker();
+  var m = null;
+  try { m = JSON.parse(raw); } catch (_e) { return; }
+  if (!m || !m.at || (Date.now() - m.at) > 10 * 60 * 1000) return;
+  Diag.record('camera-reload', new Error('page reloaded while camera was open'));
+  _cameraRecoveryActive = true;
+  setTimeout(function() {
+    try {
+      var sid = (m.stopId != null && stops.some(function(s) { return s.id === m.stopId; })) ? m.stopId : null;
+      openStampedCameraForStop(sid);
+      var a = document.getElementById('photo-setup-addr');
+      var n = document.getElementById('photo-setup-notes');
+      var ct = document.getElementById('photo-setup-case-type');
+      var cn = document.getElementById('photo-setup-case-num');
+      if (a && m.address) a.value = m.address;
+      if (n && m.notes) n.value = m.notes;
+      if (ct && m.caseType) ct.value = m.caseType;
+      if (cn && m.caseNum) cn.value = m.caseNum;
+      showToast('📷 Your phone closed the app while the camera was open — please retake the photo', 7000);
+    } catch (_e) { _swallow('_checkCameraReloadRecovery', _e); }
+    _cameraRecoveryActive = false;
+  }, 600);
+}
+window._checkCameraReloadRecovery = _checkCameraReloadRecovery;
 
 // ── Photo session GPS pre-warming (Drop AT, 2026-07-28) ─────────────────
 // Field-test finding: the pause between "photo accepted" and the stamped
@@ -18144,11 +18483,11 @@ function _endPhotoSession(opts) {
   _photoSession.notes = '';
   _photoSession.stopId = null;
   // Also clear single-shot working buffer
-  _photoContext.stampedBlob = null;
-  _photoContext.stampedDataUrl = null;
+  _setStampedBlob(null);
   _photoContext.originalBlob = null;
   var img = document.getElementById('photo-preview-img');
   if (img) img.src = '';
+  _clearCameraPendingMarker();
 }
 
 function _toggleQuickMode() {
@@ -18190,8 +18529,7 @@ function _renderSessionStrip() {
 function openStampedCameraForStop(stopId, directAnchor) {
   _enterToolFullscreen('photostamp');
   _photoContext.stopId = (directAnchor || stopId === null || stopId === undefined) ? null : Number(stopId);
-  _photoContext.stampedBlob = null;
-  _photoContext.stampedDataUrl = null;
+  _setStampedBlob(null);
   _photoContext.originalBlob = null;
   _photoContext.notes = '';
   _photoContext.gps = null;
@@ -19171,6 +19509,7 @@ function photoSetupContinue(source) {
   var input = document.getElementById(inputId);
   if (!input) { showToast('⚠ ' + (source === 'library' ? 'Library picker' : 'Camera input') + ' unavailable'); return; }
   input.value = '';
+  _setCameraPendingMarker();
   input.click();
 }
 
@@ -19187,6 +19526,7 @@ function takeAnotherPhoto() {
   if (!input) { showToast('⚠ Camera input unavailable'); return; }
   input.value = '';
   // small delay so the preview close animation doesn't fight the file input
+  _setCameraPendingMarker();
   setTimeout(function(){ input.click(); }, 80);
 }
 
@@ -19207,11 +19547,12 @@ function _showPhotoProcessingOverlay(file, label) {
   var img = document.getElementById('photo-processing-img');
   var labelEl = document.getElementById('photo-processing-label');
   if (!overlay || !img) return;
-  if (_lastProcessingUrl) { try { URL.revokeObjectURL(_lastProcessingUrl); } catch (_e) { _swallow('_showPhotoProcessingOverlay', _e); } }
-  try {
-    _lastProcessingUrl = URL.createObjectURL(file);
-    img.src = _lastProcessingUrl;
-  } catch(_e) { img.src = ''; }
+  if (_lastProcessingUrl) { try { URL.revokeObjectURL(_lastProcessingUrl); } catch (_e) { _swallow('_showPhotoProcessingOverlay', _e); } _lastProcessingUrl = null; }
+  // Drop CL: the raw original is NO LONGER shown here. Displaying it meant a
+  // full-resolution decode (~48 MB for 12 MP) running at the same moment as
+  // the stamp decode — the biggest single memory spike in the app. The
+  // black overlay + pulsing icon still covers the app-page flash.
+  img.removeAttribute('src');
   if (labelEl) labelEl.textContent = label || 'Stamping photo…';
   overlay.style.display = 'flex';
 }
@@ -19222,6 +19563,7 @@ function _hidePhotoProcessingOverlay() {
 }
 
 async function onPhotoCaptured(evt) {
+  _clearCameraPendingMarker();
   var files = evt && evt.target && evt.target.files;
   if (!files || !files.length) return;
   var fileArr = Array.prototype.slice.call(files);
@@ -19296,7 +19638,8 @@ async function _stampSingleFile(file, opts) {
     var _newShot = {
       blob: _photoContext.stampedBlob,
       filename: _photoContext.filename,
-      dataUrl: _photoContext.stampedDataUrl,
+      // Drop CL: no dataUrl per shot any more — nothing read it, and it
+      // kept a base64 copy of every photo alive for the whole session.
       capturedAt: _photoContext.capturedAt,
       gps: _photoContext.gps,
       photoTrackerRecorded: false
@@ -19575,11 +19918,10 @@ async function rebuildStampedPreview() {
     // `meta` is rebuilt on every re-stamp and `settings` is a live object.
     try { _photoContext.stampSummary = _buildStampSummary(meta); } catch (_e) { _swallow('rebuildStampedPreview', _e); }
     var out = await _stampImageBlob(_photoContext.originalBlob, meta);
-    _photoContext.stampedBlob = out.blob;
-    _photoContext.stampedDataUrl = out.dataUrl;
+    _setStampedBlob(out.blob);
     _photoContext.filename = _buildPhotoFilename(meta.address || 'photo', dt, meta.seqNum);
     var img = document.getElementById('photo-preview-img');
-    if (img) img.src = _photoContext.stampedDataUrl;
+    if (img) img.src = _photoContext.stampedUrl || '';
   } catch(err) {
     console.error('Re-stamp failed', err);
     showToast('⚠ Re-stamp failed');
@@ -19593,7 +19935,7 @@ async function rebuildStampedPreview() {
 //   - Text — tap to place a text label
 //   - Redact — black-filled rectangle (item 2 — black-bar redaction)
 // On Save Annotations, the strokes are composited onto the stamped JPEG
-// and replace _photoContext.stampedBlob / stampedDataUrl. This way every
+// and replace _photoContext.stampedBlob / stampedUrl. This way every
 // downstream path (download, share) automatically uses
 // the annotated version. The pre-annotation bytes can be recovered by
 // tapping "Re-stamp this shot only" which rebuilds from originalBlob.
@@ -20077,7 +20419,7 @@ function _annotCancel() {
   _exitAnnotateMode();
 }
 
-// Save — composite the canvas to a JPEG, replace stampedBlob/stampedDataUrl,
+// Save — composite the canvas to a JPEG, replace stampedBlob/stampedUrl,
 // update the filename, and exit annotation mode. The downstream pipelines
 // (download, share) automatically use the
 // annotated version because they pull from _photoContext.
@@ -20104,14 +20446,7 @@ async function _annotSave() {
     });
     if (!blob || !blob.size) throw new Error('Empty blob from canvas');
 
-    _photoContext.stampedBlob = blob;
-    // Build a fresh dataURL for the <img> preview
-    _photoContext.stampedDataUrl = await new Promise(function(resolve) {
-      var fr = new FileReader();
-      fr.onload = function() { resolve(fr.result); };
-      fr.onerror = function() { resolve(_photoContext.stampedDataUrl); };
-      fr.readAsDataURL(blob);
-    });
+    _setStampedBlob(blob);
 
     // Append "-edit" to the filename to distinguish annotated saves —
     // only insert before the extension, only once per shot
@@ -20125,7 +20460,6 @@ async function _annotSave() {
       var last = _photoSession.shots[_photoSession.shots.length - 1];
       if (last) {
         last.blob = _photoContext.stampedBlob;
-        last.dataUrl = _photoContext.stampedDataUrl;
         last.filename = _photoContext.filename;
       }
     }
@@ -20177,8 +20511,10 @@ function _exitAnnotateMode() {
     img.style.visibility = 'visible';
     img.style.opacity = ''; // clear any opacity:0 left over from a resize re-measure
     // Refresh src so the post-save annotated bytes show
-    if (_photoContext.stampedDataUrl) img.src = _photoContext.stampedDataUrl;
+    if (_photoContext.stampedUrl) img.src = _photoContext.stampedUrl;
   }
+  // Drop CL: the annotation canvas holds a full-size pixel buffer; free it.
+  _releaseCanvas(canvas);
   if (toolbar) toolbar.style.display = 'none';
   if (entryBtn) entryBtn.style.display = 'block';
 }
@@ -20877,6 +21213,7 @@ window.toggleSurveyCityMode = toggleSurveyCityMode;
 // the re-render calls move into a `finally` so they run no matter what —
 // the UI is now guaranteed to reflect whatever storage actually says.
 function endActiveSurvey() {
+  try { SurveyCoverage.flush(); } catch (_e) { _swallow('endActiveSurvey', _e); }  // Drop CL
   var active = SurveySession.getActive();
   if (!active) { try { _tryLog('end-survey-noop', function(){ throw new Error('End tapped with no active session'); }); } catch (_e) { _swallow('endActiveSurvey', _e); } return; }
   try {
@@ -21278,8 +21615,34 @@ var SurveyCoverage = (function() {
     return null;
   }
 
+  // Drop CL: in-memory trail + debounced persistence. Every accepted GPS
+  // point (every ~15 m — every 1–2 s while driving) used to parse the whole
+  // stored trail (up to 3000 points), append, re-stringify and rewrite it.
+  // Now the trail stays in memory once loaded; storage is written at most
+  // every FLUSH_MS and on flush() (called on pagehide / backgrounding /
+  // survey end / export / clear). Losing ≤15 s of trail on a hard crash is
+  // an acceptable trade for not doing hundreds of KB of JSON work per fix.
+  var FLUSH_MS = 15000;
+  var _mem = {};          // areaKey -> trail array (authoritative while loaded)
+  var _dirty = {};        // areaKey -> true when _mem differs from storage
+  var _flushTimer = null;
+  function flush() {
+    if (_flushTimer) { clearTimeout(_flushTimer); _flushTimer = null; }
+    Object.keys(_dirty).forEach(function(k) {
+      if (!LS.set(_bcKey(k), JSON.stringify(_mem[k] || []))) {
+        _swallow('SurveyCoverage.flush', new Error('breadcrumb write failed (storage full?)'));
+        return;               // stays dirty; next flush retries
+      }
+      delete _dirty[k];
+    });
+  }
+  function _scheduleFlush() {
+    if (!_flushTimer) _flushTimer = setTimeout(flush, FLUSH_MS);
+  }
+
   function getBreadcrumb(areaKey) {
     if (!areaKey) return [];
+    if (_mem[areaKey]) return _mem[areaKey];
     try {
       var raw = LS.get(_bcKey(areaKey));
       if (raw == null) {
@@ -21287,7 +21650,8 @@ var SurveyCoverage = (function() {
         if (legacy) raw = LS.get(_bcKey(legacy));
       }
       var arr = JSON.parse(raw || '[]');
-      return Array.isArray(arr) ? arr : [];
+      _mem[areaKey] = Array.isArray(arr) ? arr : [];
+      return _mem[areaKey];
     } catch(_e) { return []; }
   }
 
@@ -21304,6 +21668,7 @@ var SurveyCoverage = (function() {
   // without needing to special-case either.
   function getAllTrails() {
     var out = [];
+    flush();   // Drop CL: make storage current before enumerating it
     try {
       var keys = (typeof LS !== 'undefined' && typeof LS.keys === 'function') ? LS.keys() : [];
       keys.forEach(function(k) {
@@ -21351,10 +21716,15 @@ var SurveyCoverage = (function() {
     var point = [lat, lng, now];
     if (last && last[2] != null && (now - last[2]) > SEGMENT_GAP_MS) point[3] = 1;
     trail.push(point);
-    if (trail.length > BREADCRUMB_CAP) trail = trail.slice(-BREADCRUMB_CAP);
-    try { LS.set(_bcKey(areaKey), JSON.stringify(trail)); } catch (_e) { _swallow('addBreadcrumbPoint', _e); }
+    if (trail.length > BREADCRUMB_CAP) { trail.splice(0, trail.length - BREADCRUMB_CAP); _lastAppendTrimmed = true; }
+    else _lastAppendTrimmed = false;
+    _mem[areaKey] = trail;
+    _dirty[areaKey] = true;
+    _scheduleFlush();
     return true;
   }
+  var _lastAppendTrimmed = false;
+  function lastAppendTrimmed() { return _lastAppendTrimmed; }
 
   // Clears both the composite key and (if applicable) the legacy bare-name
   // key — otherwise a not-yet-migrated legacy trail would silently
@@ -21363,7 +21733,8 @@ var SurveyCoverage = (function() {
   // scoped to exactly this one piece of data.
   function clearBreadcrumb(areaKey) {
     if (!areaKey) return;
-    try { LS.set(_bcKey(areaKey), '[]'); } catch (_e) { _swallow('clearBreadcrumb', _e); }
+    _mem[areaKey] = []; delete _dirty[areaKey];
+    if (!LS.set(_bcKey(areaKey), '[]')) _swallow('clearBreadcrumb', new Error('clear write failed'));
     var legacy = _legacyBareKey(areaKey);
     if (legacy) { try { LS.set(_bcKey(legacy), '[]'); } catch (_e) { _swallow('clearBreadcrumb', _e); } }
   }
@@ -21373,6 +21744,8 @@ var SurveyCoverage = (function() {
     getAllTrails: getAllTrails,
     addBreadcrumbPoint: addBreadcrumbPoint,
     clearBreadcrumb: clearBreadcrumb,
+    flush: flush,
+    lastAppendTrimmed: lastAppendTrimmed,
     SEGMENT_GAP_MS: SEGMENT_GAP_MS
   };
 })();
@@ -21511,7 +21884,9 @@ function _startBreadcrumbWatch() {
       // than recording silently in the background with nothing shown.
       if (_isBreadcrumbTrailEnabled()) {
         var added = SurveyCoverage.addBreadcrumbPoint(SurveySession.areaKey(cur), lat, lng, acc);
-        if (added) _redrawBreadcrumbLayer();
+        // Drop CL: extend the current polyline instead of tearing down and
+        // rebuilding every segment (and re-clipping all 3000 points) per fix.
+        if (added) _appendBreadcrumbToLayer(SurveySession.areaKey(cur));
       }
     },
     function(_err) { /* silent — GPS drop-outs are routine in the field, no need to toast every one */ },
@@ -21592,6 +21967,7 @@ window._hideSurveyResumeOverlay = _hideSurveyResumeOverlay;
 function _autoPauseSurveyTracking() {
   var active = null;
   try { active = SurveySession.getActive(); } catch (_e) { _swallow('_autoPauseSurveyTracking', _e); }
+  try { SurveyCoverage.flush(); } catch (_e) { _swallow('_autoPauseSurveyTracking', _e); }  // Drop CL
   if (!active || _isSurveyTrackingPaused()) return; // nothing active, or already paused (manually or otherwise)
   try { _stopBreadcrumbWatch(); } catch (_e) { _swallow('_autoPauseSurveyTracking', _e); }
   try { _releaseSurveyWakeLock(); } catch (_e) { _swallow('_autoPauseSurveyTracking', _e); }
@@ -21723,6 +22099,32 @@ function _redrawBreadcrumbLayer() {
   });
 }
 window._redrawBreadcrumbLayer = _redrawBreadcrumbLayer;
+
+// Drop CL: incremental draw for a newly appended point. Falls back to the
+// full redraw whenever the cheap path can't be sure it matches what
+// _breadcrumbSegments would draw (new segment, point clipped by the area
+// boundary, trail trimmed at the cap, no layer yet).
+function _appendBreadcrumbToLayer(areaKeyStr) {
+  try {
+    if (typeof routeMap === 'undefined' || !routeMap || typeof L === 'undefined') return;
+    if (!_isBreadcrumbTrailEnabled()) return;
+    var trail = SurveyCoverage.getBreadcrumb(areaKeyStr);
+    var p = trail[trail.length - 1], prev = trail[trail.length - 2];
+    var last = _surveyBreadcrumbLayers[_surveyBreadcrumbLayers.length - 1];
+    var rings = (_currentSurveyAreaRingsKey === areaKeyStr) ? _currentSurveyAreaRings : null;
+    var inside = function(q) { return !rings || !rings.length || _pointInSurveyAreaRings(q[0], q[1], rings); };
+    var gapOk = prev && p[2] != null && prev[2] != null && (p[2] - prev[2]) <= SurveyCoverage.SEGMENT_GAP_MS;
+    if (!last || !p || !prev || p[3] || !gapOk || SurveyCoverage.lastAppendTrimmed() || !inside(p) || !inside(prev)) {
+      _redrawBreadcrumbLayer();
+      return;
+    }
+    var lls = last.getLatLngs();
+    var tail = lls[lls.length - 1];
+    if (!tail || Math.abs(tail.lat - prev[0]) > 1e-9 || Math.abs(tail.lng - prev[1]) > 1e-9) { _redrawBreadcrumbLayer(); return; }
+    last.addLatLng([p[0], p[1]]);
+  } catch (_e) { _swallow('_appendBreadcrumbToLayer', _e); _redrawBreadcrumbLayer(); }
+}
+window._appendBreadcrumbToLayer = _appendBreadcrumbToLayer;
 
 // Logs today's highlighted breadcrumb trail for the active survey's area
 // to the console — a developer/debug utility, no UI hookup, callable
@@ -23961,7 +24363,50 @@ const GeoCache = (function() {
     } catch(_) { return false; }
   }
 
-  return { getNeighborhoods: getNeighborhoods, getWards: getWards, getPoliceDistricts: getPoliceDistricts, getPrecincts: getPrecincts, getCID: getCID, clear: clear };
+  // ── Drop CL: inline-first + in-memory memo ─────────────────────────────
+  // The getters above check IndexedDB FIRST, and each _txGet returns a fresh
+  // structured-clone copy of the whole dataset. geoLookup calls four of
+  // them per point, and Add Stop's house-number search tags up to 100
+  // points per lookup — up to ~400 full-dataset IDB reads (and, on a cold
+  // install, ~400 concurrent full-dataset IDB writes) per debounced
+  // keystroke. That is a freeze/OOM on a low-end phone.
+  //
+  // It was also a correctness bug: because IDB won over the baked data, a
+  // device that cached an OLDER boundary set kept using it forever, even
+  // after a drop shipped corrected inline GeoJSON.
+  //
+  // Now: for the four datasets that are baked inline, the inline copy is
+  // always used (it's the newest by construction, needs no I/O, and is
+  // parsed once per page via the _getInline* memos). IndexedDB/network is
+  // only consulted if the inline block is missing/broken — through a
+  // per-dataset promise memo, so concurrent callers share one load. CID
+  // (network-only) gets the same memo. Callers receive a SHARED object and
+  // must treat it as read-only (verified: no caller mutates it).
+  var _memo = {};
+  function _memoized(kind, inlineFn, loader) {
+    return function() {
+      if (inlineFn) {
+        var inline = inlineFn();
+        if (inline && Array.isArray(inline.features) && inline.features.length) return Promise.resolve(inline);
+      }
+      if (!_memo[kind]) {
+        _memo[kind] = loader().then(function(r) {
+          if (!r) delete _memo[kind];   // don't cache a miss; retry next time
+          return r;
+        }, function(e) { delete _memo[kind]; throw e; });
+      }
+      return _memo[kind];
+    };
+  }
+
+  return {
+    getNeighborhoods:   _memoized('neighborhoods',   _getInlineNeighborhoods,   getNeighborhoods),
+    getWards:           _memoized('wards',           _getInlineWards,           getWards),
+    getPoliceDistricts: _memoized('policeDistricts', _getInlinePoliceDistricts, getPoliceDistricts),
+    getPrecincts:       _memoized('precincts',       _getInlinePrecincts,       getPrecincts),
+    getCID:             _memoized('cid',             null,                      getCID),
+    clear: function() { _memo = {}; return clear(); }
+  };
 })();
 
 // ── MapLayers: registry + storage for togglable map overlays ─────────────────
@@ -25533,23 +25978,50 @@ function _pointInRing(lng, lat, ring) {
 }
 
 // Test whether a point falls inside a (Multi)Polygon geometry.
-function _pointInGeom(lng, lat, geom) {
-  if (!geom || !geom.type) return false;
-  if (geom.type === 'Polygon') {
-    var rings = geom.coordinates;
-    if (!rings.length) return false;
-    if (!_pointInRing(lng, lat, rings[0])) return false;
-    // Check holes (rings beyond the first are holes that EXCLUDE the point)
-    for (var h = 1; h < rings.length; h++) {
-      if (_pointInRing(lng, lat, rings[h])) return false;
+// Drop CL: per-geometry bounding box, computed once and cached against the
+// geometry object (the boundary datasets are now shared, long-lived objects
+// — see GeoCache's memo). A point outside the box skips the ring walk
+// entirely, which is the common case: of ~300 boundary features, a point is
+// inside the box of only a handful.
+var _geomBBoxCache = (typeof WeakMap === 'function') ? new WeakMap() : null;
+function _geomBBox(geom) {
+  if (!_geomBBoxCache) return null;
+  var bb = _geomBBoxCache.get(geom);
+  if (bb) return bb;
+  var minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+  var polys = geom.type === 'Polygon' ? [geom.coordinates] : geom.coordinates;
+  for (var p = 0; p < polys.length; p++) {
+    var outer = polys[p] && polys[p][0];
+    if (!outer) continue;
+    for (var i = 0; i < outer.length; i++) {
+      var x = outer[i][0], y = outer[i][1];
+      if (x < minX) minX = x; if (x > maxX) maxX = x;
+      if (y < minY) minY = y; if (y > maxY) maxY = y;
     }
-    return true;
   }
-  if (geom.type === 'MultiPolygon') {
-    for (var p = 0; p < geom.coordinates.length; p++) {
-      if (_pointInGeom(lng, lat, { type: 'Polygon', coordinates: geom.coordinates[p] })) return true;
-    }
-    return false;
+  bb = [minX, minY, maxX, maxY];
+  _geomBBoxCache.set(geom, bb);
+  return bb;
+}
+
+function _pointInPolygonRings(lng, lat, rings) {
+  if (!rings || !rings.length) return false;
+  if (!_pointInRing(lng, lat, rings[0])) return false;
+  // Check holes (rings beyond the first are holes that EXCLUDE the point)
+  for (var h = 1; h < rings.length; h++) {
+    if (_pointInRing(lng, lat, rings[h])) return false;
+  }
+  return true;
+}
+
+function _pointInGeom(lng, lat, geom) {
+  if (!geom || !geom.type || !geom.coordinates) return false;
+  if (geom.type !== 'Polygon' && geom.type !== 'MultiPolygon') return false;
+  var bb = _geomBBox(geom);
+  if (bb && (lng < bb[0] || lng > bb[2] || lat < bb[1] || lat > bb[3])) return false;
+  if (geom.type === 'Polygon') return _pointInPolygonRings(lng, lat, geom.coordinates);
+  for (var p = 0; p < geom.coordinates.length; p++) {
+    if (_pointInPolygonRings(lng, lat, geom.coordinates[p])) return true;
   }
   return false;
 }
@@ -25587,14 +26059,15 @@ async function geoLookup(lat, lng, opts) {
   // reasoning as every prior bump — v3 entries are still correct for the
   // fields they have, but would come back missing the new key if reused,
   // and re-keying is cheaper than walking LS to patch them.
-  var key = 'geo-pt:v4:' + lat.toFixed(5) + ',' + lng.toFixed(5);
-  try {
-    var cached = LS.get(key);
-    if (cached) {
-      var parsed = JSON.parse(cached);
-      if (parsed && typeof parsed === 'object') return parsed;
-    }
-  } catch (_) { _swallow('geoLookup', _); }
+  // Drop CL: the per-point cache is now IN MEMORY only (bounded), not
+  // localStorage. With the boundary datasets memoized and bbox-prefiltered
+  // (see GeoCache / _pointInGeom), a lookup costs well under a millisecond,
+  // so persisting one key per coordinate forever — in the ~5 MB budget that
+  // stops and the photo log depend on — no longer buys anything. Existing
+  // 'geo-pt:*' keys (v1–v4) are purged once at boot (_cleanupRetiredState).
+  var key = lat.toFixed(5) + ',' + lng.toFixed(5);
+  var cachedHit = _geoLookupMem[key];
+  if (cachedHit) return Object.assign({}, cachedHit);
 
   var out = { neighborhood: null, neighborhoodName: null, ward: null, policeDistrict: null, precinct: null };
 
@@ -25712,10 +26185,13 @@ async function geoLookup(lat, lng, opts) {
   // Cache the result, even if all fields are null (avoids retrying the
   // network round-trip every time the user opens this stop).
   if (!(opts && opts.noPersist)) {
-    try { LS.set(key, JSON.stringify(out)); } catch (_) { _swallow('geoLookup', _); }
+    if (_geoLookupMemCount >= 2000) { _geoLookupMem = {}; _geoLookupMemCount = 0; }
+    if (!_geoLookupMem[key]) _geoLookupMemCount++;
+    _geoLookupMem[key] = Object.assign({}, out);
   }
   return out;
 }
+var _geoLookupMem = {}, _geoLookupMemCount = 0;
 
 // ============================================================================
 // SECTION: PDF Docs — C&D photo documentation + simple PDF convert
@@ -26639,12 +27115,16 @@ async function _cndPdfAddFilesToStore(files, store, opts) {
         if (!opts.allowPdf) { failed.push(f.name + ' (PDFs go in the Docu-Stamp tab)'); continue; }
         var pdf = await _cndPdfOpenWithPdfJs(await _cndPdfReadBytes(f));
         var base = _cndPdfBaseName(f.name);
-        var pageCap = Math.min(pdf.numPages, 60); // each page is a full-size decoded image in memory
+        // Drop CL: 60 full pages (decoded image + JPEG data URL each) will
+        // exhaust a 2–3 GB phone; cap lower when the device reports ≤2 GB.
+        var _pageMax = (typeof navigator !== 'undefined' && typeof navigator.deviceMemory === 'number' && navigator.deviceMemory <= 2) ? 20 : 60;
+        var pageCap = Math.min(pdf.numPages, _pageMax); // each page is a full-size decoded image in memory
         if (pdf.numPages > pageCap) failed.push(f.name + ' (only the first ' + pageCap + ' of ' + pdf.numPages + ' pages were added)');
         for (var p = 1; p <= pageCap; p++) {
           if (opts.onProgress) opts.onProgress('Reading ' + f.name + ' — page ' + p + ' of ' + pageCap + '…');
           var c = await _cndPdfRenderPageToCanvas(pdf, p, 1900);
           var url = c.toDataURL('image/jpeg', 0.92);
+          _releaseCanvas(c);
           var pimg = await _cndPdfLoadImageFromUrl(url);
           store.push({ file: f, img: pimg, name: base + ' (p' + p + ')', dataUrl: url });
           added++;
@@ -26660,6 +27140,7 @@ async function _cndPdfAddFilesToStore(files, store, opts) {
           cx.fillStyle = '#fff'; cx.fillRect(0, 0, cv.width, cv.height); // transparency → white
           cx.drawImage(img, 0, 0);
           dataUrl = cv.toDataURL('image/jpeg', 0.92);
+          _releaseCanvas(cv);
           img = await _cndPdfLoadImageFromUrl(dataUrl);
         }
         store.push({ file: f, img: img, name: f.name, dataUrl: dataUrl });
@@ -26699,10 +27180,16 @@ function cndPdfClearAddress() {
   var a = document.getElementById('cndpdf-address');
   if (a) { try { a.focus(); } catch (e) { /* ignore */ } }
 }
-// Clear All = start the next property: photos, the whole address block,
-// Reason, Dated/Posted, Notes and status. "Who's on this" is deliberately
-// kept — it's the same inspector(s) property after property.
+// Clear All = start over: photos, the whole address block, Reason (and the
+// custom-reason text), Dated/Posted, Notes, status — and, since Drop CM,
+// every "Who's on this" Title/Name box too (back to one empty row). Before
+// CM the people list was deliberately kept, which read as "Clear All
+// doesn't work" because those boxes stayed filled.
 function cndPdfClearAll() {
+  _cndPdfPeople = [{title: '', name: ''}];
+  _cndPdfRenderPeopleList();
+  var rs = document.getElementById('cndpdf-reason-save-status');
+  if (rs) rs.textContent = '';
   _cndPdfPhotos = [];
   _cndPdfRenderPhotoList(document.getElementById('cndpdf-photo-list'), _cndPdfPhotos, 'cndPdfPhotoRemove', 'cndPdfPhotoMove');
   _cndPdfSetStatus('cndpdf-status', '');
@@ -27439,7 +27926,9 @@ function cndPdfSimpleClearAll() {
   if (statusEl) statusEl.textContent = '';
 }
 
-// Builds <address>[_<REASONTOKEN>]_PostedOn_<MMDDYYYY>_<photo#>.pdf.
+// Builds <address>[_<REASONTOKEN>][_Posted|_Dated]_<MMDDYYYY>[_<photo#>].pdf
+// (Drop CM; before CM the label was always "PostedOn" — see point 3 below).
+// Older notes, kept for history:
 // 2026-08-17 (later same day): rebuilt per request —
 //   1. The reason segment is no longer hardcoded to "C&D". It's omitted
 //      entirely when no reason is selected (Blank), and otherwise uses
@@ -27467,12 +27956,17 @@ function _cndPdfBuildFilename(index) {
 
   var postedRaw = _cndPdfExpandYear((document.getElementById('cndpdf-posted').value || '').trim());
   var datedRaw = _cndPdfExpandYear((document.getElementById('cndpdf-dated').value || '').trim());
+  // Drop CM: the label names the field the date actually came from —
+  // "Posted" when a Posted On date is entered (it wins if both are), "Dated"
+  // when only Dated is, and no label when neither is (today's date is used).
+  var dateLabel = postedRaw ? 'Posted' : (datedRaw ? 'Dated' : '');
   var effectiveDateRaw = postedRaw || datedRaw || _cndPdfTodayDateStr();
   var dateDigits = effectiveDateRaw.replace(/\D/g, '');
 
   var parts = [addressSlug || 'property'];
   if (reasonToken) parts.push(reasonToken);
-  parts.push('PostedOn', dateDigits);
+  if (dateLabel) parts.push(dateLabel);
+  parts.push(dateDigits);
   if (index != null) parts.push(String(index)); // Drop CJ: single-PDF output has no per-photo number
   return parts.join('_') + '.pdf';
 }
@@ -27502,7 +27996,7 @@ function cndPdfSetOutMode(mode) {
   if (btn) btn.textContent = single ? 'Generate Combined PDF' : 'Generate Stamped PDFs';
   var hint = document.getElementById('cndpdf-mode-hint');
   if (hint) hint.textContent = single
-    ? 'One PDF: the stamp across the top of page 1, then every file in the order listed above.'
+    ? 'One PDF with every photo and PDF page as its own page, each stamped across the top, in the order listed above.'
     : 'One stamped PDF per photo (or per PDF page), each with the stamp on it.';
 }
 async function cndPdfGenerate() {
@@ -27511,32 +28005,44 @@ async function cndPdfGenerate() {
     if (statusEl) { statusEl.textContent = 'Add at least one photo first.'; statusEl.style.color = '#a3402f'; }
     return;
   }
-  var address = (document.getElementById('cndpdf-address').value || '').trim();
-  if (!address) {
-    if (statusEl) { statusEl.textContent = 'Enter the property address before generating.'; statusEl.style.color = '#a3402f'; }
+  // Drop CM: the address is no longer required — any field is enough (a
+  // stamp with only a date, or only a name, is valid). Only a completely
+  // empty stamp is refused, since the output would just be an empty box.
+  var lines = _cndPdfBuildHeaderLines();
+  if (!lines.length) {
+    if (statusEl) { statusEl.textContent = 'Fill in at least one field for the stamp (address, reason, a date, a name or notes).'; statusEl.style.color = '#a3402f'; }
     return;
   }
   try {
     var jsPDFCtor = await _cndPdfEnsureJsPDF();
-    var lines = _cndPdfBuildHeaderLines();
     var files;
+    // Drop CM: both modes stamp EVERY page. Single = one multipage PDF; each
+    // photo / PDF page is stamped, added, and its canvas released before the
+    // next is drawn, so only one full-size stamped canvas exists at a time
+    // (the old multi path built all of them up front).
+    var _addStamped = function(doc, p) {
+      var c = _cndPdfStampImage(p.img, lines);
+      var o = _cndPdfOrient(c.width, c.height);
+      if (!doc) doc = new jsPDFCtor({ unit: 'pt', format: [c.width, c.height], orientation: o });
+      else doc.addPage([c.width, c.height], o);
+      doc.addImage(c.toDataURL('image/jpeg', 0.92), 'JPEG', 0, 0, c.width, c.height);
+      _releaseCanvas(c);
+      return doc;
+    };
     if (_cndPdfOutMode === 'single') {
-      var first = _cndPdfStampImage(_cndPdfPhotos[0].img, lines);
-      var doc = new jsPDFCtor({ unit: 'pt', format: [first.width, first.height], orientation: _cndPdfOrient(first.width, first.height) });
-      doc.addImage(first.toDataURL('image/jpeg', 0.92), 'JPEG', 0, 0, first.width, first.height);
-      for (var i = 1; i < _cndPdfPhotos.length; i++) {
-        var p = _cndPdfPhotos[i];
-        doc.addPage([p.img.width, p.img.height], _cndPdfOrient(p.img.width, p.img.height));
-        doc.addImage(p.dataUrl, 'JPEG', 0, 0, p.img.width, p.img.height);
+      var doc = null;
+      for (var i = 0; i < _cndPdfPhotos.length; i++) {
+        if (statusEl && _cndPdfPhotos.length > 1) { statusEl.textContent = 'Stamping page ' + (i + 1) + ' of ' + _cndPdfPhotos.length + '…'; statusEl.style.color = '#3c4a5c'; }
+        doc = _addStamped(doc, _cndPdfPhotos[i]);
+        if (_cndPdfPhotos.length > 1) await new Promise(function(r) { setTimeout(r, 0); }); // let the status repaint
       }
       files = [{ blob: doc.output('blob'), filename: _cndPdfBuildFilename(null) }];
     } else {
-      var canvases = _cndPdfPhotos.map(function(p) { return _cndPdfStampImage(p.img, lines); });
-      files = canvases.map(function(c, i) {
-        var d = new jsPDFCtor({ unit: 'pt', format: [c.width, c.height], orientation: _cndPdfOrient(c.width, c.height) });
-        d.addImage(c.toDataURL('image/jpeg', 0.92), 'JPEG', 0, 0, c.width, c.height);
-        return { blob: d.output('blob'), filename: _cndPdfBuildFilename(i + 1) };
-      });
+      files = [];
+      for (var j = 0; j < _cndPdfPhotos.length; j++) {
+        var d = _addStamped(null, _cndPdfPhotos[j]);
+        files.push({ blob: d.output('blob'), filename: _cndPdfBuildFilename(j + 1) });
+      }
     }
     var result = await _cndPdfSavePdfBlobs(files);
     if (result.method === 'cancelled') {
@@ -28145,86 +28651,272 @@ function _drawStampBar(ctx, wrapped, geom, sizeFor, w, base, pad, lineGap) {
   ctx.shadowBlur = 0;
 }
 
-// Convert a canvas to a JPEG blob + data URL, returned as a Promise.
-// Encapsulates the canvas.toBlob + FileReader dance; callers can simply
-// await this instead of nesting two callbacks.
-function _canvasToStampedBlob(canvas, quality) {
+// ── Drop CL: Photostamp memory discipline ─────────────────────────────────
+// Field crash reports on 2–3 GB phones pointed at the stamp pipeline. Per
+// shot it used to: (1) decode the full-resolution camera original for the
+// processing overlay, (2) decode it AGAIN at full resolution for stamping,
+// (3) build a base64 data URL of the result, and (4) keep that data URL for
+// the whole session. A 12 MP original is ~48 MB of decoded pixels (a 50 MP
+// sensor ~200 MB), so the peak was two of those at once plus canvases.
+// Now: one decode, downscaled at decode time where the browser supports it,
+// canvases released right after encoding (iOS Safari caps total canvas
+// memory and starts returning null from toBlob once it's exhausted), and
+// previews shown from object URLs instead of data URLs.
+
+// Free a canvas's backing store now instead of whenever GC gets to it.
+function _releaseCanvas(c) {
+  if (!c) return;
+  try { c.width = 0; c.height = 0; } catch (_e) { _swallow('_releaseCanvas', _e); }
+}
+window._releaseCanvas = _releaseCanvas;
+
+// Blob -> data URL, only for the few consumers that genuinely need one
+// (jsPDF.addImage). Everything else uses object URLs.
+function _blobToDataUrl(blob) {
   return new Promise(function(resolve, reject) {
-    canvas.toBlob(function(outBlob) {
-      if (!outBlob) return reject(new Error('canvas toBlob returned null'));
-      var reader = new FileReader();
-      reader.onload = function() { resolve({ blob: outBlob, dataUrl: reader.result }); };
-      reader.onerror = function() { reject(new Error('FileReader failed')); };
-      reader.readAsDataURL(outBlob);
-    }, 'image/jpeg', quality);
+    var r = new FileReader();
+    r.onload = function() { resolve(r.result); };
+    r.onerror = function() { reject(new Error('FileReader failed')); };
+    r.readAsDataURL(blob);
   });
 }
+window._blobToDataUrl = _blobToDataUrl;
 
-// _stampImageBlob — thin coordinator. Loads the input blob, downscales to
-// fit within maxDim, draws the original onto a canvas, composes and draws
-// the stamp (if any fields are enabled), and returns the result as a JPEG
-// blob + data URL.
-function _stampImageBlob(blob, meta) {
-  return new Promise(function(resolve, reject) {
+// Longest edge for stamped output. 2048 normally; 1600 on phones that
+// report ≤2 GB (navigator.deviceMemory is Chrome-only — absent means
+// "assume normal", never "assume low").
+function _photoMaxDim() {
+  try {
+    var dm = navigator.deviceMemory;
+    if (typeof dm === 'number' && dm > 0 && dm <= 2) return 1600;
+  } catch (_e) { _swallow('_photoMaxDim', _e); }
+  return 2048;
+}
+window._photoMaxDim = _photoMaxDim;
+
+// Read raw pixel size + EXIF orientation from a JPEG's header bytes without
+// decoding it. Returns {width, height, orientation} or null (not a JPEG, or
+// header not found in the first 256 KB). width/height are the STORED pixel
+// dimensions, before any EXIF rotation.
+function _parseJpegHeader(bytes) {
+  var v = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
+  if (v.byteLength < 4 || v.getUint16(0) !== 0xFFD8) return null;
+  var off = 2, orientation = 1, width = 0, height = 0;
+  while (off + 4 <= v.byteLength) {
+    if (v.getUint8(off) !== 0xFF) { off++; continue; }
+    var marker = v.getUint8(off + 1);
+    if (marker === 0xFF) { off++; continue; }            // fill byte
+    if (marker === 0xD8 || (marker >= 0xD0 && marker <= 0xD7) || marker === 0x01) { off += 2; continue; }
+    if (marker === 0xD9 || marker === 0xDA) break;       // EOI / start of scan
+    var len = v.getUint16(off + 2);
+    if (len < 2) break;
+    var seg = off + 4;
+    if (marker === 0xE1 && seg + 14 <= v.byteLength &&
+        v.getUint32(seg) === 0x45786966 && v.getUint16(seg + 4) === 0) { // "Exif\0\0"
+      var tiff = seg + 6;
+      var le = v.getUint16(tiff) === 0x4949;
+      var ifd = tiff + v.getUint32(tiff + 4, le);
+      if (ifd + 2 <= v.byteLength) {
+        var n = v.getUint16(ifd, le);
+        for (var i = 0; i < n; i++) {
+          var e = ifd + 2 + i * 12;
+          if (e + 12 > v.byteLength) break;
+          if (v.getUint16(e, le) === 0x0112) {
+            var o = v.getUint16(e + 8, le);
+            if (o >= 1 && o <= 8) orientation = o;
+            break;
+          }
+        }
+      }
+    } else if (marker >= 0xC0 && marker <= 0xCF && marker !== 0xC4 && marker !== 0xC8 && marker !== 0xCC) {
+      if (seg + 5 <= v.byteLength) {
+        height = v.getUint16(seg + 1);
+        width = v.getUint16(seg + 3);
+      }
+      break;
+    }
+    off += 2 + len;
+  }
+  if (!width || !height) return null;
+  return { width: width, height: height, orientation: orientation };
+}
+window._parseJpegHeader = _parseJpegHeader;
+
+async function _readJpegInfo(blob) {
+  try {
+    if (!blob || !/jpe?g/i.test(blob.type || '')) return null;
+    var slice = blob.slice(0, 262144);
+    var buf = (typeof slice.arrayBuffer === 'function')
+      ? await slice.arrayBuffer()
+      : await new Promise(function(res, rej) { var r = new FileReader(); r.onload = function() { res(r.result); }; r.onerror = rej; r.readAsArrayBuffer(slice); });
+    return _parseJpegHeader(new Uint8Array(buf));
+  } catch (_e) { _swallow('_readJpegInfo', _e); return null; }
+}
+
+// Canvas transform that maps STORED pixels (sw × sh) onto an upright
+// canvas, per EXIF orientation. For 5–8 the canvas is sh × sw. The
+// standard 8-case table; verified by vm test in the Drop CL notes.
+function _exifTransform(ctx, orientation, sw, sh) {
+  switch (orientation) {
+    case 2: ctx.transform(-1, 0, 0, 1, sw, 0); break;
+    case 3: ctx.transform(-1, 0, 0, -1, sw, sh); break;
+    case 4: ctx.transform(1, 0, 0, -1, 0, sh); break;
+    case 5: ctx.transform(0, 1, 1, 0, 0, 0); break;
+    case 6: ctx.transform(0, 1, -1, 0, sh, 0); break;
+    case 7: ctx.transform(0, -1, -1, 0, sh, sw); break;
+    case 8: ctx.transform(0, -1, 1, 0, 0, sw); break;
+    default: break;
+  }
+}
+window._exifTransform = _exifTransform;
+
+// Decode `blob` onto a fresh upright canvas whose longest edge is ≤ maxDim.
+// Fast path (JPEG with a readable header + createImageBitmap): ask the
+// browser to decode straight to the reduced size, so the full-resolution
+// bitmap never exists. Fallback: the classic <img> decode, which handles
+// EXIF orientation natively in every supported browser.
+//
+// Orientation safety: the fast path passes ONLY resizeWidth (height follows
+// the bitmap's own aspect), then checks which way the browser oriented it.
+// Browsers disagree on whether createImageBitmap applies EXIF by default,
+// so instead of guessing we compare the bitmap's aspect ratio to the
+// stored aspect: if it still matches the stored pixels, we rotate it
+// ourselves; if it's already upright, we draw it as-is. A square-ish image
+// where that test is ambiguous goes to the <img> fallback.
+async function _decodeForStamp(blob, maxDim) {
+  var info = await _readJpegInfo(blob);
+  if (info && typeof createImageBitmap === 'function') {
+    var bmp = null;
+    try {
+      var sw = info.width, sh = info.height;
+      var ratio = sw / sh;
+      if (Math.abs(ratio - 1) > 0.05) {
+        var scale = Math.min(1, maxDim / Math.max(sw, sh));
+        var reqW = Math.max(1, Math.round(sw * scale));
+        // Upright photos (orientation 1) have no rotation ambiguity, so pass
+        // both dimensions — width-only lets Chrome round the height up a pixel.
+        var opts = { resizeWidth: reqW, resizeQuality: 'high' };
+        if (info.orientation === 1) opts.resizeHeight = Math.max(1, Math.round(sh * scale));
+        try { bmp = await createImageBitmap(blob, opts); }
+        catch (_e) { bmp = null; }
+        if (bmp && bmp.width > 0 && bmp.height > 0) {
+          var bRatio = bmp.width / bmp.height;
+          var rotated = info.orientation >= 5;
+          var asStored = Math.abs(bRatio - ratio) / ratio < 0.03;
+          var asUpright = Math.abs(bRatio - (1 / ratio)) * ratio < 0.03;
+          var needOwnTransform;
+          if (info.orientation === 1) needOwnTransform = false;
+          else if (rotated && asUpright && !asStored) needOwnTransform = false;
+          else if (rotated && asStored && !asUpright) needOwnTransform = true;
+          else needOwnTransform = null; // 2/3/4 can't be told apart by aspect
+          if (needOwnTransform !== null) {
+            // Fit to maxDim (the browser may have oriented before resizing,
+            // making the long edge exceed it).
+            var bw = bmp.width, bh = bmp.height;
+            var fit = Math.min(1, maxDim / Math.max(bw, bh));
+            var dw = Math.round(bw * fit), dh = Math.round(bh * fit);
+            var turn = needOwnTransform && info.orientation >= 5;
+            var c = document.createElement('canvas');
+            c.width = turn ? dh : dw;
+            c.height = turn ? dw : dh;
+            var cx = c.getContext('2d');
+            if (needOwnTransform) _exifTransform(cx, info.orientation, dw, dh);
+            cx.drawImage(bmp, 0, 0, dw, dh);
+            cx.setTransform(1, 0, 0, 1, 0, 0);
+            try { bmp.close(); } catch (_e) { _swallow('_decodeForStamp', _e); }
+            return c;
+          }
+        }
+      }
+    } catch (_e) { _swallow('_decodeForStamp', _e); }
+    if (bmp) { try { bmp.close(); } catch (_e) { _swallow('_decodeForStamp', _e); } }
+  }
+  // Fallback: <img> decode (one full-size decode, released immediately).
+  return await new Promise(function(resolve, reject) {
     var url = URL.createObjectURL(blob);
     var img = new Image();
+    img.decoding = 'async';
     img.onload = function() {
       try {
-        // Downscale to fit within 2048×2048
-        var maxDim = 2048;
         var w = img.naturalWidth || img.width;
         var h = img.naturalHeight || img.height;
         if (w > maxDim || h > maxDim) {
-          var s = Math.min(maxDim/w, maxDim/h);
-          w = Math.round(w*s); h = Math.round(h*s);
+          var s = Math.min(maxDim / w, maxDim / h);
+          w = Math.round(w * s); h = Math.round(h * s);
         }
-        var canvas = document.createElement('canvas');
-        canvas.width = w; canvas.height = h;
-        var ctx = canvas.getContext('2d');
-        ctx.drawImage(img, 0, 0, w, h);
+        var c = document.createElement('canvas');
+        c.width = w; c.height = h;
+        c.getContext('2d').drawImage(img, 0, 0, w, h);
         URL.revokeObjectURL(url);
-
-        // Compose stamp lines from meta. Empty array → no fields enabled →
-        // re-encode and return without any overlay.
-        var lines = _buildStampLines(meta);
-        if (!lines.length) {
-          _canvasToStampedBlob(canvas, 0.88).then(resolve, reject);
-          return;
-        }
-
-        // Font sizing based on image width + user stamp-size preference.
-        // Tier scale (less visually dominant than the original):
-        //   large  = 0.80  (was 1.00 — the old "bold, dominant" look)
-        //   medium = 0.60  (was 0.80 — current default, modest)
-        //   small  = 0.45  (was 0.60 — subtle corner stamp)
-        // The goal is for even "large" to read as a tasteful overlay, not a
-        // billboard. Users can still bump up via Settings → 📷 Stamp Settings.
-        var stampSize = 'medium';
-        try { stampSize = LS.get('photo-stamp-size') || 'medium'; } catch (_e) { _swallow('onload', _e); }
-        var sizeScale = stampSize === 'large' ? 0.80 : stampSize === 'small' ? 0.45 : 0.60;
-        var base = Math.max(18, Math.round(w * 0.075 * sizeScale));
-        var sizeFor = { big: Math.round(base * 1.30), normal: Math.round(base * 0.78), small: Math.round(base * 0.65) };
-        var pad = Math.round(base * 0.70);
-        var lineGap = Math.round(base * 0.38);
-        var topPad = Math.round(base * 0.15);
-
-        // Stamp position: 'bottom' (default) or 'top'. Last-used value persists
-        // in LS so the setting carries across sessions.
-        var stampPos = 'bottom';
-        try { stampPos = LS.get('photo-stamp-position') || 'bottom'; } catch (_e) { _swallow('onload', _e); }
-
-        // Wrap each line to fit canvas width, then compute bar geometry,
-        // then draw bar + text. ctx is mutated in place by the helpers.
-        var wrapped = _wrapStampLines(lines, ctx, sizeFor, w - pad*2);
-        var geom = _computeStampGeometry(wrapped, h, sizeFor, pad, lineGap, topPad, stampPos);
-        _drawStampBar(ctx, wrapped, geom, sizeFor, w, base, pad, lineGap);
-
-        _canvasToStampedBlob(canvas, 0.88).then(resolve, reject);
-      } catch(e) { URL.revokeObjectURL(url); reject(e); }
+        img.src = '';   // drop the decoded full-size bitmap now
+        resolve(c);
+      } catch (e) { URL.revokeObjectURL(url); reject(e); }
     };
     img.onerror = function() { URL.revokeObjectURL(url); reject(new Error('Image load failed')); };
     img.src = url;
   });
+}
+window._decodeForStamp = _decodeForStamp;
+
+// Encode a canvas to a JPEG Blob. Drop CL: no longer also builds a data
+// URL — callers preview with object URLs. Releases the canvas afterwards
+// unless keepCanvas is true.
+function _canvasToStampedBlob(canvas, quality, keepCanvas) {
+  return new Promise(function(resolve, reject) {
+    canvas.toBlob(function(outBlob) {
+      if (!keepCanvas) _releaseCanvas(canvas);
+      if (!outBlob) return reject(new Error('canvas toBlob returned null'));
+      resolve({ blob: outBlob });
+    }, 'image/jpeg', quality);
+  });
+}
+
+// _stampImageBlob — thin coordinator. Decodes the input (downscaled to
+// _photoMaxDim()), composes and draws the stamp (if any fields are
+// enabled), and returns { blob } — a JPEG Blob.
+async function _stampImageBlob(blob, meta) {
+  var canvas = await _decodeForStamp(blob, _photoMaxDim());
+  try {
+    var w = canvas.width, h = canvas.height;
+    var ctx = canvas.getContext('2d');
+
+    // Compose stamp lines from meta. Empty array → no fields enabled →
+    // re-encode and return without any overlay.
+    var lines = _buildStampLines(meta);
+    if (!lines.length) return await _canvasToStampedBlob(canvas, 0.88);
+
+    // Font sizing based on image width + user stamp-size preference.
+    // Tier scale (less visually dominant than the original):
+    //   large  = 0.80  (was 1.00 — the old "bold, dominant" look)
+    //   medium = 0.60  (was 0.80 — current default, modest)
+    //   small  = 0.45  (was 0.60 — subtle corner stamp)
+    // The goal is for even "large" to read as a tasteful overlay, not a
+    // billboard. Users can still bump up via Settings → 📷 Stamp Settings.
+    var stampSize = 'medium';
+    try { stampSize = LS.get('photo-stamp-size') || 'medium'; } catch (_e) { _swallow('_stampImageBlob', _e); }
+    var sizeScale = stampSize === 'large' ? 0.80 : stampSize === 'small' ? 0.45 : 0.60;
+    var base = Math.max(18, Math.round(w * 0.075 * sizeScale));
+    var sizeFor = { big: Math.round(base * 1.30), normal: Math.round(base * 0.78), small: Math.round(base * 0.65) };
+    var pad = Math.round(base * 0.70);
+    var lineGap = Math.round(base * 0.38);
+    var topPad = Math.round(base * 0.15);
+
+    // Stamp position: 'bottom' (default) or 'top'. Last-used value persists
+    // in LS so the setting carries across sessions.
+    var stampPos = 'bottom';
+    try { stampPos = LS.get('photo-stamp-position') || 'bottom'; } catch (_e) { _swallow('_stampImageBlob', _e); }
+
+    // Wrap each line to fit canvas width, then compute bar geometry,
+    // then draw bar + text. ctx is mutated in place by the helpers.
+    var wrapped = _wrapStampLines(lines, ctx, sizeFor, w - pad*2);
+    var geom = _computeStampGeometry(wrapped, h, sizeFor, pad, lineGap, topPad, stampPos);
+    _drawStampBar(ctx, wrapped, geom, sizeFor, w, base, pad, lineGap);
+
+    return await _canvasToStampedBlob(canvas, 0.88);
+  } catch (e) {
+    _releaseCanvas(canvas);
+    throw e;
+  }
 }
 
 // Direct download — goes to Downloads folder on Android; triggers Save dialog on iOS
@@ -28254,20 +28946,23 @@ function downloadStampedPhoto() {
 // convention (that convention is about not reaching into ANOTHER module's
 // PRIVATE state, not about never sharing a stateless global utility).
 async function downloadStampedPhotoAsPdf() {
-  if (!_photoContext.stampedBlob || !_photoContext.stampedDataUrl) { showToast('No photo'); return; }
+  if (!_photoContext.stampedBlob) { showToast('No photo'); return; }
   try { _recordPhotoTrackerFromContext(); } catch (_e) { _swallow('downloadStampedPhotoAsPdf', _e); }
   var jpgFilename = _photoContext.filename || 'stamped.jpg';
   var pdfFilename = jpgFilename.replace(/\.(jpe?g|png)$/i, '') + '.pdf';
   try {
     var jsPDFCtor = await _cndPdfEnsureJsPDF();
+    // Drop CL: data URL built on demand (jsPDF needs one); not kept around.
+    var pdfDataUrl = await _blobToDataUrl(_photoContext.stampedBlob);
     var img = await new Promise(function(resolve, reject) {
       var im = new Image();
       im.onload = function() { resolve(im); };
       im.onerror = function() { reject(new Error('Could not read image dimensions')); };
-      im.src = _photoContext.stampedDataUrl;
+      im.src = _photoContext.stampedUrl || pdfDataUrl;
     });
     var doc = new jsPDFCtor({ unit: 'pt', format: [img.width, img.height], orientation: _cndPdfOrient(img.width, img.height) });
-    doc.addImage(_photoContext.stampedDataUrl, 'JPEG', 0, 0, img.width, img.height);
+    doc.addImage(pdfDataUrl, 'JPEG', 0, 0, img.width, img.height);
+    pdfDataUrl = null; img.src = '';
     var blob = doc.output('blob');
     var url = URL.createObjectURL(blob);
     var a = document.createElement('a');
@@ -28382,8 +29077,7 @@ function closePhotoPreview(opts) {
   modal.style.display = 'none';
   Accessibility.modalClosed(modal);
   // Clear single-shot working buffer
-  _photoContext.stampedBlob = null;
-  _photoContext.stampedDataUrl = null;
+  _setStampedBlob(null);
   _photoContext.originalBlob = null;
   var img = document.getElementById('photo-preview-img');
   if (img) img.src = '';
@@ -28535,7 +29229,7 @@ function showShareEmailChooser(stopId) {
   if (overlay) overlay.remove();
   overlay = document.createElement('div');
   overlay.id = 'share-chooser-overlay';
-  overlay.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.7);z-index:1000;display:flex;align-items:flex-end;justify-content:center;padding:0';
+  overlay.style.cssText = 'position:fixed;top:0;right:0;bottom:0;left:0;background:rgba(0,0,0,0.7);z-index:1000;display:flex;align-items:flex-end;justify-content:center;padding:0';
   const escAddr = (s.address || '').replace(/[<>&"]/g, c => ({'<':'&lt;','>':'&gt;','&':'&amp;','"':'&quot;'}[c]));
   overlay.innerHTML = ''
     + '<div style="background:white;border-radius:18px 18px 0 0;width:100%;max-width:500px;padding:18px 18px 28px;box-shadow:0 -6px 20px rgba(0,0,0,0.3)">'
@@ -29937,7 +30631,10 @@ var _ASK_DATA_SURVEY_SESSION_CAP = 100;
 // errors on LS.set trigger an emergency prune-and-retry.
 const AskDataStore = (function() {
   const LS_KEY = 'ask-data-conversations';
-  const SOFT_BYTE_CAP = 5 * 1024 * 1024;   // 5 MB
+  // Drop CL: was 5 MB — the ENTIRE localStorage quota, shared with stops,
+  // the archive and the photo log. Chat history could crowd out field
+  // data before pruning ever kicked in.
+  const SOFT_BYTE_CAP = 400 * 1024;        // 400 KB
   const SOFT_COUNT_CAP = 500;              // hard upper bound; soft-prunes earlier
   const TITLE_MAX_LEN = 60;
 
@@ -30952,7 +31649,7 @@ var _SUPPORT_DESK_KNOWLEDGE = (
 "- Photo Tracker (in the Reports tab / a Map overlay layer) automatically groups PhotoStamp photos by location and flags addresses with repeated photo activity above a configurable threshold, color-coded by severity, with an exportable report and CSV.\n\n" +
 
 "PDF DOCS\n" +
-"- Reached from the header's PDF icon. Four tools under one screen: Image Convert (the default tab) turns one or more photos (JPG, PNG, WebP, GIF, BMP and other browser-readable types) into a single PDF, naming the output file from the input filenames automatically; Merge (third tab) combines any number of PDFs — reorder the files with the arrows, tap page thumbnails to leave pages out, and preview the merged page order before saving; Edit PDF (fourth tab) opens a PDF so you can add text boxes, draw with pen, highlighter, lines, arrows, boxes and ovals, whiteout or erase marks, then Save as new PDF (the original is never changed); Docu-Stamp (second tab, also accepts PDFs — every page gets the stamp — and has Clear Address and Clear All buttons, and an Output toggle: One PDF per photo, or a Single combined PDF with the stamp across the top of page 1 and every file after it in the order listed — reorder with the ↑ ↓ buttons) builds a formal photo-documentation PDF with a stamped header line — pick a Reason (Blank by default — leaves the reason off the stamp entirely — or C&D, Survey/Area Canvas, Code Violation, Vacant Property, Housing Conservation, Weights & Measures, or Custom with free text) and list the people involved (add a Title and Name for each person present; add more with \"+ Add Person\"). Any field left empty — Reason, Address, Dated, Posted, People — is simply left off the stamped header rather than showing a placeholder.\n" +
+"- Reached from the header's PDF icon. Four tools under one screen: Image Convert (the default tab) turns one or more photos (JPG, PNG, WebP, GIF, BMP and other browser-readable types) into a single PDF, naming the output file from the input filenames automatically; Merge (third tab) combines any number of PDFs — reorder the files with the arrows, tap page thumbnails to leave pages out, and preview the merged page order before saving; Edit PDF (fourth tab) opens a PDF so you can add text boxes, draw with pen, highlighter, lines, arrows, boxes and ovals, whiteout or erase marks, then Save as new PDF (the original is never changed); Docu-Stamp (second tab, also accepts PDFs — every page gets the stamp — and has Clear Address and Clear All buttons — Clear All empties every box including the people list — and an Output toggle: One PDF per photo, or a Single combined multipage PDF where every photo and PDF page is its own page with the stamp across the top of each, in the order listed — reorder with the ↑ ↓ buttons; only one field is needed to generate, the address is optional; filenames read address_REASON_Posted_date when a Posted On date is entered, or _Dated_date when only Dated is) builds a formal photo-documentation PDF with a stamped header line — pick a Reason (Blank by default — leaves the reason off the stamp entirely — or C&D, Survey/Area Canvas, Code Violation, Vacant Property, Housing Conservation, Weights & Measures, or Custom with free text) and list the people involved (add a Title and Name for each person present; add more with \"+ Add Person\"). Any field left empty — Reason, Address, Dated, Posted, People — is simply left off the stamped header rather than showing a placeholder.\n" +
 "- A stamped photo can also be turned into its own single-page PDF directly from the Stamped Photo screen's 📄 PDF button, right after capture.\n\n" +
 
 "REPORTS\n" +
@@ -32300,37 +32997,33 @@ function removeRefDoc(i) {
 
 function handleCredsUpload(event) {
   const file = event.target.files[0]; if (!file) return;
-  const reader = new FileReader();
-  reader.onload = e => {
-    const originalData = e.target.result;
-    const tempImg = new Image();
-    tempImg.onload = function() {
-      const canvas = document.createElement('canvas');
-      // Preserve original orientation — user rotates manually
-      canvas.width = tempImg.naturalWidth;
-      canvas.height = tempImg.naturalHeight;
-      canvas.getContext('2d').drawImage(tempImg, 0, 0);
-      const MAX = 1600;
-      if (canvas.width > MAX || canvas.height > MAX) {
-        const scale = Math.min(MAX/canvas.width, MAX/canvas.height);
-        const c2 = document.createElement('canvas');
-        c2.width = Math.round(canvas.width*scale);
-        c2.height = Math.round(canvas.height*scale);
-        c2.getContext('2d').drawImage(canvas, 0, 0, c2.width, c2.height);
-        const data = c2.toDataURL('image/jpeg', 0.88);
-        // LS.set never throws — check the boolean return (LS error contract).
-        if (!LS.set('creds-id-front', data)) { showToast('⚠ Storage full — ID photo could not be saved. Clear ref docs to free space.'); return; }
-        applyCredsFrontPhoto(data);
-      } else {
-        const data = canvas.toDataURL('image/jpeg', 0.88);
-        // LS.set never throws — check the boolean return (LS error contract).
-        if (!LS.set('creds-id-front', data)) { showToast('⚠ Storage full — ID photo could not be saved. Clear ref docs to free space.'); return; }
-        applyCredsFrontPhoto(data);
-      }
-    };
-    tempImg.src = originalData;
+  // Drop CL: decode via object URL (was readAsDataURL of the whole camera
+  // file — a multi-MB string — then a full-size canvas, then a second
+  // downscaled canvas). Now one decode straight to the target size, and the
+  // stored image is capped at 1200px / q0.85: it's shown as a small ID card
+  // and lives in the ~5 MB localStorage budget shared with field data.
+  const url = URL.createObjectURL(file);
+  const tempImg = new Image();
+  tempImg.onload = function() {
+    URL.revokeObjectURL(url);
+    const MAX = 1200;
+    let w = tempImg.naturalWidth, h = tempImg.naturalHeight;
+    if (w > MAX || h > MAX) {
+      const scale = Math.min(MAX / w, MAX / h);
+      w = Math.round(w * scale); h = Math.round(h * scale);
+    }
+    const canvas = document.createElement('canvas');
+    canvas.width = w; canvas.height = h;
+    canvas.getContext('2d').drawImage(tempImg, 0, 0, w, h);
+    tempImg.src = '';
+    const data = canvas.toDataURL('image/jpeg', 0.85);
+    _releaseCanvas(canvas);
+    // LS.set never throws — check the boolean return (LS error contract).
+    if (!LS.set('creds-id-front', data)) { showToast('⚠ Storage full — ID photo could not be saved. Clear ref docs to free space.'); return; }
+    applyCredsFrontPhoto(data);
   };
-  reader.readAsDataURL(file);
+  tempImg.onerror = function() { URL.revokeObjectURL(url); showToast('⚠ Could not read that image'); };
+  tempImg.src = url;
   event.target.value = '';
 }
 
@@ -32423,7 +33116,7 @@ function _fsShowId() {
     const photoHtml = front
       ? '<img src="' + front + '" style="width:100vw;height:100vh;object-fit:contain;display:block;background:#000;">'
       : '<div style="color:rgba(255,255,255,0.4);font-family:Syne,sans-serif;font-weight:700;font-size:0.8rem;text-align:center;padding:40px">🪪 No ID photo yet<br><span style="font-size:0.6rem;font-weight:400">Use Customize to upload</span></div>';
-    idFs.style.cssText = 'display:block;position:fixed;inset:0;z-index:10000;background:#000;width:100vw;height:100vh;overflow:hidden;';
+    idFs.style.cssText = 'display:block;position:fixed;top:0;right:0;bottom:0;left:0;z-index:10000;background:#000;width:100vw;height:100vh;overflow:hidden;';
     idFs.innerHTML = photoHtml
       + '<button data-fn="closeIdFullscreen" style="position:fixed;top:14px;right:14px;background:rgba(0,0,0,0.6);border:1px solid rgba(255,255,255,0.4);color:white;border-radius:50%;width:42px;height:42px;font-size:1.2rem;cursor:pointer;display:flex;align-items:center;justify-content:center;z-index:10001;">✕</button>';
     document.body.style.overflow = 'hidden';
@@ -36883,7 +37576,7 @@ function _showDataModal(text) {
   if (existing) existing.remove();
   var modal = document.createElement('div');
   modal.id = 'data-export-modal';
-  modal.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.7);z-index:9600;display:flex;align-items:flex-end;justify-content:center';
+  modal.style.cssText = 'position:fixed;top:0;right:0;bottom:0;left:0;background:rgba(0,0,0,0.7);z-index:9600;display:flex;align-items:flex-end;justify-content:center';
   var inner = document.createElement('div');
   inner.style.cssText = 'background:white;border-radius:16px 16px 0 0;padding:16px;width:100%;max-width:480px;max-height:70vh;display:flex;flex-direction:column';
   var title = document.createElement('div');
@@ -37219,7 +37912,7 @@ function wizSaveRole() {
 
 <!-- ===== MAP LAYERS MODAL — toggle list of all layers (built-in + custom) ===== -->
 <div id="map-layers-modal" class="modal-overlay" style="display:none;z-index:9700" role="dialog" aria-modal="true" aria-labelledby="map-layers-modal-title" data-backdrop-close data-fn="closeMapLayersPanel">
-  <div class="modal-sheet" style="padding-bottom:24px;background:white;max-height:88dvh;overflow-y:auto">
+  <div class="modal-sheet" style="padding-bottom:24px;background:white;max-height:88vh;max-height:88dvh;overflow-y:auto">
     <div class="modal-handle"></div>
     <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px">
       <div id="map-layers-modal-title" style="font-family:'Syne',sans-serif;font-weight:800;font-size:0.95rem;color:#7c3aed">🗺️ Map Layers</div>
@@ -37286,7 +37979,7 @@ function wizSaveRole() {
      unchanged from its old home — only the surrounding modal moved, so
      _renderSurveyPanel() didn't need any changes. -->
 <div id="survey-mode-modal" class="modal-overlay" style="display:none;z-index:9740" role="dialog" aria-modal="true" aria-labelledby="survey-mode-modal-title" data-backdrop-close data-fn="closeSurveyModeModal">
-  <div class="modal-sheet" style="padding-bottom:24px;background:white;max-height:90dvh;overflow-y:auto">
+  <div class="modal-sheet" style="padding-bottom:24px;background:white;max-height:90vh;max-height:90dvh;overflow-y:auto">
     <div class="modal-handle"></div>
     <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px">
       <div id="survey-mode-modal-title" style="font-family:'Syne',sans-serif;font-weight:800;font-size:0.95rem;color:#1a4a8c">🧭 Survey Mode</div>
@@ -37301,7 +37994,7 @@ function wizSaveRole() {
 
 <!-- ===== PHOTO TRACKER MODAL ===== -->
 <div id="photo-tracker-modal" class="modal-overlay" style="display:none;z-index:9750" role="dialog" aria-modal="true" aria-labelledby="photo-tracker-modal-title" data-backdrop-close data-fn="closePhotoTrackerModal">
-  <div class="modal-sheet" style="padding-bottom:24px;background:white;max-height:90dvh;overflow-y:auto">
+  <div class="modal-sheet" style="padding-bottom:24px;background:white;max-height:90vh;max-height:90dvh;overflow-y:auto">
     <div class="modal-handle"></div>
     <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px">
       <div id="photo-tracker-modal-title" style="font-family:'Syne',sans-serif;font-weight:800;font-size:0.95rem;color:#c0392b">🔥 Photo Tracker</div>
@@ -37316,7 +38009,7 @@ function wizSaveRole() {
 
 <!-- ===== COVERAGE & ACTIVITY REPORT MODAL ===== -->
 <div id="coverage-report-modal" class="modal-overlay" style="display:none;z-index:9760" role="dialog" aria-modal="true" aria-labelledby="coverage-report-modal-title" data-backdrop-close data-fn="closeCoverageReportModal">
-  <div class="modal-sheet" style="padding-bottom:24px;background:white;max-height:90dvh;overflow-y:auto">
+  <div class="modal-sheet" style="padding-bottom:24px;background:white;max-height:90vh;max-height:90dvh;overflow-y:auto">
     <div class="modal-handle"></div>
     <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px">
       <div id="coverage-report-modal-title" style="font-family:'Syne',sans-serif;font-weight:800;font-size:0.95rem;color:#444">📄 Coverage &amp; Activity Report</div>
@@ -37332,7 +38025,7 @@ function wizSaveRole() {
 
 <!-- ===== CUSTOM LAYER CREATOR MODAL ===== -->
 <div id="custom-layer-creator-modal" class="modal-overlay" style="display:none;z-index:9800" role="dialog" aria-modal="true" aria-labelledby="custom-layer-creator-modal-title" data-backdrop-close data-fn="closeCustomLayerCreator">
-  <div class="modal-sheet" style="padding-bottom:24px;background:white;max-height:92dvh;overflow-y:auto">
+  <div class="modal-sheet" style="padding-bottom:24px;background:white;max-height:92vh;max-height:92dvh;overflow-y:auto">
     <div class="modal-handle"></div>
     <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px">
       <div id="custom-layer-creator-modal-title" style="font-family:'Syne',sans-serif;font-weight:800;font-size:0.9rem;color:#7c3aed">+ New Custom Layer</div>
@@ -37382,7 +38075,7 @@ function wizSaveRole() {
 
 <!-- ===== CUSTOM LAYER EDIT MODAL ===== -->
 <div id="custom-layer-edit-modal" class="modal-overlay" style="display:none;z-index:9810" role="dialog" aria-modal="true" aria-labelledby="custom-layer-edit-modal-title" data-backdrop-close data-fn="closeCustomLayerEdit">
-  <div class="modal-sheet" style="padding-bottom:24px;background:white;max-height:88dvh;overflow-y:auto">
+  <div class="modal-sheet" style="padding-bottom:24px;background:white;max-height:88vh;max-height:88dvh;overflow-y:auto">
     <div class="modal-handle"></div>
     <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px">
       <div id="custom-layer-edit-modal-title" style="font-family:'Syne',sans-serif;font-weight:800;font-size:0.9rem;color:#7c3aed">⚙ Edit Layer</div>
@@ -37422,7 +38115,7 @@ function wizSaveRole() {
      than reaching into that module's private closure — consistent with
      the project's per-module self-containment convention). -->
 <div id="cnd-pdf-modal" class="modal-overlay" style="display:none;z-index:9998;padding:0;align-items:stretch;justify-content:stretch" role="dialog" aria-modal="true" aria-labelledby="cnd-pdf-modal-title" data-backdrop-close data-fn="closeCndPdfModal">
-  <div class="modal-sheet" style="padding:18px 18px 24px;background:#f6f5f1;width:100%;max-width:none;height:100dvh;max-height:100dvh;border-radius:0;overflow-y:auto">
+  <div class="modal-sheet" style="padding:18px 18px 24px;background:#f6f5f1;width:100%;max-width:none;height:100vh;height:100dvh;max-height:100vh;max-height:100dvh;border-radius:0;overflow-y:auto">
     <div class="modal-handle"></div>
     <div style="display:flex;align-items:baseline;justify-content:space-between;border-bottom:2px solid #28323f;padding-bottom:12px;margin-bottom:16px">
       <div id="cnd-pdf-modal-title" style="font-family:'Syne',sans-serif;font-weight:800;font-size:0.95rem;color:#28323f">📄 PDF Docs</div>
@@ -37610,7 +38303,7 @@ function wizSaveRole() {
         <span id="cndpdf-status" style="font-size:0.6rem;color:#3c4a5c"></span>
       </div>
       <div style="font-size:0.55rem;color:#8a8577;margin-top:16px;border-top:1px solid #d9d6cd;padding-top:12px;line-height:1.5">
-        Any field left blank — including Reason — is left out of the stamp entirely, not shown as a placeholder. Use ↑ ↓ in the list to set the order (it matters most for the single combined PDF). The same header is applied to every photo in One-PDF-per-photo mode; in Single combined mode it appears once, across the top of page 1. Fill in once per property, add all photos for that posting, then Generate. Hit Clear All to start the next property — it empties the photos, address, reason, dates and notes (the "Who's on this" list stays); Clear Address above only resets the address, neighborhood, ward, police district and ZIP.
+        Any field left blank — including Reason — is left out of the stamp entirely, not shown as a placeholder. Only one field is needed — a stamp can be just a date or just a name. Use ↑ ↓ in the list to set the order (it matters most for the single combined PDF). Every photo and every PDF page gets the same stamp across its top, in both output modes; Single combined puts them all in one multipage PDF. Hit Clear All to start over — it empties the photos and every box on this tab, including "Who's on this"; Clear Address above only resets the address, neighborhood, ward, police district and ZIP.
       </div>
     </div>
 
@@ -37706,7 +38399,7 @@ function wizSaveRole() {
 </div>
 
 <!-- ===== MISC LINKS MODAL ===== -->
-<div id="misc-links-modal" role="dialog" aria-modal="true" aria-labelledby="misc-links-modal-title" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.75);z-index:9300;overflow-y:auto;-webkit-overflow-scrolling:touch">
+<div id="misc-links-modal" role="dialog" aria-modal="true" aria-labelledby="misc-links-modal-title" style="display:none;position:fixed;top:0;right:0;bottom:0;left:0;background:rgba(0,0,0,0.75);z-index:9300;overflow-y:auto;-webkit-overflow-scrolling:touch">
   <div style="background:white;border-radius:16px 16px 0 0;padding:0 0 40px;max-width:480px;margin:40px auto 0;min-height:calc(100vh - 40px);box-shadow:0 -4px 40px rgba(0,0,0,0.3)">
     <div style="position:sticky;top:0;background:white;border-radius:16px 16px 0 0;padding:16px 16px 10px;border-bottom:1px solid #f0f0f0;z-index:2">
       <div style="display:flex;align-items:center;justify-content:space-between">
@@ -37725,7 +38418,7 @@ function wizSaveRole() {
 </div>
 
 <!-- ===== SETUP WIZARD ===== -->
-<div id="setup-wizard" role="dialog" aria-modal="true" aria-label="Setup wizard" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.85);z-index:9999;overflow-y:auto;-webkit-overflow-scrolling:touch;justify-content:center;align-items:flex-end">
+<div id="setup-wizard" role="dialog" aria-modal="true" aria-label="Setup wizard" style="display:none;position:fixed;top:0;right:0;bottom:0;left:0;background:rgba(0,0,0,0.85);z-index:9999;overflow-y:auto;-webkit-overflow-scrolling:touch;justify-content:center;align-items:flex-end">
   <div style="background:linear-gradient(135deg,var(--moss),var(--leaf));border-radius:24px 24px 0 0;padding:0 0 40px;width:100%;max-width:480px;box-shadow:0 -8px 60px rgba(0,0,0,0.5)">
     <!-- Header -->
     <div style="display:flex;justify-content:space-between;align-items:center;padding:20px 20px 0">
@@ -37744,8 +38437,8 @@ function wizSaveRole() {
      wizard no longer runs automatically). Reuses _gpsSetupGuideHtml() so
      this content can never drift from the Settings → App Install & GPS
      guide; there's exactly one place that text lives. -->
-<div id="gps-setup-popup" role="dialog" aria-modal="true" aria-label="GPS setup instructions" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.85);z-index:9999;overflow-y:auto;-webkit-overflow-scrolling:touch;justify-content:center;align-items:flex-end">
-  <div style="background:white;border-radius:24px 24px 0 0;padding:20px 20px 28px;width:100%;max-width:480px;max-height:90dvh;overflow-y:auto;box-shadow:0 -8px 60px rgba(0,0,0,0.5)">
+<div id="gps-setup-popup" role="dialog" aria-modal="true" aria-label="GPS setup instructions" style="display:none;position:fixed;top:0;right:0;bottom:0;left:0;background:rgba(0,0,0,0.85);z-index:9999;overflow-y:auto;-webkit-overflow-scrolling:touch;justify-content:center;align-items:flex-end">
+  <div style="background:white;border-radius:24px 24px 0 0;padding:20px 20px 28px;width:100%;max-width:480px;max-height:90vh;max-height:90dvh;overflow-y:auto;box-shadow:0 -8px 60px rgba(0,0,0,0.5)">
     <div style="text-align:center;margin-bottom:14px">
       <div style="font-size:1.8rem;margin-bottom:4px">📡</div>
       <div style="font-family:'Syne',sans-serif;font-weight:800;font-size:0.9rem;color:#1a3320">Set up GPS</div>
