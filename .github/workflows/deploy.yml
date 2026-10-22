@@ -1,5 +1,11 @@
 name: Deploy STLCityRoute
 
+# Stamps a real version (date + commit) into sw.js and index.html on every
+# push to main, then publishes to GitHub Pages. The committed files keep the
+# literal placeholder %%VERSION%%; only the deployed copy gets the real value.
+# This is what makes the service-worker cache name change on every deploy, so
+# old caches are purged and phones pick up updates.
+
 on:
   push:
     branches: [ main ]
@@ -28,14 +34,22 @@ jobs:
         id: ver
         run: echo "V=$(date +'%Y%m%d')-$(git rev-parse --short HEAD)" >> $GITHUB_OUTPUT
 
-      - name: Stamp version into sw.js
-        run: sed -i "s/%%VERSION%%/${{ steps.ver.outputs.V }}/g" sw.js
+      - name: Stamp version into sw.js and index.html
+        run: |
+          sed -i "s/%%VERSION%%/${{ steps.ver.outputs.V }}/g" sw.js index.html
 
-      - name: Stamp version into index.html
-        run: sed -i "s/%%VERSION%%/${{ steps.ver.outputs.V }}/g" index.html
+      # Safety net: fail the deploy (leaving the previous site live) if a
+      # placeholder survived or sw.js has no version at all.
+      - name: Verify stamping
+        run: |
+          if grep -q '%%VERSION%%' sw.js index.html; then
+            echo "FATAL: %%VERSION%% still present after stamping"; exit 1
+          fi
+          grep -q "stlcityroute-${{ steps.ver.outputs.V }}" sw.js || { echo "FATAL: sw.js cache name not stamped"; exit 1; }
+          echo "Stamped version ${{ steps.ver.outputs.V }}"
 
       - name: Setup Pages
-        uses: actions/configure-pages@v4
+        uses: actions/configure-pages@v5
 
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v3
