@@ -296,7 +296,7 @@ window.addEventListener('unhandledrejection', function(e) {
 // SERVICE WORKER + PWA INSTALL SYSTEM
 //
 // sw.js lives alongside index.html in the repo root.
-// The GitHub Actions workflow stamps ${APP_VERSION} with the
+// The GitHub Actions workflow stamps %%VERSION%% with the
 // real version string on every push — cache busting is
 // fully automatic. You never need to edit a version number.
 // ═══════════════════════════════════════════════════════════
@@ -3534,7 +3534,7 @@ html.low-end .leaflet-tooltip.boundary-label-cid, html.low-end .leaflet-tooltip.
       <div style="margin-top:8px;font-size:0.5rem;color:#aaa;font-family:'Space Mono',monospace">support@yourcityroute.com</div>
     </div>
 
-    <div style="text-align:center;padding:16px 0 4px;font-size:0.52rem;color:rgba(200,230,201,0.3);font-family:'Space Mono',monospace">STLCityRoute · v${APP_VERSION}</div>
+    <div style="text-align:center;padding:16px 0 4px;font-size:0.52rem;color:rgba(200,230,201,0.3);font-family:'Space Mono',monospace">STLCityRoute · v%%VERSION%%</div>
   </div>
   <a class="tab-footer-link" href="https://www.stlouis-mo.gov/government/departments/personnel/jobs/openings/index.cfm" target="_blank" rel="noopener">St. Louis City Employment Opportunities ↗</a>
 </div>
@@ -4221,7 +4221,7 @@ const XLSX_ICON_URI = _IMG_ASSETS.XLSX_ICON_URI || '';
 const MIC_ICON_URI = _IMG_ASSETS.MIC_ICON_URI || '';
 const REGULAR_STOPS_ICON_URI = _IMG_ASSETS.REGULAR_STOPS_ICON_URI || '';
 
-const APP_VERSION        = '${APP_VERSION}'; // stamped by GitHub Actions on every deploy
+const APP_VERSION        = '%%VERSION%%'; // stamped by GitHub Actions on every deploy
 const SCHEMA_VERSION     = '3';          // bump when stop object shape changes
 const STOP_DEFAULTS      = { type:'inspection', done:false, notes:'', lat:null, lng:null, addedAt:null, completedAt:null, arrivedAt:null, verified:false, addrNote:null, transactions:null };
 
@@ -8884,7 +8884,7 @@ function init() {
     } catch (_e) { _swallow('init', _e); }
   } catch(e) {
     console.error('[init] Fatal error:', e);
-    try { _beacon('crash', { msg: (e.message||'').slice(0,100), loc:'init', ver:'${APP_VERSION}' }); } catch (_) { _swallow('init', _); }
+    try { _beacon('crash', { msg: (e.message||'').slice(0,100), loc:'init', ver:APP_VERSION }); } catch (_) { _swallow('init', _); }
     // Surface a visible error so the user knows something went wrong
     const banner = document.createElement('div');
     banner.style.cssText = 'position:fixed;top:0;left:0;right:0;z-index:99999;background:#c0392b;color:white;padding:14px 16px;font-family:monospace;font-size:0.75rem;line-height:1.5';
@@ -23120,6 +23120,246 @@ const ReportBasemap = (function() {
     return c.toDataURL('image/jpeg', 0.9);
   }
 
+  // ── Zoom-in street detail (Drop CN) ──────────────────────────────────
+  // The stitched backdrop above is one image at one zoom (capped at 5x5
+  // tiles), which for a neighborhood lands around z13-14 — below the zoom
+  // where map styles draw street names at all. Zooming the HTML report in
+  // only magnified that picture. buildDetail() fetches a bounded set of
+  // higher-zoom tiles over the part of the map that matters and returns
+  // them as data URIs keyed "z/x/y"; the HTML report shows them in a tile
+  // layer above the backdrop once you zoom past it. Same rules as build():
+  // fetched once, in the app, embedded in the file — no key in the report.
+  //
+  // Budget: at most DETAIL_BUDGET tile requests per report (quota) and
+  // DETAIL_MAX_CHARS of embedded image data (file size: the report is
+  // emailed and opened on phones). Levels: up to three consecutive zooms
+  // ending at the highest one that fits. Tiles that fail are left out and
+  // the backdrop shows through there; a level with more than 10% missing
+  // is dropped whole so it doesn't look patchy.
+  //
+  // Only the HTML download/share paths call this. PDFs and the in-app
+  // preview don't (a printed page can't zoom), so an Apply in the report
+  // modal costs no more requests than before.
+  var DETAIL_BUDGET = 180, DETAIL_MAX_Z = 18, DETAIL_LEVELS = 3;
+  var DETAIL_MAX_CHARS = 7000000, DETAIL_TIMEOUT_MS = 15000;
+  // Street-name-forward styles first: the muted backdrop styles label
+  // streets faintly or not at all, and street names are the point of this
+  // layer. Colorful styles get the same desaturation the backdrop gets.
+  var DETAIL_STYLES = { maptiler: ['streets-v2', 'streets-v4'], stadia: ['alidade_smooth', 'osm_bright'] };
+
+  function _tileRange(b, z) {
+    var n = Math.pow(2, z);
+    return {
+      x0: Math.max(0, Math.floor(lngToX(b.west, z))), x1: Math.min(n - 1, Math.floor(lngToX(b.east, z))),
+      y0: Math.max(0, Math.floor(latToY(b.north, z))), y1: Math.min(n - 1, Math.floor(latToY(b.south, z)))
+    };
+  }
+  function _tileKeys(regions, z) {
+    var seen = {}, keys = [];
+    regions.forEach(function(b) {
+      var r = _tileRange(b, z);
+      for (var y = r.y0; y <= r.y1; y++) for (var x = r.x0; x <= r.x1; x++) {
+        var k = z + '/' + x + '/' + y;
+        if (!seen[k]) { seen[k] = 1; keys.push(k); }
+      }
+    });
+    return keys;
+  }
+  // Points mode: one small square region per point, sized to ~3x3 tiles at
+  // the top level, so scattered points each get their own block of
+  // street-level detail instead of the whole (huge) span between them.
+  function _pointRegions(points, hi) {
+    var half = 1.5 * 360 / Math.pow(2, hi); // 1.5 tiles of longitude
+    return points.map(function(p) {
+      var lngScale = Math.cos(p.lat * Math.PI / 180) || 1;
+      var dLat = half * lngScale;
+      return { west: p.lng - half, east: p.lng + half, south: p.lat - dLat, north: p.lat + dLat };
+    });
+  }
+  // Highest top level whose levels fit the request budget, as
+  // {hi, lo, regions, count}; null when nothing above the backdrop fits.
+  function _planDetail(baseZ, regionsFor) {
+    for (var hi = DETAIL_MAX_Z; hi > baseZ; hi--) {
+      var lo = Math.max(baseZ + 1, hi - DETAIL_LEVELS + 1);
+      var regions = regionsFor(hi), count = 0;
+      for (var z = lo; z <= hi && count <= DETAIL_BUDGET; z++) count += _tileKeys(regions, z).length;
+      if (count <= DETAIL_BUDGET) return { hi: hi, lo: lo, regions: regions, count: count };
+    }
+    return null;
+  }
+
+  async function _fetchTimed(url) {
+    var ctl = (typeof AbortController === 'function') ? new AbortController() : null;
+    var timer = ctl ? setTimeout(function() { ctl.abort(); }, DETAIL_TIMEOUT_MS) : null;
+    try {
+      var resp = await fetch(url, ctl ? { signal: ctl.signal } : undefined);
+      if (!resp.ok) throw _err('http ' + resp.status, resp.status);
+      return await resp.blob();
+    } catch (e) {
+      throw (e && e.status) ? e : _err('network', 0);
+    } finally { if (timer) clearTimeout(timer); }
+  }
+
+  // base: a successful build() result. opts.bbox: the data's own extent
+  // ({west,south,east,north}); opts.points: [{lat,lng}] (optional);
+  // opts.onProgress(done, total) (optional). Always resolves; never throws.
+  // Success: {ok:true, tiles:{"z/x/y": dataURI}, lo, hi, bounds, muted, count, chars}.
+  async function buildDetail(base, opts) {
+    try {
+      opts = opts || {};
+      if (!base || !base.ok) return { ok: false, reason: 'no-geometry' };
+      if (typeof navigator !== 'undefined' && navigator.onLine === false) return { ok: false, reason: 'offline' };
+      var prov = null;
+      for (var i = 0; i < PROVIDERS.length; i++) if (PROVIDERS[i].id === base.provider) prov = PROVIDERS[i];
+      if (!prov || !prov.key) return { ok: false, reason: 'key' };
+
+      var pts = (opts.points || []).filter(function(p) { return p && isFinite(p.lat) && isFinite(p.lng); });
+      var plan = opts.bbox ? _planDetail(base.z, function() { return [opts.bbox]; }) : null;
+      // A big area only fits a low top level; scattered points may do
+      // better with a block around each one. Take whichever reaches the
+      // higher zoom (street names show from about z16).
+      if (pts.length && (!plan || plan.hi < 16)) {
+        var pPlan = _planDetail(base.z, function(hi) { return _pointRegions(pts, hi); });
+        if (pPlan && (!plan || pPlan.hi > plan.hi)) plan = pPlan;
+      }
+      if (!plan) return { ok: false, reason: 'bbox' };
+
+      var levels = {};
+      for (var z = plan.lo; z <= plan.hi; z++) levels[z] = _tileKeys(plan.regions, z);
+      var allKeys = [];
+      Object.keys(levels).forEach(function(z) { allKeys = allKeys.concat(levels[z]); });
+
+      // Style: first that answers a probe tile; the backdrop's own style
+      // is the last resort.
+      var styles = (DETAIL_STYLES[prov.id] || []).concat([base.style]);
+      var style = null, probeBlob = null, probeKey = levels[plan.hi][Math.floor(levels[plan.hi].length / 2)];
+      var pk = probeKey.split('/');
+      for (var s = 0; s < styles.length && !style; s++) {
+        try { probeBlob = await _fetchTimed(prov.url(styles[s], +pk[0], +pk[1], +pk[2], prov.key)); style = styles[s]; }
+        catch (e) {
+          if (e.status === 401 || e.status === 403) return { ok: false, reason: 'key' };
+          if (e.status === 429) return { ok: false, reason: 'quota' };
+          if (e.status !== 404) return { ok: false, reason: 'network' };  // 404 = style not served; try the next
+        }
+      }
+      if (!style) return { ok: false, reason: 'style' };
+
+      // Re-encode each tile small: WebP where the browser can encode it
+      // (Chrome/Android), JPEG otherwise (iOS Safari can't encode WebP).
+      var cv = document.createElement('canvas');
+      cv.width = TILE; cv.height = TILE;
+      var cctx = cv.getContext('2d');
+      var useWebp = cv.toDataURL('image/webp', 0.8).indexOf('data:image/webp') === 0;
+      function encode(img) {
+        cctx.fillStyle = '#e8e8e4'; cctx.fillRect(0, 0, TILE, TILE);
+        cctx.drawImage(img, 0, 0, TILE, TILE);
+        return useWebp ? cv.toDataURL('image/webp', 0.8) : cv.toDataURL('image/jpeg', 0.82);
+      }
+
+      var tiles = {}, done = 0, queue = allKeys.slice(), quotaHit = false;
+      async function worker() {
+        while (queue.length && !quotaHit) {
+          var k = queue.shift(), p = k.split('/');
+          try {
+            var blob;
+            if (k === probeKey) blob = probeBlob;
+            else {
+              try { blob = await _fetchTimed(prov.url(style, +p[0], +p[1], +p[2], prov.key)); }
+              catch (e1) {
+                if (e1.status === 429) throw e1;
+                blob = await _fetchTimed(prov.url(style, +p[0], +p[1], +p[2], prov.key)); // one retry
+              }
+            }
+            tiles[k] = encode(await _blobToImage(blob));
+          } catch (e) { if (e && e.status === 429) quotaHit = true; }
+          done++;
+          if (opts.onProgress) { try { opts.onProgress(done, allKeys.length); } catch (_e) {} }
+        }
+      }
+      var workers = [];
+      for (var w = 0; w < CONCURRENCY; w++) workers.push(worker());
+      await Promise.all(workers);
+
+      // Drop patchy levels, then trim from the top until under the size cap.
+      var kept = [];
+      for (var lz = plan.lo; lz <= plan.hi; lz++) {
+        var have = levels[lz].filter(function(k) { return tiles[k]; }).length;
+        if (have >= levels[lz].length * 0.9) kept.push(lz);
+        else levels[lz].forEach(function(k) { delete tiles[k]; });
+      }
+      // Levels must stay consecutive from the bottom (the report's tile
+      // layer spans lo..hi); cut at the first gap.
+      var run = [];
+      for (var ki = 0; ki < kept.length; ki++) { if (ki && kept[ki] !== kept[ki - 1] + 1) break; run.push(kept[ki]); }
+      Object.keys(tiles).forEach(function(k) { if (run.indexOf(+k.split('/')[0]) < 0) delete tiles[k]; });
+      function charCount() { var n = 0; for (var t in tiles) n += tiles[t].length; return n; }
+      var chars = charCount();
+      while (run.length && chars > DETAIL_MAX_CHARS) {
+        var top = run.pop();
+        levels[top].forEach(function(k) { delete tiles[k]; });
+        chars = charCount();
+      }
+      if (!run.length) return { ok: false, reason: quotaHit ? 'quota' : 'network' };
+
+      var bw = Infinity, be = -Infinity, bs = Infinity, bn = -Infinity;
+      plan.regions.forEach(function(b) {
+        if (b.west < bw) bw = b.west; if (b.east > be) be = b.east;
+        if (b.south < bs) bs = b.south; if (b.north > bn) bn = b.north;
+      });
+      return {
+        ok: true, tiles: tiles, lo: run[0], hi: run[run.length - 1],
+        bounds: { west: bw, east: be, south: bs, north: bn },
+        muted: !!prov.muted[style], style: style, count: Object.keys(tiles).length, chars: chars
+      };
+    } catch (_e) {
+      return { ok: false, reason: 'network' };
+    }
+  }
+
+  // Compact form for embedding in a report's script: null when there's
+  // nothing to show. Shape matches what reportLayersJs() reads.
+  function detailJson(base) {
+    var d = base && base.detail;
+    if (!d || !d.ok) return null;
+    return {
+      t: d.tiles, lo: d.lo, hi: d.hi, m: d.muted,
+      b: [[d.bounds.south, d.bounds.west], [d.bounds.north, d.bounds.east]]
+    };
+  }
+
+  // Report-side JS (a string spliced into the report's own <script>), run
+  // after `map` and `BM` exist. Puts the backdrop image in its own pane
+  // under a pane for the detail tiles — both below Leaflet's overlay pane,
+  // so boundaries, heat and markers stay on top. Returns the max zoom the
+  // map should allow. BM.d is the detailJson() object (or absent).
+  // Detail tiles appear from BM.d.lo up; past BM.d.hi they're scaled up,
+  // one more level allowed. Below lo the backdrop alone shows, as before.
+  // The report's L.map must set its own minZoom (it does: 0, tightened to
+  // the backdrop afterwards): a map without one adopts the lowest layer
+  // minZoom as its own, which would open the report zoomed in at DT.lo
+  // with zoom-out locked.
+  function reportLayersJs() {
+    return '' +
+      'function _bmPane(name, z){ var p = map.createPane(name); p.style.zIndex = z; p.style.pointerEvents = "none"; return p; }' +
+      'var _bmBasePane = _bmPane("bmBase", 210);' +
+      'var baseImg = L.imageOverlay(BM.u, imgB, {interactive:false, pane:"bmBase"}).addTo(map);' +
+      'if (!BM.m) _bmBasePane.style.filter = "' + DESAT_FILTER + '";' +
+      'map.attributionControl.addAttribution(BM.a);' +
+      'if (BM.d && BM.d.t) {' +
+        'var DT = BM.d;' +
+        'var _bmDetailPane = _bmPane("bmDetail", 220);' +
+        'if (!DT.m) _bmDetailPane.style.filter = "' + DESAT_FILTER + '";' +
+        'var DetailLayer = L.GridLayer.extend({ createTile: function(c, done){' +
+          'var img = document.createElement("img"); img.alt = "";' +
+          'var u = DT.t[c.z + "/" + c.x + "/" + c.y];' +
+          'if (u) { img.onload = img.onerror = function(){ done(null, img); }; img.src = u; }' +
+          'else { img.style.visibility = "hidden"; setTimeout(function(){ done(null, img); }, 0); }' +
+          'return img;' +
+        '} });' +
+        'new DetailLayer({pane:"bmDetail", tileSize:256, minZoom:DT.lo, minNativeZoom:DT.lo, maxNativeZoom:DT.hi, maxZoom:Math.max(BM.z + 2, DT.hi + 1), bounds:L.latLngBounds(DT.b), keepBuffer:1}).addTo(map);' +
+      '}';
+  }
+
   function reasonText(reason) {
     switch (reason) {
       case 'offline': return 'you appear to be offline';
@@ -23134,6 +23374,7 @@ const ReportBasemap = (function() {
 
   return {
     build: build, squareBbox: squareBbox, cropToDataUrl: cropToDataUrl,
+    buildDetail: buildDetail, detailJson: detailJson, reportLayersJs: reportLayersJs,
     reasonText: reasonText, DESAT_FILTER: DESAT_FILTER
   };
 })();
@@ -23243,7 +23484,7 @@ const PhotoTrackerReport = (function() {
     var bmJson = bm ? JSON.stringify({
       u: bm.dataUrl,
       b: [[bm.bounds.south, bm.bounds.west], [bm.bounds.north, bm.bounds.east]],
-      z: bm.z, m: bm.muted, a: bm.attribution
+      z: bm.z, m: bm.muted, a: bm.attribution, d: ReportBasemap.detailJson(bm)
     }) : 'null';
 
     var kpiHtml =
@@ -23309,17 +23550,16 @@ const PhotoTrackerReport = (function() {
           'var pts = ' + mapPointsJson + ';' +
           // 2026-10-06 (Drop CG): the backdrop is an image embedded at
           // export time (ReportBasemap) — no tile server, no API key in
-          // this file. Pan/zoom still work over it; zoom is capped two
-          // levels past the image's native detail and panning is bounded
-          // to the image so nobody scrolls off into blank space.
+          // this file. Pan/zoom still work over it; panning is bounded to
+          // the image so nobody scrolls off into blank space. Drop CN:
+          // embedded street-detail tiles (BM.d) take over as you zoom in;
+          // without them zoom stops two levels past the image's detail.
           'var BM = ' + bmJson + ';' +
-          'var map = L.map("photo-tracker-map", {zoomControl:true, attributionControl:true, maxZoom: BM ? BM.z + 2 : 19});' +
+          'var map = L.map("photo-tracker-map", {zoomControl:true, attributionControl:true, minZoom: 0, maxZoom: BM ? Math.max(BM.z + 2, BM.d ? BM.d.hi + 1 : 0) : 19});' +
           'var imgB = null;' +
           'if (BM) {' +
             'imgB = L.latLngBounds(BM.b);' +
-            'var baseImg = L.imageOverlay(BM.u, imgB, {interactive:false}).addTo(map);' +
-            'if (!BM.m) { var bel = baseImg.getElement(); if (bel) bel.style.filter = "' + ReportBasemap.DESAT_FILTER + '"; }' +
-            'map.attributionControl.addAttribution(BM.a);' +
+            ReportBasemap.reportLayersJs() +
           '}' +
           'if (pts.length) {' +
             'var group = L.featureGroup();' +
@@ -23667,6 +23907,28 @@ async function downloadPhotoTrackerReportHTML() {
   var basemap = await PhotoTrackerReport.fetchBasemap(report);
   if (!basemap.ok && basemap.reason !== 'no-geometry') {
     showToast('Street map unavailable (' + ReportBasemap.reasonText(basemap.reason) + ') — report built without it');
+  }
+  // Drop CN: zoom-in street detail around the plotted locations.
+  if (basemap.ok) {
+    var pts = report.locations.filter(function(l) { return l.lat != null && l.lng != null && l.severityLabel; });
+    var minLat = Infinity, maxLat = -Infinity, minLng = Infinity, maxLng = -Infinity;
+    pts.forEach(function(p) {
+      if (p.lat < minLat) minLat = p.lat; if (p.lat > maxLat) maxLat = p.lat;
+      if (p.lng < minLng) minLng = p.lng; if (p.lng > maxLng) maxLng = p.lng;
+    });
+    showToast('Adding street detail for zooming in…');
+    var lastPct = -1;
+    basemap.detail = await ReportBasemap.buildDetail(basemap, {
+      bbox: { west: minLng - 0.003, east: maxLng + 0.003, south: minLat - 0.003, north: maxLat + 0.003 },
+      points: pts,
+      onProgress: function(done, total) {
+        var pct = Math.floor(done / total * 4) * 25;
+        if (pct !== lastPct && pct < 100) { lastPct = pct; showToast('Adding street detail… ' + pct + '%'); }
+      }
+    });
+    if (!basemap.detail.ok && basemap.detail.reason !== 'bbox') {
+      showToast('Street detail unavailable (' + ReportBasemap.reasonText(basemap.detail.reason) + ') — report has the overview map only');
+    }
   }
   _photoTrackerReportDownload(PhotoTrackerReport.formatAsHTML(report, basemap), 'html', 'text/html');
 }
@@ -35812,7 +36074,7 @@ const AreaPeriodReport = (function() {
     var bmJson = basemap ? JSON.stringify({
       u: basemap.dataUrl,
       b: [[basemap.bounds.south, basemap.bounds.west], [basemap.bounds.north, basemap.bounds.east]],
-      z: basemap.z, m: basemap.muted, a: basemap.attribution
+      z: basemap.z, m: basemap.muted, a: basemap.attribution, d: ReportBasemap.detailJson(basemap)
     }) : 'null';
 
     var head = '<!doctype html><html><head><meta charset="utf-8">' +
@@ -35940,11 +36202,12 @@ const AreaPeriodReport = (function() {
           'try {' +
             // 2026-10-06 (Drop CG): backdrop is an image embedded at export
             // time (ReportBasemap) — no tile server and no API key in this
-            // file. Zoom is capped two levels past the image's native
-            // detail and panning is bounded to it. With no basemap (the
+            // file. Panning is bounded to it. Drop CN: embedded
+            // street-detail tiles (BM.d) take over as you zoom in; without
+            // them zoom stops two levels past the image's detail. With no basemap (the
             // fetch failed when the report was made) the interactive layers
             // still work on a plain background.
-            'var map = L.map("area-map", {zoomControl:true, attributionControl:true, maxZoom: BM ? BM.z + 2 : 19});' +
+            'var map = L.map("area-map", {zoomControl:true, attributionControl:true, minZoom: 0, maxZoom: BM ? Math.max(BM.z + 2, BM.d ? BM.d.hi + 1 : 0) : 19});' +
             // Give the map a view BEFORE adding layers. Without one,
             // Leaflet queues every addTo(map) until the first setView; a
             // boundary layerGroup queued ahead of the first circleMarker
@@ -35958,9 +36221,7 @@ const AreaPeriodReport = (function() {
             'var imgB = null;' +
             'if (BM) {' +
               'imgB = L.latLngBounds(BM.b);' +
-              'var baseImg = L.imageOverlay(BM.u, imgB, {interactive:false}).addTo(map);' +
-              'if (!BM.m) { var bel = baseImg.getElement(); if (bel) bel.style.filter = "' + ReportBasemap.DESAT_FILTER + '"; }' +
-              'map.attributionControl.addAttribution(BM.a);' +
+              ReportBasemap.reportLayersJs() +
             '}' +
             'var fitGroup = L.featureGroup();' +
             'var overlays = {};' +
@@ -36090,6 +36351,43 @@ const AreaPeriodReport = (function() {
     });
     _basemapPromises.set(report, p);
     return p;
+  }
+
+  // Drop CN: zoom-in street detail for the HTML report (ReportBasemap.
+  // buildDetail). Fetched only when an HTML report is actually downloaded
+  // or shared — never on Apply/preview — since it's ~100-180 tile requests.
+  // Stored on the cached basemap result (basemap.detail), which is where
+  // formatAsHTML's detailJson() looks. Memoized per basemap like
+  // ensureBasemap; a failure is cached too (as {ok:false}) so a report
+  // isn't re-fetched on every tap — the report just ships without detail.
+  function ensureDetail(report, onProgress) {
+    return ensureBasemap(report).then(function(bm) {
+      if (!bm || !bm.ok) return { ok: false, reason: bm ? bm.reason : 'no-geometry' };
+      if (bm.detail) return bm.detail;
+      if (bm._detailPromise) return bm._detailPromise;
+      var geom = _computeMapGeometry(report);
+      if (!geom) return { ok: false, reason: 'no-geometry' };
+      var pts = [];
+      geom.photoPts.forEach(function(l) { pts.push({ lat: l.gps.lat, lng: l.gps.lng }); });
+      geom.completedPts.forEach(function(st) { pts.push({ lat: st.lat, lng: st.lng }); });
+      // A little room around the data so streets just outside the
+      // boundary still have names when you zoom to the edge.
+      var padLat = (geom.maxLat - geom.minLat) * 0.06 + 0.002, padLng = (geom.maxLng - geom.minLng) * 0.06 + 0.002;
+      bm._detailPromise = ReportBasemap.buildDetail(bm, {
+        bbox: { west: geom.minLng - padLng, east: geom.maxLng + padLng, south: geom.minLat - padLat, north: geom.maxLat + padLat },
+        points: pts, onProgress: onProgress
+      }).then(function(res) { bm.detail = res; bm._detailPromise = null; return res; });
+      return bm._detailPromise;
+    });
+  }
+  // 'ready' (finished, either way), 'loading', or 'none' (not started) —
+  // lets the share button avoid awaiting a slow fetch, which would cost it
+  // the tap the share sheet needs.
+  function detailState(report) {
+    var bm = report ? _basemapResults.get(report) : null;
+    if (!bm) return 'none';
+    if (bm.detail) return 'ready';
+    return bm._detailPromise ? 'loading' : 'none';
   }
 
   // Returns a Blob (application/pdf) — caller decides what to do with it
@@ -36320,7 +36618,7 @@ const AreaPeriodReport = (function() {
     buildExport: buildExport,
     formatAsExportJSON: formatAsExportJSON,
     staticMapSVG: _buildStaticSVG,
-    ensureBasemap: ensureBasemap,
+    ensureBasemap: ensureBasemap, ensureDetail: ensureDetail, detailState: detailState,
     // Exposed for the smoke-test harness — not part of the "public API"
     // in a load-bearing sense, but no reason to hide pure functions
     // behind a closure that later steps will need to call anyway.
@@ -37460,10 +37758,25 @@ async function _areaReportBasemapOrToast(report) {
   }
   return bm;
 }
+// Drop CN: street-name detail for zooming in on the HTML report. Never
+// blocks the report — on failure it ships with the backdrop only.
+async function _areaReportDetail(report) {
+  if (AreaPeriodReport.detailState(report) !== 'ready') showToast('Adding street detail for zooming in…');
+  var lastPct = -1;
+  var d = await AreaPeriodReport.ensureDetail(report, function(done, total) {
+    var pct = Math.floor(done / total * 4) * 25;   // toast at 25% steps, not per tile
+    if (pct !== lastPct && pct < 100) { lastPct = pct; showToast('Adding street detail… ' + pct + '%'); }
+  });
+  if (!d.ok && d.reason !== 'no-geometry' && d.reason !== 'bbox') {
+    showToast('Street detail unavailable (' + ReportBasemap.reasonText(d.reason) + ') — report has the overview map only');
+  }
+  return d;
+}
 async function downloadAreaPeriodReportHTML() {
   if (!_lastAreaPeriodReport || typeof AreaPeriodReport === 'undefined') return;
   var report = _lastAreaPeriodReport;
-  await _areaReportBasemapOrToast(report);
+  var bm = await _areaReportBasemapOrToast(report);
+  if (bm.ok) await _areaReportDetail(report);
   _periodDownload(AreaPeriodReport.formatAsHTML(report), 'html', 'text/html', _areaReportSlug());
 }
 window.downloadAreaPeriodReportCSV  = downloadAreaPeriodReportCSV;
@@ -37518,7 +37831,25 @@ async function shareAreaPeriodReport() {
   try {
     // Basemap first (usually already prefetched — see downloadAreaPeriodReportHTML),
     // so it's embedded in the shared file too.
-    await _areaReportBasemapOrToast(_lastAreaPeriodReport);
+    var _bm = await _areaReportBasemapOrToast(_lastAreaPeriodReport);
+    // Drop CN: street detail takes several seconds to fetch, and awaiting
+    // that here would use up the tap the share sheet needs (browsers only
+    // open it right after a tap). So the first Share tap starts it and
+    // asks for a second tap; once it's finished (or failed), Share goes
+    // straight through.
+    if (_bm.ok) {
+      var _ds = AreaPeriodReport.detailState(_lastAreaPeriodReport);
+      if (_ds !== 'ready') {
+        if (_ds === 'none') {
+          _areaReportDetail(_lastAreaPeriodReport).then(function(d) {
+            showToast(d.ok ? 'Street detail added — tap Share again' : 'Tap Share again to send without street detail');
+          });
+        } else {
+          showToast('Still adding street detail — tap Share again in a moment');
+        }
+        return;
+      }
+    }
     var htmlText = AreaPeriodReport.formatAsHTML(_lastAreaPeriodReport);
     var file = new File([htmlText], _areaReportSlug() + '.html', { type: 'text/html' });
     if (!navigator.canShare({ files: [file] })) {
