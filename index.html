@@ -1777,7 +1777,7 @@ html.low-end .leaflet-tooltip.boundary-label-cid, html.low-end .leaflet-tooltip.
         <button id="drive-sync-conflicts-btn" data-fn="openSyncConflictsModal" style="display:none;width:100%;padding:10px;border:1.5px solid #c0392b;border-radius:9px;background:#fde8e8;color:#a83232;font-family:'Syne',sans-serif;font-weight:800;font-size:0.64rem;cursor:pointer;margin-bottom:10px">⚠️ <span id="drive-sync-conflicts-count">0</span> stop(s) need review</button>
         <div style="font-size:0.5rem;color:#999;font-family:'Space Mono',monospace;line-height:1.7">
           <b>Setup (once, on each device):</b> Email support@yourcityroute.com to request beta access first (see above) — then Connect Google Drive, and enter your <b>app PIN</b> — the same 4-digit PIN you use to unlock AI features. No separate passphrase to remember; same PIN on every device you sync.<br><br>
-          <b>What syncs:</b> the same data Profile Backup's merge covers — stops, archives, transactions, custom types, map layers, photo tracker, survey sessions. Identity, ID photo, API key, and preferences stay device-local, same as a merge import.<br><br>
+          <b>What syncs:</b> the same data Profile Backup's merge covers — stops, archives, transactions, custom types, map layers, photo tracker, survey sessions, and survey trails (GPS breadcrumbs; Clear Path on one device clears that trail on the others too). Identity, ID photo, API key, and preferences stay device-local, same as a merge import.<br><br>
           <b>Sync Now</b> pulls, then pushes, in one tap — the right choice every time; there's no separate push/pull step to think about. A matching 🔄 button also stays in the header next to Photostamp/PDF Docs at all times, so you don't need to open Settings just to sync — the first tap each session asks for your app PIN if you haven't entered it yet that session, and if you haven't connected a Google account yet it brings you straight back to this panel instead. Pulling merges additively — an edit on either device survives, notes from both sides are kept rather than one overwriting the other, and a deletion on one device now deletes on the others too (via a small tombstone marker that travels with the sync, not a live push). When two devices genuinely disagree in a way that can't be resolved automatically — the same address active on one device and already completed on another, or a stop edited after it was deleted elsewhere — nothing is guessed at; it's queued here for you to decide.<br><br>
           <b>Not live in the traditional sense:</b> this pulls when the app opens and whenever you tap Sync Now — there's no push notification or background sync while the app is fully closed (phone browsers don't reliably support that). For a field tool you open throughout the day, this is close enough to feel live in practice.
         </div>
@@ -2998,6 +2998,7 @@ html.low-end .leaflet-tooltip.boundary-label-cid, html.low-end .leaflet-tooltip.
       <button data-fn="openCndPdfModal" title="PDF Docs — C&amp;D photo documentation" class="pdfdocs-header-btn" aria-label="PDF Docs"></button>
       <div class="info-utility-sync-wrap">
         <button id="header-sync-btn" data-fn="syncDriveNow" title="Sync with Google Drive" aria-label="Sync" class="sync-header-btn"></button>
+        <button id="header-sync-pending-dot" data-fn="syncDriveNow" title="Survey data on this phone isn't synced yet" aria-label="Survey data not synced yet" style="display:none;position:absolute;top:-3px;left:-3px;width:14px;height:14px;border-radius:50%;background:#e8a020;border:1.5px solid white;padding:0;cursor:pointer"></button>
         <button id="header-sync-conflict-badge" data-fn="openSyncConflictsModal" title="Stops need review" aria-label="Sync conflicts need review" style="display:none;position:absolute;top:-3px;right:-3px;width:16px;height:16px;border-radius:50%;background:#c0392b;color:white;border:1.5px solid white;font-family:Syne,sans-serif;font-weight:800;font-size:0.55rem;line-height:1;padding:0;cursor:pointer;align-items:center;justify-content:center">!</button>
       </div>
     </div>
@@ -3094,6 +3095,10 @@ html.low-end .leaflet-tooltip.boundary-label-cid, html.low-end .leaflet-tooltip.
           </label>
         </div>
       </div>
+
+      <!-- Drop CP: shown when this phone has survey sessions/trail points
+           newer than its last Drive push — see _renderSurveyUnsyncedIndicators. -->
+      <div id="survey-unsynced-banner" style="display:none;background:#fff8e1;border:1.5px solid #e8a020;border-radius:8px;padding:9px 11px;margin-bottom:10px;font-family:'Space Mono',monospace;font-size:0.56rem;color:#6b4a00;line-height:1.6"></div>
 
       <!-- Inline settings panel (hidden by default) -->
       <div id="period-settings-panel" style="display:none;padding:10px 12px;background:#fafaf6;border-radius:8px;margin-bottom:10px;font-family:'Space Mono',monospace;font-size:0.58rem;color:#555;line-height:1.7">
@@ -5727,6 +5732,15 @@ const ProfileBackup = (function() {
         if (Array.isArray(slogArr) && slogArr.length) appended.push(slogArr.length + ' completed survey session' + (slogArr.length === 1 ? '' : 's'));
       }
     } catch (_) { _swallow('describeMerge', _); }
+    // Drop CO: survey trails now merge too (SurveyCoverage.mergeIncoming).
+    try {
+      var trailCount = 0, trailPts = 0;
+      Object.keys(ls).forEach(function(k) {
+        if (k.indexOf('survey-breadcrumb:') !== 0) return;
+        try { var ta = JSON.parse(ls[k] || '[]'); if (Array.isArray(ta) && ta.length) { trailCount++; trailPts += ta.length; } } catch (_te) { _swallow('describeMerge', _te); }
+      });
+      if (trailCount) appended.push(trailCount + ' survey trail' + (trailCount === 1 ? '' : 's') + ' (' + trailPts + ' GPS points, duplicates skipped)');
+    } catch (_) { _swallow('describeMerge', _); }
     if (appended.length) lines.push('Will append: ' + appended.join(', '));
 
     // What will be skipped because the current profile already has it
@@ -5796,6 +5810,8 @@ const ProfileBackup = (function() {
       photoTrackerLocationsAppended: 0,
       photoTrackerPhotosAppended:    0,
       surveySessionsAppended:        0,
+      trailsMerged:                  0,
+      trailPointsAppended:           0,
       keysSkipped:          [],
       schema:               blob.schema,
       exportedAt:           blob.exportedAt,
@@ -6236,6 +6252,23 @@ const ProfileBackup = (function() {
       }
     } catch(e) { console.warn('[merge] survey log error:', e); }
 
+    // ─── Survey trails: UNION by point, Clear Path markers honored ───────
+    // Drop CO. Every 'survey-breadcrumb:*' key used to fall through to the
+    // "not in any policy: leave alone" branch below, so trails were pushed
+    // to Drive but never landed on the other device. See
+    // SurveyCoverage.mergeIncoming for the merge rules.
+    try {
+      if (typeof SurveyCoverage !== 'undefined' && typeof SurveyCoverage.mergeIncoming === 'function') {
+        var trailStats = SurveyCoverage.mergeIncoming(ls);
+        stats.trailsMerged = trailStats.trailsChanged;
+        stats.trailPointsAppended = trailStats.pointsAdded;
+        // If the trail currently drawn on the map changed, redraw it.
+        if (trailStats.trailsChanged && typeof _redrawBreadcrumbLayer === 'function') {
+          try { _redrawBreadcrumbLayer(); } catch (_re) { _swallow('applyImportMerge', _re); }
+        }
+      }
+    } catch(e) { console.warn('[merge] survey trails error:', e); }
+
     // ─── Skip-if-set keys: only write if current is empty ─────────────────
     Object.keys(ls).forEach(function(k) {
       if (EXCLUDE_EXACT[k]) return;
@@ -6244,6 +6277,7 @@ const ProfileBackup = (function() {
           k === 'transactions-ledger' || k === 'custom-stop-types' ||
           k === 'chronic-index' || k === 'survey-log' ||
           k === TOMBSTONE_LS_KEY ||
+          k === 'survey-trail-cleared' || k.indexOf('survey-breadcrumb:') === 0 ||
           k.indexOf('chronic-loc:') === 0) return;
       if (_isSkipIfSetKey(k)) {
         var cur = LS.get(k);
@@ -6598,8 +6632,9 @@ var DriveSync = (function() {
         var n = (stats.stopsAppended||0) + (stats.archivedStopsAppended||0) + (stats.transactionsAppended||0) +
                 (stats.photoTrackerPhotosAppended||0) + (stats.surveySessionsAppended||0) + (stats.stopsFieldsMerged||0) + (stats.stopsArchivedElsewhere||0);
         var conflictNote = stats.conflictsQueued ? (' · ⚠ ' + stats.conflictsQueued + ' need' + (stats.conflictsQueued===1?'s':'') + ' review') : '';
-        if ((n > 0 || stats.conflictsQueued) && typeof showToast === 'function') {
-          showToast('🔄 Synced — ' + n + ' item' + (n===1?'':'s') + ' from another device' + conflictNote);
+        var trailNote = stats.trailPointsAppended ? (' · ' + stats.trailPointsAppended + ' survey trail point' + (stats.trailPointsAppended===1?'':'s')) : '';
+        if ((n > 0 || stats.conflictsQueued || stats.trailPointsAppended) && typeof showToast === 'function') {
+          showToast('🔄 Synced — ' + n + ' item' + (n===1?'':'s') + ' from another device' + trailNote + conflictNote);
         }
       }
     }).catch(function(e) {
@@ -6676,12 +6711,85 @@ function updateDriveSyncStatusUI() {
   // instead of the button just being absent.
   if (passBtn) passBtn.textContent = status.hasPassphrase ? '🔓 Re-enter PIN' : '🔒 Enter PIN';
   try { _updateSyncConflictsIndicator(); } catch (_e) { _swallow('updateDriveSyncStatusUI', _e); }
+  try { _renderSurveyUnsyncedIndicators(); } catch (_e) { _swallow('updateDriveSyncStatusUI', _e); }
 }
 
 // Shows/hides the "N stops need review" indicators (header badge +
 // Settings button) based on whether pending-sync-conflicts is non-empty.
 // Called after every sync/merge completes, and once at boot in case a
 // previous session ended with unreviewed conflicts still sitting there.
+// ── Drop CP: "survey data not synced yet" ──────────────────────────────
+// On Oct 21 one phone surveyed and another took the photos; the surveying
+// phone never synced, so the survey was missing from every report on the
+// other phone and nothing on either phone said so. This compares survey
+// activity on THIS device against its own last successful Drive push
+// ('drive-sync-last', written only by DriveSync.push and device-local).
+//   sessions: completed survey sessions that ended after that push
+//   points:   trail points recorded (or merged in) after that push
+// A survey still running contributes points but not a session — its
+// session is only logged when it ends.
+function _unsyncedSurveyInfo() {
+  var info = { pending: false, sessions: 0, points: 0, connected: false, unlocked: false, configured: false, reminderOff: false };
+  try {
+    info.configured = DriveSync.isConfigured();
+    info.connected = DriveSync.isConnected();
+    info.unlocked = info.connected && DriveSync.hasPassphrase();
+  } catch (_e) { _swallow('_unsyncedSurveyInfo', _e); }
+  try { info.reminderOff = LS.get('survey-sync-reminder-off') === '1'; } catch (_e) { _swallow('_unsyncedSurveyInfo', _e); }
+  var lastPush = 0;
+  try { lastPush = Date.parse(LS.get('drive-sync-last') || '') || 0; } catch (_e) { _swallow('_unsyncedSurveyInfo', _e); }
+  try {
+    SurveySession.getAllLog().forEach(function(s) {
+      var t = s && s.endedAt ? Date.parse(s.endedAt) : NaN;
+      if (isFinite(t) && t > lastPush) info.sessions++;
+    });
+  } catch (_e) { _swallow('_unsyncedSurveyInfo', _e); }
+  try {
+    SurveyCoverage.getAllTrailsKeyed().forEach(function(e) {
+      e.trail.forEach(function(pt) { if (pt && pt[2] != null && pt[2] > lastPush) info.points++; });
+    });
+  } catch (_e) { _swallow('_unsyncedSurveyInfo', _e); }
+  info.pending = (info.sessions + info.points) > 0;
+  return info;
+}
+window._unsyncedSurveyInfo = _unsyncedSurveyInfo;
+
+function _renderSurveyUnsyncedIndicators() {
+  var info = _unsyncedSurveyInfo();
+  var dot = document.getElementById('header-sync-pending-dot');
+  var banner = document.getElementById('survey-unsynced-banner');
+  var showConnected = info.pending && info.connected;
+  var showSetup = info.pending && !info.connected && !info.reminderOff;
+  if (dot) dot.style.display = (showConnected || showSetup) ? '' : 'none';
+  if (!banner) return;
+  if (!showConnected && !showSetup) { banner.style.display = 'none'; banner.innerHTML = ''; return; }
+  var parts = [];
+  if (info.sessions) parts.push(info.sessions + ' survey session' + (info.sessions === 1 ? '' : 's'));
+  if (info.points) parts.push(info.points.toLocaleString() + ' trail point' + (info.points === 1 ? '' : 's'));
+  var what = parts.join(' · ');
+  var btnStyle = "padding:6px 10px;border-radius:7px;font-family:Syne,sans-serif;font-weight:800;font-size:0.56rem;cursor:pointer;";
+  if (showConnected) {
+    banner.innerHTML = '<b>📡 Not synced yet:</b> ' + escHtml(what) + ' on this phone. Your other devices won\'t show them in reports until this phone syncs.' +
+      '<div style="margin-top:7px"><button data-fn="syncDriveNow" style="' + btnStyle + 'border:none;background:#e8a020;color:white">🔄 Sync now</button></div>';
+  } else {
+    banner.innerHTML = '<b>📡 Survey data stays on this phone:</b> ' + escHtml(what) + '. To include it in reports on another device, set up Google Drive Sync on both (or use Profile Backup → Export, then Import → Merge).' +
+      '<div style="margin-top:7px;display:flex;gap:6px;flex-wrap:wrap">' +
+        '<button data-fn="_openDriveSyncSettingsPanel" style="' + btnStyle + 'border:none;background:#e8a020;color:white">🔗 Set up sync</button>' +
+        '<button data-fn="dismissSurveySyncReminder" style="' + btnStyle + 'border:1.5px solid #c9a24a;background:white;color:#6b4a00">I only use this phone</button>' +
+      '</div>';
+  }
+  banner.style.display = '';
+}
+window._renderSurveyUnsyncedIndicators = _renderSurveyUnsyncedIndicators;
+
+function dismissSurveySyncReminder() {
+  LS.set('survey-sync-reminder-off', '1');
+  _renderSurveyUnsyncedIndicators();
+  showToast('OK — no sync reminders while this phone isn\'t connected');
+}
+window.dismissSurveySyncReminder = dismissSurveySyncReminder;
+window._openDriveSyncSettingsPanel = _openDriveSyncSettingsPanel;
+
 function _updateSyncConflictsIndicator() {
   var n = (typeof _loadSyncConflicts === 'function') ? _loadSyncConflicts().length : 0;
   var headerBadge = document.getElementById('header-sync-conflict-badge');
@@ -6813,7 +6921,10 @@ async function syncDriveNow() {
       var mergeNote = stats.stopsFieldsMerged ? (' · ' + stats.stopsFieldsMerged + ' stop' + (stats.stopsFieldsMerged===1?'':'s') + ' updated from another device') : '';
       var archivedNote = stats.stopsArchivedElsewhere ? (' · ' + stats.stopsArchivedElsewhere + ' marked done (completed on another device)') : '';
       var conflictNote = stats.conflictsQueued ? (' · ⚠ ' + stats.conflictsQueued + ' need' + (stats.conflictsQueued===1?'s':'') + ' review') : '';
-      showToast((n > 0 ? ('✓ Synced — ' + n + ' new item' + (n===1?'':'s') + ' pulled in') : '✓ Synced — nothing new') + dupeNote + mergeNote + archivedNote + conflictNote);
+      // Drop CO: trail points are reported separately — hundreds of GPS
+      // points would otherwise swamp the "items" count.
+      var trailNote = stats.trailPointsAppended ? (' · ' + stats.trailPointsAppended + ' survey trail point' + (stats.trailPointsAppended===1?'':'s')) : '';
+      showToast((n > 0 ? ('✓ Synced — ' + n + ' new item' + (n===1?'':'s') + ' pulled in') : (stats.trailPointsAppended ? '✓ Synced' : '✓ Synced — nothing new')) + trailNote + dupeNote + mergeNote + archivedNote + conflictNote);
     } else {
       showToast('✓ Synced');
     }
@@ -7449,7 +7560,7 @@ async function confirmProfileImportMerge() {
     showToast('No backup file selected');
     return;
   }
-  if (!confirm('Merge the backup into your current profile?\n\nThis appends stops, archives, transactions, custom types, map layers, photo tracker locations, and completed survey sessions. Inspector identity, ID photo, API key, preferences, and webhook URLs are kept as-is on this device.\n\nThis cannot be undone — but data is added, not replaced.')) return;
+  if (!confirm('Merge the backup into your current profile?\n\nThis appends stops, archives, transactions, custom types, map layers, photo tracker locations, completed survey sessions, and survey trails. Inspector identity, ID photo, API key, preferences, and webhook URLs are kept as-is on this device.\n\nThis cannot be undone — but data is added, not replaced.')) return;
   try {
     showToast('Merging…');
     var stats = await ProfileBackup.applyImportMerge(_pendingImportBlob);
@@ -7469,6 +7580,7 @@ async function confirmProfileImportMerge() {
         (stats.photoTrackerLocationsAppended ? ' (' + stats.photoTrackerLocationsAppended + ' new location' + (stats.photoTrackerLocationsAppended === 1 ? '' : 's') + ')' : ''));
     }
     if (stats.surveySessionsAppended) parts.push(stats.surveySessionsAppended + ' survey session' + (stats.surveySessionsAppended === 1 ? '' : 's'));
+    if (stats.trailPointsAppended) parts.push(stats.trailPointsAppended + ' trail point' + (stats.trailPointsAppended === 1 ? '' : 's'));
     var msg = parts.length ? ('✓ Merged: ' + parts.join(', ')) : '✓ Merge complete (nothing new to add)';
     if (stats.keysSkipped && stats.keysSkipped.length) msg += '. Skipped: ' + stats.keysSkipped.length + ' setting' + (stats.keysSkipped.length === 1 ? '' : 's');
     msg += '. Reloading…';
@@ -21255,7 +21367,26 @@ function endActiveSurvey() {
     // proactively rather than counting on a future redraw call to do it.
     try { _clearSurveyParcelLayers(); } catch (_e) { _swallow('endActiveSurvey', _e); }
     _surveyParcelLastRadius = null;
-    try { showToast('🧭 Survey ended' + (active.areaType === 'city' ? '' : ': ' + active.neighborhoodName)); } catch (_e) { _swallow('endActiveSurvey', _e); }
+    // Drop CP: ending a survey is the moment its data becomes a complete
+    // session — sync it right away when this phone can, otherwise say
+    // plainly that it's only on this phone.
+    var label = '🧭 Survey ended' + (active.areaType === 'city' ? '' : ': ' + active.neighborhoodName);
+    var si = null;
+    try { si = _unsyncedSurveyInfo(); } catch (_e) { _swallow('endActiveSurvey', _e); }
+    var online = (typeof navigator === 'undefined' || navigator.onLine !== false);
+    try {
+      if (si && si.unlocked && online) {
+        showToast(label + ' · syncing…');
+        setTimeout(function() { try { syncDriveNow(); } catch (_e) { _swallow('endActiveSurvey', _e); } }, 1200);
+      } else if (si && si.connected) {
+        showToast(label + ' · tap 🔄 Sync to share it');
+      } else if (si && !si.reminderOff) {
+        showToast(label + ' · saved on this phone only');
+      } else {
+        showToast(label);
+      }
+    } catch (_e) { _swallow('endActiveSurvey', _e); }
+    try { _renderSurveyUnsyncedIndicators(); } catch (_e) { _swallow('endActiveSurvey', _e); }
   } finally {
     _renderSurveyPanel();
     _renderSurveyStrip();
@@ -21388,7 +21519,7 @@ function _renderSurveyPanel() {
   // rebuilding) any existing ones, so the select the picker is already
   // working on stays exactly where it is.
   try {
-    if (CoverageReport.knownNeighborhoods().length > 0) {
+    if (CoverageReport.hasAnyData()) {
       el.insertAdjacentHTML('beforeend', '<button data-fn="openCoverageReportModal" style="width:100%;margin-top:10px;padding:9px;background:none;border:1.5px solid #444;color:#444;border-radius:7px;font-family:Syne,sans-serif;font-weight:800;font-size:0.62rem;cursor:pointer">📄 Coverage &amp; Activity Report</button>');
     }
   } catch (_e) { _swallow('_renderSurveyPanel', _e); }
@@ -21575,12 +21706,17 @@ window.endActiveSurvey       = endActiveSurvey;
 //   'survey-breadcrumb:<name>' -> JSON array of [lat, lng, ts, breakBefore?]
 //                                  tuples (compact array form, not objects,
 //                                  to keep 1000s of points reasonably small
-//                                  in localStorage). Capped at 3000 points.
+//                                  in localStorage). Capped at 3000 points —
+//                                  thinned back to 2250 when full, not
+//                                  truncated (Drop CP, _compactTrail).
 //                                  breakBefore (1) marks a tracking-gap
 //                                  segment boundary — see SEGMENT_GAP_MS.
 
 var SurveyCoverage = (function() {
   var BREADCRUMB_CAP = 3000;
+  // Drop CP: when a trail reaches the cap it is THINNED back down to this
+  // size (see _compactTrail) instead of having its oldest points deleted.
+  var COMPACT_TARGET = 2250;
   // 2026-08-13: accuracy/plausibility gates — see addBreadcrumbPoint's own
   // comment for the reasoning split between these two thresholds.
   var MAX_RECORD_ACCURACY_M = 35;      // reject fixes worse than this from the PERMANENT trail
@@ -21716,8 +21852,15 @@ var SurveyCoverage = (function() {
     var point = [lat, lng, now];
     if (last && last[2] != null && (now - last[2]) > SEGMENT_GAP_MS) point[3] = 1;
     trail.push(point);
-    if (trail.length > BREADCRUMB_CAP) { trail.splice(0, trail.length - BREADCRUMB_CAP); _lastAppendTrimmed = true; }
-    else _lastAppendTrimmed = false;
+    if (trail.length > BREADCRUMB_CAP) {
+      // Drop CP: thin instead of deleting the oldest points. A full shift
+      // of slow residential driving can pass 3,000 points in one day; before
+      // CP that silently erased the start of the survey.
+      var c = _compactTrail(trail);
+      trail = c.trail;
+      _lastAppendTrimmed = true;
+      _noteCompaction(areaKey, c);
+    } else _lastAppendTrimmed = false;
     _mem[areaKey] = trail;
     _dirty[areaKey] = true;
     _scheduleFlush();
@@ -21736,17 +21879,265 @@ var SurveyCoverage = (function() {
     _mem[areaKey] = []; delete _dirty[areaKey];
     if (!LS.set(_bcKey(areaKey), '[]')) _swallow('clearBreadcrumb', new Error('clear write failed'));
     var legacy = _legacyBareKey(areaKey);
-    if (legacy) { try { LS.set(_bcKey(legacy), '[]'); } catch (_e) { _swallow('clearBreadcrumb', _e); } }
+    if (legacy) { try { LS.set(_bcKey(legacy), '[]'); _mem[legacy] = []; delete _dirty[legacy]; } catch (_e) { _swallow('clearBreadcrumb', _e); } }
+    // Drop CO: remember WHEN this trail was cleared, so the clear survives
+    // sync. Trails now merge between devices (mergeIncoming below); without
+    // this marker the other device's copy would restore every cleared point
+    // on the next sync. Points at or before the marker are dropped on merge.
+    var marks = _readClearedMarks();
+    var now = Date.now();
+    marks[areaKey] = now;
+    if (legacy) marks[legacy] = now;
+    _writeClearedMarks(marks);
+  }
+
+  // ── Drop CP: trail thinning ────────────────────────────────────────────
+  // Douglas–Peucker simplification per segment (segments split on recorded
+  // tracking gaps and >SEGMENT_GAP_MS time gaps, the same breaks the map
+  // draws). Straight runs of road collapse to their endpoints; turns and
+  // corners stay. Tolerance starts at 3 m (below phone GPS noise, so no
+  // visible change) and widens only as far as needed to get under
+  // COMPACT_TARGET. Rules that keep reports and maps correct:
+  //   - segment start/end points are always kept, with their break flags
+  //   - no two kept neighbors end up more than SEGMENT_GAP_MS apart, so
+  //     thinning a long straight drive never creates a fake tracking gap
+  //   - kept points are the ORIGINAL points (same lat/lng/time), so merge
+  //     dedupe and report time filtering are unaffected
+  // Only if even 40 m tolerance isn't enough (thousands of separate tiny
+  // segments) are the oldest points dropped — recorded in Diagnostics.
+  var COMPACT_EPS_M = [3, 6, 10, 15, 25, 40];
+  function _segmentBounds(trail) {
+    var bounds = [], start = 0;
+    for (var i = 1; i < trail.length; i++) {
+      var p = trail[i], q = trail[i - 1];
+      if (p[3] || (p[2] != null && q[2] != null && (p[2] - q[2]) > SEGMENT_GAP_MS)) { bounds.push([start, i - 1]); start = i; }
+    }
+    if (trail.length) bounds.push([start, trail.length - 1]);
+    return bounds;
+  }
+  function _simplify(trail, epsM) {
+    var keep = new Array(trail.length);
+    _segmentBounds(trail).forEach(function(b) {
+      var s0 = b[0], e0 = b[1];
+      keep[s0] = true; keep[e0] = true;
+      if (e0 - s0 < 2) return;
+      var lat0 = trail[s0][0] * Math.PI / 180;
+      var kx = Math.cos(lat0) * 111320, ky = 110574;
+      var stack = [[s0, e0]];
+      while (stack.length) {
+        var seg = stack.pop(), a = seg[0], z = seg[1];
+        if (z - a < 2) continue;
+        var ax = trail[a][1] * kx, ay = trail[a][0] * ky, zx = trail[z][1] * kx, zy = trail[z][0] * ky;
+        var dx = zx - ax, dy = zy - ay, len2 = dx * dx + dy * dy;
+        var maxD = -1, maxI = -1;
+        for (var i = a + 1; i < z; i++) {
+          var px = trail[i][1] * kx - ax, py = trail[i][0] * ky - ay, d;
+          if (len2 === 0) d = Math.sqrt(px * px + py * py);
+          else {
+            var t = (px * dx + py * dy) / len2;
+            t = t < 0 ? 0 : (t > 1 ? 1 : t);
+            var ex = px - t * dx, ey = py - t * dy;
+            d = Math.sqrt(ex * ex + ey * ey);
+          }
+          if (d > maxD) { maxD = d; maxI = i; }
+        }
+        if (maxD > epsM) { keep[maxI] = true; stack.push([a, maxI], [maxI, z]); }
+      }
+      // Never let thinning open a time gap the map/reports would read as a
+      // tracking interruption.
+      var lastTs = trail[s0][2];
+      for (var j = s0 + 1; j < e0; j++) {
+        if (keep[j]) { lastTs = trail[j][2]; continue; }
+        var nextTs = trail[j + 1][2];
+        if (lastTs != null && nextTs != null && (nextTs - lastTs) > SEGMENT_GAP_MS) { keep[j] = true; lastTs = trail[j][2]; }
+      }
+    });
+    var out = [];
+    for (var k = 0; k < trail.length; k++) if (keep[k]) out.push(trail[k]);
+    return out;
+  }
+  function _compactTrail(trail) {
+    var before = trail.length, best = trail, epsUsed = 0;
+    for (var i = 0; i < COMPACT_EPS_M.length; i++) {
+      best = _simplify(trail, COMPACT_EPS_M[i]);
+      epsUsed = COMPACT_EPS_M[i];
+      if (best.length <= COMPACT_TARGET) return { trail: best, before: before, eps: epsUsed, dropped: 0 };
+    }
+    var dropped = best.length - COMPACT_TARGET;
+    best = best.slice(dropped);
+    if (best.length) best[0] = best[0].slice(0, 3); // new first point: no leading break flag
+    return { trail: best, before: before, eps: epsUsed, dropped: dropped };
+  }
+  function _noteCompaction(areaKey, c) {
+    try {
+      Diag.record(c.dropped ? 'trail-compact-dropped' : 'trail-compact',
+        new Error(areaKey + ': ' + c.before + ' → ' + c.trail.length + ' points at ' + c.eps + ' m' + (c.dropped ? ', oldest ' + c.dropped + ' dropped' : '')));
+    } catch (_e) { _swallow('SurveyCoverage.compact', _e); }
+    if (c.dropped) { try { showToast('⚠ Survey trail very long — oldest points removed'); } catch (_e) { _swallow('SurveyCoverage.compact', _e); } }
+  }
+
+  // ── Drop CO: cross-device trail sync ───────────────────────────────────
+  // Before CO, applyImportMerge (used by both Drive Sync pulls and the
+  // "merge into current profile" import) ignored every key without an
+  // explicit merge policy — which included every 'survey-breadcrumb:*' key.
+  // Trails were uploaded to Drive but never written on the receiving device.
+  //
+  // CLEARED_KEY: { areaKey: clearedAtMs } — one entry per Clear Path. Synced
+  // like any other key (ProfileBackup exports every LS key) and merged here
+  // by taking the later time per areaKey.
+  var CLEARED_KEY = 'survey-trail-cleared';
+  function _readClearedMarks() {
+    try { var o = JSON.parse(LS.get(CLEARED_KEY) || '{}'); return (o && typeof o === 'object' && !Array.isArray(o)) ? o : {}; }
+    catch (_e) { return {}; }
+  }
+  function _writeClearedMarks(marks) {
+    if (!LS.set(CLEARED_KEY, JSON.stringify(marks))) _swallow('SurveyCoverage.clearedMarks', new Error('cleared-marks write failed (storage full?)'));
+  }
+  function _ptKey(p) { return (p[2] == null ? '' : p[2]) + '|' + p[0] + '|' + p[1]; }
+  function _validPoint(p) { return Array.isArray(p) && typeof p[0] === 'number' && typeof p[1] === 'number'; }
+
+  // Combines two copies of the same trail: union by (time, lat, lng), drops
+  // anything at/before `cut` (a Clear Path marker; points with no timestamp
+  // predate the marker system and are dropped whenever a marker exists),
+  // sorts by time, re-derives segment breaks across the new neighbors, and
+  // applies the same cap live recording uses (oldest dropped first).
+  // Returns { trail, added } — `added` counts incoming points this device
+  // didn't already have.
+  function _mergeTrail(local, incoming, cut) {
+    var seen = {}, out = [], added = 0;
+    function keep(p) { return _validPoint(p) && !(cut && (p[2] == null || p[2] <= cut)); }
+    local.forEach(function(p) {
+      if (!keep(p)) return;
+      var k = _ptKey(p);
+      if (seen[k]) return;
+      seen[k] = true; out.push(p.slice());
+    });
+    incoming.forEach(function(p) {
+      if (!keep(p)) return;
+      var k = _ptKey(p);
+      if (seen[k]) return;
+      seen[k] = true; out.push(p.slice()); added++;
+    });
+    out.sort(function(a, b) { return (a[2] == null ? -Infinity : a[2]) - (b[2] == null ? -Infinity : b[2]); });
+    for (var i = 1; i < out.length; i++) {
+      var prev = out[i - 1], p = out[i];
+      if (p[2] != null && prev[2] != null && (p[2] - prev[2]) > SEGMENT_GAP_MS) p[3] = 1;
+    }
+    if (out.length) out[0].length = Math.min(out[0].length, 3); // first point never starts with a break flag
+    if (out.length > BREADCRUMB_CAP) out = _compactTrail(out).trail; // Drop CP: thin, don't drop
+    return { trail: out, added: added };
+  }
+  function _sameTrail(a, b) {
+    if (a.length !== b.length) return false;
+    for (var i = 0; i < a.length; i++) {
+      if (_ptKey(a[i]) !== _ptKey(b[i]) || !!a[i][3] !== !!b[i][3]) return false;
+    }
+    return true;
+  }
+
+  // Merges every trail in an incoming backup/sync blob's `ls` map into this
+  // device. Additive (never removes a point this device recorded) except for
+  // Clear Path markers, which are honored from either side. Safe mid-survey:
+  // it flushes first and updates the in-memory copy it writes, so the next
+  // 15-second flush can't overwrite the merged result with a stale buffer.
+  // Idempotent — merging the same blob twice adds nothing the second time.
+  function mergeIncoming(incomingLs) {
+    var stats = { trailsChanged: 0, pointsAdded: 0, changedKeys: [] };
+    if (!incomingLs || typeof incomingLs !== 'object') return stats;
+    flush();
+
+    var marks = _readClearedMarks();
+    var marksChanged = false;
+    try {
+      var inMarks = incomingLs[CLEARED_KEY] ? JSON.parse(incomingLs[CLEARED_KEY]) : null;
+      if (inMarks && typeof inMarks === 'object' && !Array.isArray(inMarks)) {
+        Object.keys(inMarks).forEach(function(k) {
+          var t = Number(inMarks[k]);
+          if (isFinite(t) && t > 0 && (!marks[k] || t > marks[k])) { marks[k] = t; marksChanged = true; }
+        });
+      }
+    } catch (_e) { _swallow('SurveyCoverage.mergeIncoming', _e); }
+    if (marksChanged) _writeClearedMarks(marks);
+
+    var keys = {};
+    Object.keys(incomingLs).forEach(function(k) { if (k.indexOf('survey-breadcrumb:') === 0) keys[k.slice('survey-breadcrumb:'.length)] = true; });
+    Object.keys(marks).forEach(function(ak) { keys[ak] = true; }); // a remote clear also applies to trails only this device has
+
+    Object.keys(keys).forEach(function(areaKey) {
+      try {
+        var incoming = [];
+        var raw = incomingLs[_bcKey(areaKey)];
+        if (raw) { var arr = JSON.parse(raw); if (Array.isArray(arr)) incoming = arr; }
+        // Read storage directly, not getBreadcrumb(): getBreadcrumb() falls
+        // back from a composite key to its legacy bare-name key, and merging
+        // that copy in here would duplicate legacy points into a second key.
+        var local = _mem[areaKey];
+        if (!local) {
+          var lraw = LS.get(_bcKey(areaKey));
+          if (lraw == null && !incoming.length) return; // nothing here, nothing coming — skip marker-only keys
+          try { local = JSON.parse(lraw || '[]'); } catch (_pe) { local = []; }
+          if (!Array.isArray(local)) local = [];
+        }
+        var merged = _mergeTrail(local, incoming, marks[areaKey] || 0);
+        if (_sameTrail(merged.trail, local)) return;
+        _mem[areaKey] = merged.trail;
+        if (LS.set(_bcKey(areaKey), JSON.stringify(merged.trail))) delete _dirty[areaKey];
+        else { _dirty[areaKey] = true; _swallow('SurveyCoverage.mergeIncoming', new Error('trail write failed (storage full?) — kept in memory, will retry')); _scheduleFlush(); }
+        stats.trailsChanged++;
+        stats.pointsAdded += merged.added;
+        stats.changedKeys.push(areaKey);
+      } catch (_e) { _swallow('SurveyCoverage.mergeIncoming', _e); }
+    });
+    return stats;
+  }
+
+  // Every stored trail WITH its key (getAllTrails returns bare arrays).
+  // Reports use the key to tie a city-wide session ('session:<startedAt>')
+  // to the places its trail actually went.
+  function getAllTrailsKeyed() {
+    var out = [];
+    flush();
+    try {
+      LS.keys().forEach(function(k) {
+        if (k.indexOf('survey-breadcrumb:') !== 0) return;
+        try {
+          var arr = JSON.parse(LS.get(k) || '[]');
+          if (Array.isArray(arr) && arr.length) out.push({ areaKey: k.slice('survey-breadcrumb:'.length), trail: arr });
+        } catch (_e) { _swallow('getAllTrailsKeyed', _e); }
+      });
+    } catch (_e) { _swallow('getAllTrailsKeyed', _e); }
+    return out;
+  }
+
+  // Cheap check (no parsing beyond emptiness) for whether any trail exists.
+  function hasAnyTrail() {
+    try {
+      var keys = LS.keys();
+      for (var i = 0; i < keys.length; i++) {
+        if (keys[i].indexOf('survey-breadcrumb:') !== 0) continue;
+        var v = LS.get(keys[i]);
+        if (v && v !== '[]') return true;
+      }
+    } catch (_e) { _swallow('hasAnyTrail', _e); }
+    for (var mk in _mem) { if (_mem[mk] && _mem[mk].length) return true; }
+    return false;
   }
 
   return {
     getBreadcrumb: getBreadcrumb,
     getAllTrails: getAllTrails,
+    getAllTrailsKeyed: getAllTrailsKeyed,
+    hasAnyTrail: hasAnyTrail,
     addBreadcrumbPoint: addBreadcrumbPoint,
     clearBreadcrumb: clearBreadcrumb,
+    mergeIncoming: mergeIncoming,
     flush: flush,
     lastAppendTrimmed: lastAppendTrimmed,
-    SEGMENT_GAP_MS: SEGMENT_GAP_MS
+    SEGMENT_GAP_MS: SEGMENT_GAP_MS,
+    CLEARED_KEY: CLEARED_KEY,
+    BREADCRUMB_CAP: BREADCRUMB_CAP,
+    _mergeTrail: _mergeTrail,      // exposed for tests only
+    _compactTrail: _compactTrail   // exposed for tests only
   };
 })();
 window.SurveyCoverage = SurveyCoverage;
@@ -22204,6 +22595,74 @@ function _pointInSurveyAreaRings(lat, lng, rings) {
   }
   return false;
 }
+
+// ── Drop CO: shared trail clipping for reports ─────────────────────────
+// Takes SurveyCoverage.getAllTrailsKeyed() output and returns every point
+// inside [startMs, endMs) that passes insideFn (pass startMs/endMs null for
+// all-time, insideFn null for no area limit). Each returned point is
+// [lat, lng, ts, segStart] — segStart (1/0) marks where a drawn line must
+// break: the first point of each trail, after any stretch that was clipped
+// out (left the area / outside the period), on a recorded tracking gap, or
+// on a >5 min time gap. Points are left in recording order per trail, NOT
+// globally re-sorted — two different trails overlapping in time would
+// otherwise be zig-zagged into one line.
+// Duplicate points across keys (same time + position — e.g. a pre-2026-07-19
+// legacy key and its composite copy) are counted once.
+// keysHit: the trail keys that contributed at least one point. A city-wide
+// session's trail key is 'session:<startedAt>', so this ties sessions to
+// the areas they actually drove through.
+function _collectTrailPoints(keyedTrails, startMs, endMs, insideFn) {
+  var GAP_MS = (typeof SurveyCoverage !== 'undefined' && SurveyCoverage.SEGMENT_GAP_MS) || (5 * 60 * 1000);
+  var timed = (startMs != null && endMs != null);
+  var seen = {}, points = [], keysHit = {};
+  (keyedTrails || []).forEach(function(entry) {
+    var trail = entry && entry.trail;
+    if (!Array.isArray(trail)) return;
+    var prevKept = false, prevTs = null;
+    trail.forEach(function(pt) {
+      if (!Array.isArray(pt) || typeof pt[0] !== 'number' || typeof pt[1] !== 'number') { prevKept = false; return; }
+      var ts = pt[2];
+      if (timed && (ts == null || ts < startMs || ts >= endMs)) { prevKept = false; return; }
+      if (insideFn && !insideFn(pt[0], pt[1])) { prevKept = false; return; }
+      var k = (ts == null ? '' : ts) + '|' + pt[0] + '|' + pt[1];
+      if (seen[k]) { prevKept = false; return; }
+      seen[k] = true;
+      var segStart = !prevKept || !!pt[3] || (prevTs != null && ts != null && (ts - prevTs) > GAP_MS);
+      points.push([pt[0], pt[1], ts, segStart ? 1 : 0]);
+      keysHit[entry.areaKey] = true;
+      prevKept = true; prevTs = ts;
+    });
+  });
+  return { points: points, keysHit: keysHit };
+}
+// Splits _collectTrailPoints output into drawable [lat,lng] line segments.
+// Single-point segments are dropped (nothing to draw).
+function _trailSegments(points) {
+  var segs = [], cur = [];
+  (points || []).forEach(function(p) {
+    if (p[3] && cur.length) { if (cur.length > 1) segs.push(cur); cur = []; }
+    cur.push([p[0], p[1]]);
+  });
+  if (cur.length > 1) segs.push(cur);
+  return segs;
+}
+// Bounding box of a ring set ([lat,lng] rings) — a cheap reject in front
+// of the ray-casting test, which walks every vertex of every ring.
+function _ringSetBBox(rings) {
+  var b = { minLat: Infinity, maxLat: -Infinity, minLng: Infinity, maxLng: -Infinity };
+  (rings || []).forEach(function(ring) {
+    ring.forEach(function(p) {
+      if (p[0] < b.minLat) b.minLat = p[0]; if (p[0] > b.maxLat) b.maxLat = p[0];
+      if (p[1] < b.minLng) b.minLng = p[1]; if (p[1] > b.maxLng) b.maxLng = p[1];
+    });
+  });
+  return b;
+}
+function _inBBox(lat, lng, b) {
+  return !!b && lat >= b.minLat && lat <= b.maxLat && lng >= b.minLng && lng <= b.maxLng;
+}
+window._collectTrailPoints = _collectTrailPoints;
+window._trailSegments = _trailSegments;
 
 // Extracts the outer ring(s) of a GeoJSON Polygon/MultiPolygon as
 // Leaflet-shaped [lat,lng] rings. For a MultiPolygon, only the outer ring
@@ -31898,7 +32357,9 @@ var _SUPPORT_DESK_KNOWLEDGE = (
 "MAP & SURVEY MODE\n" +
 "- Map tab shows the current GPS position and optional boundary overlay layers (Wards, Neighborhoods, Police Districts, Precincts) toggled from a layer panel.\n" +
 "- Survey Mode (compass icon on the Map toolbar) draws a GPS breadcrumb trail while driving or walking, covering the whole city — used to show coverage over time. Tapping the button starts tracking immediately (no area to pick). Has its own Pause/Resume control; the Breadcrumb Trail on/off toggle lives in Settings (turning breadcrumbs off stops recording the trail but keeps the live GPS dot moving — useful for plain navigation without leaving a recorded trail). If the phone's screen sleeps or the app is backgrounded mid-survey, tracking auto-pauses and shows a Resume Survey prompt when reopened, rather than drawing a long straight line across town for the gap.\n" +
-"- Clear Path deletes a recorded trail; that is the only way to remove one (the breadcrumb toggle only pauses recording/display).\n\n" +
+"- Clear Path deletes a recorded trail; that is the only way to remove one (the breadcrumb toggle only pauses recording/display). With Google Drive Sync, the clear also applies to that trail on the inspector's other devices.\n" +
+"- A survey trail holds up to 3,000 GPS points. When it fills up, it is thinned instead of cut: points along straight stretches of road are removed and turns are kept, so the whole route stays on the map (shape stays within a few meters). Very long multi-day surveys are thinned further; only in an extreme case are the oldest points removed, and the app shows a warning when that happens.\n" +
+"- Reports pick up every recorded trail point inside the selected area, whichever survey recorded it. The Reports tab clips trails to the chosen ward/neighborhood/district/precinct and date range; the Coverage & Activity Report lists any area a trail has passed through and shows all-time trail points inside it. A city-wide survey only counts as a session for an area if its trail actually entered that area.\n\n" +
 
 "PHOTOSTAMP (photo documentation)\n" +
 "- Camera icon opens PhotoStamp: takes a photo and stamps it with the GPS location and street address directly on the image.\n" +
@@ -31934,6 +32395,8 @@ var _SUPPORT_DESK_KNOWLEDGE = (
 "- Once configured and beta access is granted: tap Connect Google Drive, sign in with a Google account and grant access, then enter the same 4-digit app PIN to unlock syncing. 'Not connected' is the normal status shown before Connect has been completed — it is not itself an error.\n" +
 "- A 🔄 Sync button stays in the app's header at all times (next to Photostamp/PDF Docs), not just once connected. Tapping it when no Google account is connected yet opens Settings' Drive Sync panel directly. Tapping it the first time in a session (once connected) asks for the 4-digit app PIN; later taps that same session reuse it silently.\n" +
 "- If tapping Connect appears to do nothing at all (no Google sign-in window appears, no error message): the most common cause is the browser silently blocking the Google sign-in pop-up. Check that pop-ups are allowed for this site, then try Connect again. If it was the very first attempt on a freshly opened page, a second tap often succeeds once the sign-in script has finished loading in the background. If it still does not work, fully close and reopen the app and try once more.\n" +
+"- Survey trails (the GPS breadcrumb from Survey Mode) sync too, so a survey driven with one phone shows up in reports made on another after both have synced. A survey that is still running syncs its trail so far; the session itself is listed once Survey Mode is ended. Points are combined, never duplicated, and syncing again adds nothing new. Clear Path on one device also clears that trail on the other devices at their next sync. Data must be synced FROM the device that recorded it — if reports on one device are missing a survey, the usual cause is that the recording device has not synced yet (connect it and tap Sync, then Sync on the other device).\n" +
+"- An amber dot on the Sync button (Info tab), and a yellow \"Not synced yet\" note at the top of Reports, mean this phone has survey sessions or trail points newer than its last sync — other devices will not show them in reports yet. Tap Sync (or the note's Sync now button). If Drive Sync isn't set up on this phone, the note offers Set up sync, or \"I only use this phone\" to stop the reminder. Ending a survey syncs automatically when this phone is connected and its PIN is entered for the session; otherwise the end-of-survey message says whether the survey is on this phone only.\n" +
 "- Deleting a stop syncs to your other devices too — it will not come back on the next sync. If a stop was edited on one device after it was deleted on another, that is treated as a genuine conflict rather than guessed at automatically: it gets held for review instead of silently picking a side.\n" +
 "- A small red badge on the header Sync button (or a \"⚠ N stop(s) need review\" line in Settings → Google Drive Sync) means one or more sync conflicts are waiting for a decision. Tap the badge (or that Settings line) to open the review list. Two kinds of conflict can show up: the same address active on one device and completed on another (choose Keep Both, Combine, or Discard), or a stop that was edited after being deleted elsewhere (choose Keep Deleted or Restore Active). Nothing is decided automatically for either case — the app waits for a choice.\n" +
 "- Two devices adding the same address independently, before either has synced, are automatically recognized as the same stop and merged rather than kept as two separate stops (a toast will say how many duplicates were skipped). This only applies to active stops with matching status; an active stop and a completed one at the same address are treated as the conflict case above, not an automatic duplicate.\n" +
@@ -34609,6 +35072,63 @@ const CoverageReport = (function() {
     return out;
   }
 
+  // Drop CO: picker list = areas with single-area session history (above)
+  // PLUS every neighborhood / ward / police district any stored trail has
+  // passed through. Survey Mode has been city-wide only since 2026-08-09,
+  // and city sessions are deliberately left out of knownNeighborhoods(), so
+  // before this an area covered only by city-wide surveys could never be
+  // picked here at all. Trails are resolved against the baked boundaries
+  // (bounding-box prefilter first); the result is cached against a cheap
+  // signature of the stored trails so re-opening the modal is instant.
+  var _trailAreasCache = { sig: null, areas: [] };
+  async function _areasTouchedByTrails() {
+    if (typeof SurveyCoverage === 'undefined' || typeof GeoCache === 'undefined' || typeof MapLayers === 'undefined') return [];
+    var keyed = SurveyCoverage.getAllTrailsKeyed();
+    var sig = keyed.map(function(e) { var l = e.trail[e.trail.length - 1]; return e.areaKey + '#' + e.trail.length + '#' + (l && l[2]); }).join('|');
+    if (sig === _trailAreasCache.sig) return _trailAreasCache.areas;
+    var defs = [];
+    function addFeatures(fc, type, labelFn) {
+      if (!fc || !Array.isArray(fc.features)) return;
+      fc.features.forEach(function(f) {
+        var name = labelFn(f.properties || {});
+        var rings = _geoJsonPolygonRingsLatLng(f.geometry);
+        if (name && rings.length) defs.push({ type: type, name: name, rings: rings, box: _ringSetBBox(rings), hit: false });
+      });
+    }
+    try {
+      addFeatures(await GeoCache.getNeighborhoods(), 'neighborhood', function(p) { return p.name || p.NAME || p.Name || p.NHD_NAME || p.neighborhood || null; });
+      addFeatures(await GeoCache.getWards(), 'ward', function(p) { return MapLayers.wardLabelFromProps(p); });
+      addFeatures(await GeoCache.getPoliceDistricts(), 'policeDistrict', function(p) { return MapLayers.policeDistrictLabelFromProps(p); });
+    } catch (_e) { _swallow('_areasTouchedByTrails', _e); }
+    keyed.forEach(function(e) {
+      e.trail.forEach(function(pt) {
+        if (!Array.isArray(pt) || typeof pt[0] !== 'number') return;
+        for (var i = 0; i < defs.length; i++) {
+          var d = defs[i];
+          if (d.hit || !_inBBox(pt[0], pt[1], d.box)) continue;
+          if (_pointInSurveyAreaRings(pt[0], pt[1], d.rings)) d.hit = true;
+        }
+      });
+    });
+    var areas = defs.filter(function(d) { return d.hit; }).map(function(d) { return { name: d.name, areaType: d.type }; });
+    _trailAreasCache = { sig: sig, areas: areas };
+    return areas;
+  }
+  async function knownAreas() {
+    var seen = {}, out = [];
+    function add(a) { var k = a.areaType + ':' + a.name; if (seen[k]) return; seen[k] = true; out.push(a); }
+    knownNeighborhoods().forEach(add);
+    try { (await _areasTouchedByTrails()).forEach(add); } catch (_e) { _swallow('knownAreas', _e); }
+    out.sort(function(a, b) { return a.name.localeCompare(b.name); });
+    return out;
+  }
+  // Whether the report has anything to offer at all (sync — used to show
+  // or hide the report's entry points without waiting on boundary lookups).
+  function hasAnyData() {
+    if (knownNeighborhoods().length) return true;
+    try { return typeof SurveyCoverage !== 'undefined' && SurveyCoverage.hasAnyTrail(); } catch (_e) { return false; }
+  }
+
   // Stops (live + archived, deduped by id) tagged to this area — all-time,
   // not date-bounded. Same dual-source pattern as
   // PeriodReports._collectStops, keyed on the area instead of a time
@@ -34631,7 +35151,14 @@ const CoverageReport = (function() {
     return Object.keys(byId).map(function(k) { return byId[k]; });
   }
 
-  function buildReport(areaName, areaType) {
+  // Drop CO: async. Trail points now come from EVERY stored trail,
+  // clipped to the area's boundary (same approach as the Reports tab),
+  // instead of only the trail stored under this area's own key — which,
+  // with city-wide-only surveys, was always empty. Sessions likewise
+  // include city-wide/multi-area sessions whose trail entered the area.
+  // If the boundary can't be resolved, falls back to the pre-CO behavior
+  // (this area's own key and single-area sessions only).
+  async function buildReport(areaName, areaType) {
     areaType = areaType || 'neighborhood';
     var sessionShape = { neighborhoodName: areaName, areaType: areaType };
     var areaKeyStr = (typeof SurveySession !== 'undefined') ? SurveySession.areaKey(sessionShape) : null;
@@ -34642,7 +35169,43 @@ const CoverageReport = (function() {
       if (a && a.neighborhoodName === areaName && (a.areaType || 'neighborhood') === areaType) active = a;
     } catch (_e) { _swallow('buildReport', _e); }
 
-    var breadcrumb = (typeof SurveyCoverage !== 'undefined' && areaKeyStr) ? SurveyCoverage.getBreadcrumb(areaKeyStr) : [];
+    var breadcrumb = [];
+    var areaFeature = null;
+    try {
+      if (typeof AreaPeriodReport !== 'undefined' && typeof AreaPeriodReport.findAreaFeature === 'function') {
+        areaFeature = await AreaPeriodReport.findAreaFeature(areaType, areaName);
+      }
+    } catch (_e) { _swallow('buildReport', _e); }
+    var areaRings = areaFeature ? _geoJsonPolygonRingsLatLng(areaFeature.geometry) : [];
+    if (areaRings.length && typeof SurveyCoverage !== 'undefined') {
+      var box = _ringSetBBox(areaRings);
+      var clip = _collectTrailPoints(SurveyCoverage.getAllTrailsKeyed(), null, null, function(lat, lng) {
+        return _inBBox(lat, lng, box) && _pointInSurveyAreaRings(lat, lng, areaRings);
+      });
+      breadcrumb = clip.points;
+      // City-wide / multi-area sessions whose trail entered this area.
+      var seenSess = {};
+      sessions.forEach(function(s0) { seenSess[(s0.startedAt) + '|' + (s0.endedAt)] = true; });
+      var extra = SurveySession.getAllLog().filter(function(s1) {
+        var t1 = s1.areaType || 'neighborhood';
+        if (t1 !== 'city' && t1 !== 'multi') return false;
+        if (seenSess[(s1.startedAt) + '|' + (s1.endedAt)]) return false;
+        var k1 = SurveySession.areaKey(s1);
+        return !!(k1 && clip.keysHit[k1]);
+      });
+      if (extra.length) {
+        sessions = sessions.concat(extra).sort(function(x, y) { return String(y.startedAt || '').localeCompare(String(x.startedAt || '')); });
+      }
+      if (!active) {
+        try {
+          var a2 = SurveySession.getActive();
+          var k2 = a2 ? SurveySession.areaKey(a2) : null;
+          if (a2 && (a2.areaType === 'city' || a2.areaType === 'multi') && k2 && clip.keysHit[k2]) active = a2;
+        } catch (_e) { _swallow('buildReport', _e); }
+      }
+    } else if (typeof SurveyCoverage !== 'undefined' && areaKeyStr) {
+      breadcrumb = SurveyCoverage.getBreadcrumb(areaKeyStr);
+    }
 
     var photoTrackerSettings = (typeof PhotoTrackerIndex !== 'undefined') ? PhotoTrackerIndex.getSettings() : null;
     var photoTrackerWinMs = photoTrackerSettings ? PhotoTrackerIndex.windowMsFor(photoTrackerSettings) : 0;
@@ -34689,8 +35252,15 @@ const CoverageReport = (function() {
       });
     var totalLoggedPhotos = stopsWithPhotos.reduce(function(sum, s) { return sum + s.photos.length; }, 0);
 
-    var breadcrumbFirstMs = breadcrumb.length ? breadcrumb[0][2] : null;
-    var breadcrumbLastMs = breadcrumb.length ? breadcrumb[breadcrumb.length - 1][2] : null;
+    // Points from several trails aren't globally time-ordered — take the
+    // actual min/max rather than the first/last element.
+    var breadcrumbFirstMs = null, breadcrumbLastMs = null;
+    breadcrumb.forEach(function(pt) {
+      var ts = pt[2];
+      if (ts == null) return;
+      if (breadcrumbFirstMs == null || ts < breadcrumbFirstMs) breadcrumbFirstMs = ts;
+      if (breadcrumbLastMs == null || ts > breadcrumbLastMs) breadcrumbLastMs = ts;
+    });
 
     return {
       neighborhoodName: areaName,
@@ -34878,6 +35448,8 @@ const CoverageReport = (function() {
 
   return {
     knownNeighborhoods: knownNeighborhoods,
+    knownAreas: knownAreas,
+    hasAnyData: hasAnyData,
     buildReport: buildReport,
     formatAsCSV: formatAsCSV,
     formatAsText: formatAsText,
@@ -35271,7 +35843,16 @@ const AreaPeriodReport = (function() {
   // this) and the Custom Report OR-areas path directly, since sessions
   // are matched by "touches ANY listed area" either way (see comment
   // below on why AND doesn't apply to sessions).
-  function _collectSessionCount(startMs, endMs, areas) {
+  // Drop CO: optional trailInfo ({keysHit, trailKeys} from
+  // _collectBreadcrumb). With it, a city-wide/multi-area session counts
+  // toward a filtered report only if its own trail ('session:<startedAt>')
+  // has a point inside the area during the period — not just because it
+  // was city-wide. A city-wide session with NO stored trail (trail toggle
+  // off, or Clear Path) can't be placed, so it counts in the whole-city
+  // report only. A single-area session also counts if its trail crossed
+  // into the filtered area. Without trailInfo (a boundary failed to
+  // resolve) the pre-CO rule applies: city-wide sessions count everywhere.
+  function _collectSessionCount(startMs, endMs, areas, trailInfo) {
     var none = { sessionCount: 0, activeInPeriod: false };
     if (typeof SurveySession === 'undefined') return none;
     var hasFilter = !!(areas && areas.length);
@@ -35279,6 +35860,11 @@ const AreaPeriodReport = (function() {
     function sessionMatches(s) {
       if (!hasFilter) return true;
       var st = s.areaType || 'neighborhood';
+      var tk = null;
+      try { tk = SurveySession.areaKey(s); } catch (_e) { _swallow('sessionMatches', _e); }
+      var hasTrail = !!(trailInfo && tk && trailInfo.trailKeys && trailInfo.trailKeys[tk]);
+      if (hasTrail && trailInfo.keysHit && trailInfo.keysHit[tk]) return true;
+      if ((st === 'city' || st === 'multi') && trailInfo) return false; // never entered this area, or can't be placed
       // 2026-08-09 fix: Survey Mode now always starts city-wide (areaType
       // 'city'), so almost every session recorded since that change has
       // no single ward/neighborhood/policeDistrict of its own — it covers
@@ -35365,22 +35951,27 @@ const AreaPeriodReport = (function() {
   // e.g. "Ward 3 + Ward 6 + Dutchtown" means every point in any one of
   // those three shapes, not their overlap (which for non-overlapping
   // wards/neighborhoods would usually be empty anyway).
+  // Drop CO: rewritten on top of _collectTrailPoints. Same three cases
+  // as before; what changed:
+  //   - points come back with a segment-start flag, so maps break the line
+  //     between trails, across clipped stretches, and on tracking gaps
+  //     (the HTML report used to draw every point as ONE polyline)
+  //   - keysHit says which trails (and so which sessions) entered the area
+  //   - a bounding-box prefilter in front of the polygon tests, since
+  //     merged trails from several devices make the point count larger
   async function _collectBreadcrumb(startMs, endMs, filters, customAreas) {
     var useCustom = !!(customAreas && customAreas.length);
     var hasFilter = useCustom || _hasAnyFilter(filters);
+    var keyed = [];
+    try {
+      if (typeof SurveyCoverage !== 'undefined' && typeof SurveyCoverage.getAllTrailsKeyed === 'function') keyed = SurveyCoverage.getAllTrailsKeyed();
+    } catch (_e) { _swallow('_collectBreadcrumb', _e); }
+    var trailKeys = {};
+    keyed.forEach(function(e) { trailKeys[e.areaKey] = true; });
+
     if (!hasFilter) {
-      var allPoints = [];
-      try {
-        if (typeof SurveyCoverage !== 'undefined' && typeof SurveyCoverage.getAllTrails === 'function') {
-          SurveyCoverage.getAllTrails().forEach(function(trail) {
-            trail.forEach(function(pt) {
-              var ts = pt[2];
-              if (ts != null && ts >= startMs && ts < endMs) allPoints.push(pt);
-            });
-          });
-        }
-      } catch (_e) { _swallow('_collectBreadcrumb', _e); }
-      return { points: allPoints, clipped: true, boundaryRings: [], boundaryGroups: [] };
+      var all = _collectTrailPoints(keyed, startMs, endMs, null);
+      return { points: all.points, keysHit: all.keysHit, trailKeys: trailKeys, clipped: true, boundaryRings: [], boundaryGroups: [] };
     }
 
     var areaList = useCustom ? customAreas : _filtersToAreaList(filters);
@@ -35410,38 +36001,32 @@ const AreaPeriodReport = (function() {
       // that at least one selected area's boundary is missing, so the
       // total may be an undercount.
       var allResolved = ringSets.length === wantedCount;
-      if (!ringSets.length) return { points: [], clipped: allResolved, boundaryRings: flatRings, boundaryGroups: boundaryGroups };
-      var uPoints = [];
-      try {
-        SurveyCoverage.getAllTrails().forEach(function(trail) {
-          trail.forEach(function(pt) {
-            var lat = pt[0], lng = pt[1], ts = pt[2];
-            if (ts == null || ts < startMs || ts >= endMs) return;
-            if (_pointInAnyRingSet(lat, lng, ringSets)) uPoints.push(pt);
-          });
-        });
-      } catch (_e) { _swallow('_collectBreadcrumb', _e); }
-      return { points: uPoints, clipped: allResolved, boundaryRings: flatRings, boundaryGroups: boundaryGroups };
+      if (!ringSets.length) return { points: [], keysHit: {}, trailKeys: trailKeys, clipped: allResolved, boundaryRings: flatRings, boundaryGroups: boundaryGroups };
+      var uBoxes = ringSets.map(_ringSetBBox);
+      var u = _collectTrailPoints(keyed, startMs, endMs, function(lat, lng) {
+        for (var i = 0; i < ringSets.length; i++) {
+          if (_inBBox(lat, lng, uBoxes[i]) && _pointInSurveyAreaRings(lat, lng, ringSets[i])) return true;
+        }
+        return false;
+      });
+      return { points: u.points, keysHit: u.keysHit, trailKeys: trailKeys, clipped: allResolved, boundaryRings: flatRings, boundaryGroups: boundaryGroups };
     }
 
     if (ringSets.length !== wantedCount || !ringSets.length) {
       // Not every active filter resolved a boundary — can't reliably
       // AND-clip, so no points, but still hand back whatever partial
       // boundary geometry did resolve for the map to at least outline.
-      return { points: [], clipped: false, boundaryRings: flatRings, boundaryGroups: boundaryGroups };
+      return { points: [], keysHit: {}, trailKeys: trailKeys, clipped: false, boundaryRings: flatRings, boundaryGroups: boundaryGroups };
     }
 
-    var points = [];
-    try {
-      SurveyCoverage.getAllTrails().forEach(function(trail) {
-        trail.forEach(function(pt) {
-          var lat = pt[0], lng = pt[1], ts = pt[2];
-          if (ts == null || ts < startMs || ts >= endMs) return;
-          if (_pointInAllRingSets(lat, lng, ringSets)) points.push(pt);
-        });
-      });
-    } catch (_e) { _swallow('_collectBreadcrumb', _e); }
-    return { points: points, clipped: true, boundaryRings: flatRings, boundaryGroups: boundaryGroups };
+    var boxes = ringSets.map(_ringSetBBox);
+    var r = _collectTrailPoints(keyed, startMs, endMs, function(lat, lng) {
+      for (var i = 0; i < ringSets.length; i++) {
+        if (!_inBBox(lat, lng, boxes[i]) || !_pointInSurveyAreaRings(lat, lng, ringSets[i])) return false;
+      }
+      return true;
+    });
+    return { points: r.points, keysHit: r.keysHit, trailKeys: trailKeys, clipped: true, boundaryRings: flatRings, boundaryGroups: boundaryGroups };
   }
 
   // Human-readable label for an arbitrary [startMs, endMs) range — same
@@ -35550,8 +36135,11 @@ const AreaPeriodReport = (function() {
       var matched = photoMatchesByStopId[s.id];
       return matched ? Object.assign({}, s, { photoTrackerLocations: matched }) : s;
     });
-    var sessionCount = _collectSessionCount(startMs, endMs, sessionAreas);
+    // Drop CO: trail first — session matching now uses where trails went.
     var breadcrumb = await _collectBreadcrumb(startMs, endMs, filters, useCustom ? customAreas : null);
+    // Only trust trail geography when every boundary resolved; otherwise
+    // fall back to the pre-CO rule rather than undercount.
+    var sessionCount = _collectSessionCount(startMs, endMs, sessionAreas, breadcrumb.clipped ? breadcrumb : null);
 
     var labelParts = [];
     if (useCustom) {
@@ -35852,26 +36440,11 @@ const AreaPeriodReport = (function() {
 
     var breadcrumbPath = '';
     if (breadcrumbPts.length > 1) {
-      // Break the line wherever consecutive points are more than 5
-      // minutes apart — same SEGMENT_GAP_MS threshold Survey Mode's own
-      // breadcrumb layer uses, hardcoded here rather than read from
-      // SurveyCoverage.SEGMENT_GAP_MS since this SVG string may be
-      // handed off/printed outside the running app entirely.
-      var GAP_MS = 5 * 60 * 1000;
-      var segs = [];
-      var cur = [];
-      var lastTs = null;
-      breadcrumbPts.slice().sort(function(a, b) { return (a[2] || 0) - (b[2] || 0); }).forEach(function(pt) {
-        var ts = pt[2];
-        if (lastTs != null && ts != null && (ts - lastTs) > GAP_MS) {
-          if (cur.length > 1) segs.push(cur);
-          cur = [];
-        }
-        cur.push(pt);
-        lastTs = ts;
-      });
-      if (cur.length > 1) segs.push(cur);
-      breadcrumbPath = segs.map(function(seg) {
+      // Drop CO: segments come from the segment-start flag that
+      // _collectTrailPoints sets (trail boundaries, clipped stretches,
+      // tracking gaps, >5 min gaps) — no global re-sort, which used to
+      // stitch separate trails into one zig-zag line.
+      breadcrumbPath = _trailSegments(breadcrumbPts).map(function(seg) {
         return seg.map(function(pt, i) {
           var p = project(pt[0], pt[1]);
           return (i === 0 ? 'M' : 'L') + p[0].toFixed(1) + ',' + p[1].toFixed(1);
@@ -36161,7 +36734,9 @@ const AreaPeriodReport = (function() {
         return { name: g.name, rings: g.rings, color: bst.color, weight: bst.weight, dash: bst.dash, plural: bst.plural };
       }));
       var boundaryLatLngsJson = JSON.stringify(report.area.boundaryRings || []);
-      var breadcrumbLatLngsJson = JSON.stringify((cov.breadcrumbPoints || []).map(function(p) { return [p[0], p[1]]; }));
+      // Drop CO: an array of line segments (not one flat list), so the
+      // map breaks between trails, across clipped stretches and on gaps.
+      var breadcrumbLatLngsJson = JSON.stringify(_trailSegments(cov.breadcrumbPoints || []));
       var heatPointsJson = JSON.stringify(mapMarkers.map(function(l) {
         return [l.gps.lat, l.gps.lng, Math.min(1, 0.3 + (l.countInPeriod || 1) * 0.08)];
       }));
@@ -36236,7 +36811,7 @@ const AreaPeriodReport = (function() {
               '});' +
               'if (Object.keys(overlays).length) { L.control.layers(null, overlays, {collapsed:false, position:"topright"}).addTo(map); }' +
             '} else if (boundaryRings.length) { L.polygon(boundaryRings, {color:"#1a4a8c", weight:3, fillOpacity:0.04}).addTo(map).addTo(fitGroup); }' +
-            'if (breadcrumb.length > 1) { L.polyline(breadcrumb, {color:"#f5c518", weight:8, opacity:0.5, lineCap:"round"}).addTo(map).addTo(fitGroup); }' +
+            'if (breadcrumb.length) { L.polyline(breadcrumb, {color:"#f5c518", weight:8, opacity:0.5, lineCap:"round"}).addTo(map).addTo(fitGroup); }' +
             'if (heatPts.length && typeof L.heatLayer === "function") { L.heatLayer(heatPts, {radius:32, blur:24, maxZoom:17, gradient:{0.2:"#ffcf40",0.5:"#ff6a00",1.0:"#ff2b00"}}).addTo(map); }' +
             'markers.forEach(function(p){' +
               'var m = L.circleMarker([p.lat, p.lng], {radius: 5, color: p.color, weight:2, fillColor: p.color, fillOpacity:0.85});' +
@@ -36626,7 +37201,9 @@ const AreaPeriodReport = (function() {
     _hasAnyFilter: _hasAnyFilter,
     _photosInRange: _photosInRange,
     _findAreaFeature: _findAreaFeature,
-    _findAreaFeatures: _findAreaFeatures
+    _findAreaFeatures: _findAreaFeatures,
+    // Drop CO: used by CoverageReport to clip trails to its area.
+    findAreaFeature: _findAreaFeature
   };
 })();
 window.AreaPeriodReport = AreaPeriodReport;
@@ -36651,10 +37228,14 @@ function closeCoverageReportModal() {
 window.openCoverageReportModal  = openCoverageReportModal;
 window.closeCoverageReportModal = closeCoverageReportModal;
 
-function _renderCoverageReportModal() {
+// Drop CO: async — the picker now also lists areas any stored trail passed
+// through (CoverageReport.knownAreas resolves trails against boundaries).
+async function _renderCoverageReportModal() {
   var body = document.getElementById('coverage-report-body');
   if (!body) return;
-  var areas = CoverageReport.knownNeighborhoods();
+  body.innerHTML = '<div style="font-family:\'Space Mono\',monospace;font-size:0.6rem;color:#999;padding:8px 2px">Finding surveyed areas…</div>';
+  var areas = [];
+  try { areas = await CoverageReport.knownAreas(); } catch (_e) { _swallow('_renderCoverageReportModal', _e); areas = CoverageReport.knownNeighborhoods(); }
   if (!areas.length) {
     body.innerHTML = '<div style="font-family:\'Space Mono\',monospace;font-size:0.6rem;color:#999;padding:8px 2px">No area has any survey history yet — start a survey first.</div>';
     return;
@@ -36688,13 +37269,21 @@ window._renderCoverageReportModal = _renderCoverageReportModal;
 // select's option value, not the display name alone (see
 // _renderCoverageReportModal — needed to disambiguate areas that might
 // share a display name across types).
-function generateCoverageReportUI(areaKeyStr) {
+// Drop CO: async (buildReport clips trails to the area boundary). A
+// request token drops a slow result if the picker changed meanwhile.
+var _coverageReportReq = 0;
+async function generateCoverageReportUI(areaKeyStr) {
   var preview = document.getElementById('coverage-report-preview');
   if (!preview || !areaKeyStr) return;
   var sepIdx = areaKeyStr.indexOf(':');
   var areaType = sepIdx === -1 ? 'neighborhood' : areaKeyStr.slice(0, sepIdx);
   var areaName = sepIdx === -1 ? areaKeyStr : areaKeyStr.slice(sepIdx + 1);
-  var report = CoverageReport.buildReport(areaName, areaType);
+  var req = ++_coverageReportReq;
+  preview.innerHTML = '<div style="font-family:\'Space Mono\',monospace;font-size:0.6rem;color:#999;padding:8px 2px">Building report…</div>';
+  var report;
+  try { report = await CoverageReport.buildReport(areaName, areaType); }
+  catch (e) { _swallow('generateCoverageReportUI', e); if (req === _coverageReportReq) preview.innerHTML = '<div style="font-family:\'Space Mono\',monospace;font-size:0.6rem;color:#c0392b;padding:8px 2px">Could not build this report.</div>'; return; }
+  if (req !== _coverageReportReq) return;
   _lastCoverageReport = report;
 
   var sessionCount = report.sessions.length + (report.active ? 1 : 0);
@@ -36773,8 +37362,9 @@ function renderDataTab() {
   // Survey Mode modal — see the comment on #reports-coverage-report-row.
   try {
     var covRow = document.getElementById('reports-coverage-report-row');
-    if (covRow) covRow.style.display = (CoverageReport.knownNeighborhoods().length > 0) ? '' : 'none';
+    if (covRow) covRow.style.display = CoverageReport.hasAnyData() ? '' : 'none';
   } catch (_e) { _swallow('renderDataTab', _e); }
+  try { _renderSurveyUnsyncedIndicators(); } catch (_e) { _swallow('renderDataTab', _e); }
 
   // Update checkboxes
   var logChk = document.getElementById('data-logging-enabled');
